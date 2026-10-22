@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -68,7 +68,7 @@ export function InventoryScreen() {
   const casePackOptions = casePackOptionsForProduct({ name: addingProduct ? productName : editingProduct?.name });
   const selectedCasePackIds = casePackIds.filter(id => casePackOptions.some(pack => pack.id === id));
 
-  const startEditing = product => {
+  const startEditing = useCallback(product => {
     setAddingProduct(false);
     setEditingProduct(product);
     const packs = casePacksForProduct(product);
@@ -76,7 +76,11 @@ export function InventoryScreen() {
     setCasePrices(Object.fromEntries(packs.map(pack => [pack.id, String(pack.casePrice)])));
     setStockByCasePack(Object.fromEntries(packs.map(pack => [pack.id, String(stockForCasePack(product, pack.id).totalStock)])));
     setError('');
-  };
+  }, []);
+
+  const renderInventoryItem = useCallback(({ item }) => (
+    <InventoryCard product={item} compact={compact} onEdit={startEditing} />
+  ), [compact, startEditing]);
 
   const startAdding = () => {
     setAddingProduct(true);
@@ -237,10 +241,8 @@ export function InventoryScreen() {
             <Text style={styles.resultCount}>{visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}</Text>
           </View>
         )}
-        renderItem={({ item }) => (
-          <InventoryCard product={item} compact={compact} onEdit={() => startEditing(item)} />
-        )}
-        ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
+        renderItem={renderInventoryItem}
+        ItemSeparatorComponent={InventorySeparator}
         ListEmptyComponent={(
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
@@ -365,7 +367,7 @@ function SummaryCount({ count, label, color }) {
   );
 }
 
-function InventoryCard({ product, compact, onEdit }) {
+const InventoryCard = memo(function InventoryCard({ product, compact, onEdit }) {
   const state = STATUS[productStockState(product)];
   const packs = casePacksForProduct(product);
   return (
@@ -405,7 +407,7 @@ function InventoryCard({ product, compact, onEdit }) {
       <View style={styles.productFooter}>
         <Text style={styles.price}>Stock tracked by case type</Text>
         <Pressable
-          onPress={onEdit}
+          onPress={() => onEdit(product)}
           accessibilityRole="button"
           accessibilityLabel={`Edit ${product.name} inventory`}
           style={({ pressed }) => [styles.editButton, compact && styles.editButtonCompact, pressed && styles.pressed]}
@@ -416,7 +418,7 @@ function InventoryCard({ product, compact, onEdit }) {
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
@@ -516,3 +518,7 @@ const styles = StyleSheet.create({
   toastText: { flex: 1, color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   pressed: { opacity: 0.75 },
 });
+
+function InventorySeparator() {
+  return <View style={styles.cardSeparator} />;
+}
