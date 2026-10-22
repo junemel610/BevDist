@@ -67,8 +67,9 @@ export function OrdersScreen({ navigation, route }) {
       const balance = balances.find(item => item.orderId === invoiceOrder.id);
       if (format === 'pdf') await exportInvoicePdf(invoiceOrder, balance);
       else await exportInvoiceExcel(invoiceOrder, balance);
-    } catch {
-      Alert.alert('Export failed', 'Could not create this invoice file. Please try again.');
+    } catch (error) {
+      console.error('Invoice export failed:', error);
+      Alert.alert('Export failed', error?.message || 'Could not create this invoice file. Please try again.');
     } finally {
       setExporting('');
     }

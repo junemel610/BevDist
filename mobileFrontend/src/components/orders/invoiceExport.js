@@ -114,7 +114,7 @@ export async function exportInvoicePdf(order, balance) {
   const invoice = invoiceSummary(order, balance);
   const html = invoiceHtml(order, invoice);
   if (Platform.OS === 'web') {
-    await Print.printAsync({ html });
+    await Print.printToFileAsync({ html });
     return;
   }
   const result = await Print.printToFileAsync({ html });
