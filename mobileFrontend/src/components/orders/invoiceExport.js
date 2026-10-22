@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as XLSX from 'xlsx';
+import * as XLSX from '@redoper1/xlsx-js-style';
 import { invoiceSummary } from '../dashboard/salesSummary';
 
 const peso = amount => Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -77,15 +77,26 @@ function invoiceHtml(order, invoice) {
 }
 
 function invoiceWorkbook(order, invoice) {
+  const navy = 'FF1E3A8A';
+  const ink = 'FF0F172A';
+  const muted = 'FF475569';
+  const pale = 'FFF1F5F9';
+  const border = 'FFE2E8F0';
+  const white = 'FFFFFFFF';
   const rows = [
-    ['BevDist Distribution Co.'],
-    ['INVOICE', invoice.invoiceNumber],
-    ['Date', order.date],
-    ['Customer', order.customer.name],
-    ['Contact', order.customer.contact || ''],
-    ['Address', order.customer.address || ''],
+    ['BEVDIST DISTRIBUTION CO.'],
+    ['Beverage distributor · Metro Manila, Philippines'],
     [],
-    ['Product', 'Case type', 'Quantity (cases)', 'Price per case (PHP)', 'Line total (PHP)'],
+    [`INVOICE  ·  ${invoice.invoiceNumber}`],
+    [`Issue date: ${order.date}`],
+    [],
+    ['BILLED TO', null, 'INVOICE SUMMARY'],
+    [order.customer.name, null, 'Invoice total', null, Number(order.grandTotal) || 0],
+    [order.customer.contact || '—', null, 'Payments received', null, invoice.amountPaid],
+    [order.customer.address || '—', null, 'Balance due', null, invoice.remainingBalance],
+    [],
+    ['ITEMIZED CASES'],
+    ['Product', 'Case type', 'Quantity (cases)', 'Price per case', 'Amount'],
     ...order.items.map(item => {
       const price = Number(item.casePrice ?? item.unitPrice) || 0;
       return [
@@ -97,15 +108,101 @@ function invoiceWorkbook(order, invoice) {
       ];
     }),
     [],
-    ['Subtotal (PHP)', Number(order.subtotal ?? order.grandTotal) || 0],
-    ['Payments received (PHP)', invoice.amountPaid],
-    ['Remaining balance (PHP)', invoice.remainingBalance],
-    ['Grand total (PHP)', Number(order.grandTotal) || 0],
-    ['Payment status', invoice.status],
+    ['Subtotal', null, null, null, Number(order.subtotal ?? order.grandTotal) || 0],
+    ['Payments received', null, null, null, invoice.amountPaid],
+    ['Remaining balance', null, null, null, invoice.remainingBalance],
+    ['GRAND TOTAL', null, null, null, Number(order.grandTotal) || 0],
+    ['Payment status', null, null, null, invoice.status],
   ];
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet['!cols'] = [{ wch: 30 }, { wch: 26 }, { wch: 18 }, { wch: 23 }, { wch: 20 }];
+  worksheet['!cols'] = [{ wch: 30 }, { wch: 26 }, { wch: 23 }, { wch: 4 }, { wch: 22 }];
+  worksheet['!rows'] = [
+    { hpt: 32 }, { hpt: 20 }, { hpt: 10 }, { hpt: 27 }, { hpt: 21 }, { hpt: 10 },
+    { hpt: 21 }, { hpt: 23 }, { hpt: 23 }, { hpt: 23 }, { hpt: 10 }, { hpt: 22 }, { hpt: 25 },
+    ...order.items.map(() => ({ hpt: 22 })), { hpt: 10 }, { hpt: 22 }, { hpt: 22 }, { hpt: 22 }, { hpt: 28 }, { hpt: 22 },
+  ];
+  worksheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: 4 } },
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } },
+    { s: { r: 6, c: 0 }, e: { r: 6, c: 1 } },
+    { s: { r: 6, c: 2 }, e: { r: 6, c: 4 } },
+    { s: { r: 7, c: 0 }, e: { r: 7, c: 1 } },
+    { s: { r: 8, c: 0 }, e: { r: 8, c: 1 } },
+    { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } },
+    { s: { r: 7, c: 2 }, e: { r: 7, c: 3 } },
+    { s: { r: 8, c: 2 }, e: { r: 8, c: 3 } },
+    { s: { r: 9, c: 2 }, e: { r: 9, c: 3 } },
+    { s: { r: 11, c: 0 }, e: { r: 11, c: 4 } },
+    ...[rows.length - 5, rows.length - 4, rows.length - 3, rows.length - 2, rows.length - 1].map(r => (
+      { s: { r, c: 0 }, e: { r, c: 3 } }
+    )),
+  ];
+
+  const styleRange = (startRow, endRow, startCol, endCol, style) => {
+    for (let row = startRow; row <= endRow; row += 1) {
+      for (let col = startCol; col <= endCol; col += 1) {
+        const address = XLSX.utils.encode_cell({ r: row, c: col });
+        worksheet[address] ||= { t: 's', v: '' };
+        worksheet[address].s = style;
+      }
+    }
+  };
+  const navyBand = { fill: { patternType: 'solid', fgColor: { rgb: navy } }, font: { name: 'Aptos', color: { rgb: white }, bold: true }, alignment: { vertical: 'center' } };
+  const sectionBand = { fill: { patternType: 'solid', fgColor: { rgb: navy } }, font: { name: 'Aptos', color: { rgb: white }, bold: true, sz: 10 }, alignment: { vertical: 'center' } };
+  const detailsLabel = { font: { name: 'Aptos', color: { rgb: muted }, bold: true, sz: 9 }, alignment: { vertical: 'center' } };
+  const detailCell = { font: { name: 'Aptos', color: { rgb: ink }, sz: 10 }, alignment: { vertical: 'center', wrapText: true } };
+  const tableHeading = { fill: { patternType: 'solid', fgColor: { rgb: navy } }, font: { name: 'Aptos', color: { rgb: white }, bold: true, sz: 9 }, alignment: { vertical: 'center', wrapText: true }, border: { bottom: { style: 'thin', color: { rgb: navy } } } };
+  const itemCell = { font: { name: 'Aptos', color: { rgb: ink }, sz: 10 }, alignment: { vertical: 'center' }, border: { bottom: { style: 'thin', color: { rgb: border } } } };
+  const totalLabel = { font: { name: 'Aptos', color: { rgb: muted }, bold: true, sz: 10 }, border: { bottom: { style: 'thin', color: { rgb: border } } } };
+  const totalValue = { ...totalLabel, alignment: { horizontal: 'right' }, numFmt: '₱#,##0.00' };
+
+  styleRange(0, 1, 0, 4, navyBand);
+  worksheet.A1.s = { ...navyBand, font: { ...navyBand.font, sz: 19 } };
+  worksheet.A2.s = { ...navyBand, font: { ...navyBand.font, sz: 9, bold: false } };
+  styleRange(3, 3, 0, 4, { ...navyBand, font: { ...navyBand.font, sz: 15 } });
+  styleRange(4, 4, 0, 4, { fill: { patternType: 'solid', fgColor: { rgb: pale } }, font: { name: 'Aptos', color: { rgb: muted }, sz: 10 }, alignment: { vertical: 'center' } });
+  styleRange(6, 6, 0, 4, sectionBand);
+  styleRange(7, 9, 0, 1, detailCell);
+  styleRange(7, 9, 2, 3, detailsLabel);
+  styleRange(7, 9, 4, 4, { ...detailCell, alignment: { horizontal: 'right', vertical: 'center' } });
+  [7, 8, 9].forEach(row => {
+    styleRange(row, row, 2, 3, { ...detailsLabel, fill: { patternType: 'solid', fgColor: { rgb: pale } } });
+    styleRange(row, row, 4, 4, { ...detailCell, alignment: { horizontal: 'right', vertical: 'center' } });
+  });
+  styleRange(11, 11, 0, 4, sectionBand);
+  const firstItemRow = 13;
+  const lastItemRow = firstItemRow + order.items.length - 1;
+  styleRange(12, 12, 0, 4, tableHeading);
+  if (order.items.length) {
+    styleRange(firstItemRow, lastItemRow, 0, 4, itemCell);
+    order.items.forEach((item, index) => {
+      const row = firstItemRow + index;
+      if (index % 2 === 1) styleRange(row, row, 0, 4, { ...itemCell, fill: { patternType: 'solid', fgColor: { rgb: 'FFF8FAFC' } } });
+      worksheet[XLSX.utils.encode_cell({ r: row, c: 2 })].z = '0.##';
+      worksheet[XLSX.utils.encode_cell({ r: row, c: 3 })].s = { ...itemCell, alignment: { horizontal: 'right', vertical: 'center' }, numFmt: '₱#,##0.00' };
+      worksheet[XLSX.utils.encode_cell({ r: row, c: 4 })].s = { ...itemCell, alignment: { horizontal: 'right', vertical: 'center' }, numFmt: '₱#,##0.00' };
+    });
+  }
+  const firstTotalRow = rows.length - 5;
+  styleRange(firstTotalRow, rows.length - 2, 0, 3, totalLabel);
+  styleRange(firstTotalRow, rows.length - 2, 4, 4, totalValue);
+  styleRange(rows.length - 2, rows.length - 2, 0, 3, {
+    fill: { patternType: 'solid', fgColor: { rgb: navy } },
+    font: { name: 'Aptos', color: { rgb: white }, bold: true, sz: 12 },
+    alignment: { horizontal: 'left', vertical: 'center' },
+  });
+  styleRange(rows.length - 2, rows.length - 2, 4, 4, {
+    fill: { patternType: 'solid', fgColor: { rgb: navy } },
+    font: { name: 'Aptos', color: { rgb: white }, bold: true, sz: 12 },
+    alignment: { horizontal: 'right', vertical: 'center' },
+  });
+  styleRange(rows.length - 1, rows.length - 1, 0, 3, detailsLabel);
+  styleRange(rows.length - 1, rows.length - 1, 4, 4, { ...detailCell, alignment: { horizontal: 'right', vertical: 'center' } });
+  worksheet['!autofilter'] = { ref: `A13:E${Math.max(13, lastItemRow + 1)}` };
+  workbook.Props = { Title: `Invoice ${invoice.invoiceNumber}`, Subject: `Invoice for ${order.customer.name}`, Author: 'BevDist Distribution Co.' };
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoice');
   return workbook;
 }
