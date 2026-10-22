@@ -8,7 +8,7 @@ import { DashboardScreen } from '../screens/DashboardScreen';
 import {
   OrdersScreen,
   InventoryScreen,
-  RestockScreen,
+  SupplierOrdersScreen,
   BalancesScreen,
 } from '../screens/index';
 import theme from '../styles/theme';
@@ -35,14 +35,14 @@ function createStackScreen(title, component) {
 const DashboardStackScreen = createStackScreen('Dashboard', DashboardScreen);
 const OrdersStackScreen = createStackScreen('Invoices', OrdersScreen);
 const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
-const RestockStackScreen = createStackScreen('Restock', RestockScreen);
+const SupplierOrdersStackScreen = createStackScreen('Orders', SupplierOrdersScreen);
 const BalancesStackScreen = createStackScreen('Balances', BalancesScreen);
 
 const tabIcons = {
   Dashboard: 'dashboard',
   Invoices: 'receipt-long',
   Inventory: 'inventory',
-  Restock: 'local-shipping',
+  Orders: 'local-shipping',
   Balances: 'account-balance',
 };
 
@@ -66,7 +66,7 @@ function HomeTabsScreen() {
       <Tab.Screen name="Dashboard" component={DashboardStackScreen} />
       <Tab.Screen name="Invoices" component={OrdersStackScreen} />
       <Tab.Screen name="Inventory" component={InventoryStackScreen} />
-      <Tab.Screen name="Restock" component={RestockStackScreen} />
+      <Tab.Screen name="Orders" component={SupplierOrdersStackScreen} />
       <Tab.Screen name="Balances" component={BalancesStackScreen} />
     </Tab.Navigator>
   );

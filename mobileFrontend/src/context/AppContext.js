@@ -165,7 +165,7 @@ export function AppProvider({ children }) {
     });
 
     setProducts(updatedProducts);
-    setRestockRecords([...restockRecords, newRecord]);
+    setRestockRecords([newRecord, ...restockRecords]);
 
     return newRecord;
   }, [products, restockRecords]);

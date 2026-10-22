@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import theme from '../styles/theme';
 export { OrdersScreen } from './OrdersScreen';
 export { InventoryScreen } from './InventoryScreen';
+export { SupplierOrdersScreen } from './SupplierOrdersScreen';
 
 function PlaceholderScreen({ title }) {
   return (
@@ -16,7 +17,6 @@ function PlaceholderScreen({ title }) {
   );
 }
 
-export const RestockScreen = () => <PlaceholderScreen title="Restock" />;
 export const BalancesScreen = () => <PlaceholderScreen title="Balances" />;
 
 const styles = StyleSheet.create({

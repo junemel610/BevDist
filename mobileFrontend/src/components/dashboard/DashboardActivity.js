@@ -8,7 +8,7 @@ import { invoiceSummary } from './salesSummary';
 
 const actions = [
   { label: 'Create Invoice', icon: 'add', route: 'Invoices' },
-  { label: 'Restock Inventory', icon: 'refresh', route: 'Restock' },
+  { label: 'Supplier Orders', icon: 'local-shipping', route: 'Orders' },
   { label: 'Outstanding Balances', icon: 'account-balance-wallet', route: 'Balances' },
 ];
 const statuses = {
