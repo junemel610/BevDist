@@ -60,7 +60,13 @@ export function BalancesScreen({ navigation }) {
   const outstanding = useMemo(() => records.reduce((sum, balance) => (
     balance.status === 'paid' ? sum : sum + Math.max(0, Number(balance.remainingBalance) || 0)
   ), 0), [records]);
-  const totalCredit = Object.values(customerCredits).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+  const availableCredits = useMemo(() => Object.entries(customerCredits)
+    .map(([key, amount]) => {
+      const customer = customers.find(item => customerCreditKey(item) === key);
+      return { key, name: customer?.name || 'Customer profile unavailable', amount: Number(amount) || 0 };
+    })
+    .filter(credit => credit.amount > 0), [customerCredits, customers]);
+  const totalCredit = availableCredits.reduce((sum, credit) => sum + credit.amount, 0);
   const customerAccounts = useMemo(() => groupOpenCustomerBalances(balances, orders), [balances, orders]);
   const visibleBalances = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -156,7 +162,10 @@ export function BalancesScreen({ navigation }) {
                 <MaterialIcons name="account-balance-wallet" size={19} color={theme.colors.primary} accessible={false} />
                 <View style={styles.creditNoticeCopy}>
                   <Text style={styles.creditNoticeTitle}>Customer credit available</Text>
-                  <Text style={styles.creditNoticeText}>{formatPeso(totalCredit)} in extra payments will automatically reduce customers’ next invoice totals.</Text>
+                  {availableCredits.map(credit => (
+                    <Text key={credit.key} style={styles.creditNoticeText}>{credit.name} · {formatPeso(credit.amount)}</Text>
+                  ))}
+                  <Text style={styles.creditNoticeHint}>Credit will automatically reduce that customer’s next invoice total.</Text>
                 </View>
               </View>
             ) : null}
@@ -396,7 +405,8 @@ const styles = StyleSheet.create({
   creditNotice: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.md, padding: theme.spacing.md, borderRadius: 12, backgroundColor: theme.colors.primarySoft },
   creditNoticeCopy: { flex: 1 },
   creditNoticeTitle: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  creditNoticeText: { color: theme.colors.primary, fontSize: theme.fontSize.xs, marginTop: 3 },
+  creditNoticeText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 5 },
+  creditNoticeHint: { color: theme.colors.primary, fontSize: theme.fontSize.xs, lineHeight: 18, marginTop: 4 },
   accountCard: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   accountHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   accountIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: theme.colors.primarySoft },
