@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
+import { INITIAL_CUSTOMERS } from '../data/initialData';
 import theme from '../styles/theme';
 
 const FILTERS = [
@@ -31,11 +33,16 @@ const STATUS = {
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
 export function OrdersScreen() {
-  const { orders, balances } = useApp();
+  const { orders, balances, products, createOrder, getAvailableStock } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(INITIAL_CUSTOMERS[0]);
+  const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [cart, setCart] = useState({});
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 * Math.min(fontScale, 1.25);
 
@@ -66,8 +73,21 @@ export function OrdersScreen() {
         ListHeaderComponent={(
           <View style={styles.headerContent}>
             <View style={styles.headingBlock}>
-              <Text accessibilityRole="header" style={styles.title}>Order management</Text>
-              <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'order' : 'orders'}</Text>
+              <View style={styles.titleRow}>
+                <View style={styles.headingBlock}>
+                  <Text accessibilityRole="header" style={styles.title}>Order management</Text>
+                  <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'order' : 'orders'}</Text>
+                </View>
+                <Pressable
+                  onPress={() => setCreatingOrder(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Create order"
+                  style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}
+                >
+                  <MaterialIcons name="add" size={20} color={theme.colors.onPrimary} accessible={false} />
+                  <Text style={styles.createButtonText}>{compact ? 'Create' : 'Create order'}</Text>
+                </Pressable>
+              </View>
             </View>
 
             <View style={styles.searchBox}>
@@ -140,6 +160,39 @@ export function OrdersScreen() {
       />
 
       <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
+      <CreateOrderModal
+        visible={creatingOrder}
+        width={width}
+        products={products}
+        cart={cart}
+        customer={selectedCustomer}
+        isNewCustomer={isNewCustomer}
+        newCustomer={newCustomer}
+        getAvailableStock={getAvailableStock}
+        onSelectCustomer={setSelectedCustomer}
+        onSelectCustomerMode={setIsNewCustomer}
+        onChangeNewCustomer={(field, value) => setNewCustomer(current => ({ ...current, [field]: value }))}
+        onChangeQuantity={(productId, quantity) => setCart(current => ({ ...current, [productId]: quantity }))}
+        onClose={() => setCreatingOrder(false)}
+        onCreate={() => {
+          const items = products.filter(product => cart[product.id] > 0).map(product => ({
+            productId: product.id,
+            productName: product.name,
+            quantity: cart[product.id],
+            unitPrice: product.unitPrice,
+          }));
+          if (!items.length) return;
+          const customer = isNewCustomer
+            ? { id: `new_${Date.now()}`, name: newCustomer.name.trim(), contact: newCustomer.contact.trim(), address: newCustomer.address.trim() }
+            : selectedCustomer;
+          const order = createOrder(customer, items);
+          setCart({});
+          setNewCustomer({ name: '', contact: '', address: '' });
+          setIsNewCustomer(false);
+          setCreatingOrder(false);
+          Alert.alert('Order created', `${order.orderNumber} saved as pending.`);
+        }}
+      />
       <InvoiceModal
         order={invoiceOrder}
         balance={balances.find(balance => balance.orderId === invoiceOrder?.id)}
@@ -233,6 +286,113 @@ function ModalHeader({ title, subtitle, onClose }) {
         <MaterialIcons name="close" size={22} color={theme.colors.text} accessible={false} />
       </Pressable>
     </View>
+  );
+}
+
+function CreateOrderModal({ visible, width, products, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
+  const total = products.reduce((sum, product) => sum + (cart[product.id] || 0) * product.unitPrice, 0);
+  const itemCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
+  const canCreate = itemCount > 0 && (!isNewCustomer || !!newCustomer.name.trim());
+
+  return (
+    <OverlayModal visible={visible} onClose={onClose} width={width}>
+      <ModalHeader title="Create order" subtitle="Choose a customer and add products" onClose={onClose} />
+      <ScrollView contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
+        <View style={styles.createSection}>
+          <Text style={styles.createSectionTitle}>Customer</Text>
+          <View style={styles.customerMode}>
+            {[false, true].map(isNew => (
+              <Pressable
+                key={String(isNew)}
+                onPress={() => onSelectCustomerMode(isNew)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isNewCustomer === isNew }}
+                style={[styles.customerModeButton, isNewCustomer === isNew && styles.customerModeButtonSelected]}
+              >
+                <Text style={[styles.customerModeText, isNewCustomer === isNew && styles.customerModeTextSelected]}>
+                  {isNew ? 'New customer' : 'Existing customer'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {isNewCustomer ? (
+            <View style={styles.newCustomerFields}>
+              <TextInput value={newCustomer.name} onChangeText={value => onChangeNewCustomer('name', value)} placeholder="Customer name (required)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer name, required" returnKeyType="next" style={styles.customerInput} />
+              <TextInput value={newCustomer.contact} onChangeText={value => onChangeNewCustomer('contact', value)} placeholder="Contact number (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer contact number, optional" keyboardType="phone-pad" style={styles.customerInput} />
+              <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
+            </View>
+          ) : INITIAL_CUSTOMERS.map(option => {
+            const selected = option.id === customer.id;
+            return (
+              <Pressable
+                key={option.id}
+                onPress={() => onSelectCustomer(option)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                style={[styles.customerOption, selected && styles.customerOptionSelected]}
+              >
+                <View style={styles.customerOptionText}>
+                  <Text style={styles.infoPrimary}>{option.name}</Text>
+                  <Text style={styles.infoSecondary}>{option.contact}</Text>
+                </View>
+                {selected && <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} accessible={false} />}
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.createSection}>
+          <Text style={styles.createSectionTitle}>Products</Text>
+          {products.map(product => {
+            const quantity = cart[product.id] || 0;
+            const available = getAvailableStock(product.id);
+            return (
+              <View key={product.id} style={styles.productOption}>
+                <View style={styles.productOptionInfo}>
+                  <Text style={styles.infoPrimary}>{product.name}</Text>
+                  <Text style={styles.infoSecondary}>{formatPeso(product.unitPrice)} · {available} available</Text>
+                </View>
+                <View style={styles.quantityControls}>
+                  <Pressable
+                    onPress={() => onChangeQuantity(product.id, Math.max(0, quantity - 1))}
+                    disabled={!quantity}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove one ${product.name}`}
+                    style={[styles.quantityButton, !quantity && styles.quantityButtonDisabled]}
+                  >
+                    <MaterialIcons name="remove" size={18} color={quantity ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                  </Pressable>
+                  <Text style={styles.quantityValue}>{quantity}</Text>
+                  <Pressable
+                    onPress={() => onChangeQuantity(product.id, quantity + 1)}
+                    disabled={quantity >= available}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add one ${product.name}`}
+                    style={[styles.quantityButton, quantity >= available && styles.quantityButtonDisabled]}
+                  >
+                    <MaterialIcons name="add" size={18} color={quantity < available ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+      <View style={styles.createOrderFooter}>
+        <View style={styles.createTotal}>
+          <Text style={styles.infoSecondary}>{itemCount} {itemCount === 1 ? 'item' : 'items'}</Text>
+          <Text style={styles.createTotalValue}>{formatPeso(total)}</Text>
+        </View>
+        <Pressable
+          onPress={onCreate}
+          disabled={!canCreate}
+          accessibilityRole="button"
+          accessibilityLabel="Save order as pending"
+          style={({ pressed }) => [styles.createSubmit, !canCreate && styles.createSubmitDisabled, pressed && canCreate && styles.pressed]}
+        >
+          <Text style={styles.createSubmitText}>Create order</Text>
+        </Pressable>
+      </View>
+    </OverlayModal>
   );
 }
 
@@ -364,6 +524,9 @@ const styles = StyleSheet.create({
   listContent: { width: '100%', maxWidth: 960, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'], flexGrow: 1 },
   headerContent: { gap: theme.spacing.md, marginBottom: theme.spacing.lg },
   headingBlock: { marginBottom: theme.spacing.xs },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  createButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 9, paddingHorizontal: theme.spacing.md, backgroundColor: theme.colors.primary },
+  createButtonText: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   title: { fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: theme.spacing.md },
@@ -410,6 +573,31 @@ const styles = StyleSheet.create({
   modalSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.onPrimaryMuted, marginTop: 3 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: theme.colors.onPrimaryOverlay },
   modalBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
+  createOrderBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
+  createSection: { gap: theme.spacing.sm },
+  createSectionTitle: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text, marginBottom: theme.spacing.xs },
+  customerMode: { flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.xs },
+  customerModeButton: { minHeight: 42, flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  customerModeButtonSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
+  customerModeText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium, color: theme.colors.textLight },
+  customerModeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.semibold },
+  newCustomerFields: { gap: theme.spacing.sm },
+  customerInput: { minHeight: 48, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, fontSize: theme.fontSize.sm },
+  customerOption: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  customerOptionSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
+  customerOptionText: { gap: 2 },
+  productOption: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  productOptionInfo: { flex: 1, gap: 3 },
+  quantityControls: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  quantityButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: theme.colors.primarySoft },
+  quantityButtonDisabled: { opacity: 0.45 },
+  quantityValue: { minWidth: 20, textAlign: 'center', fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
+  createOrderFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  createTotal: { gap: 2 },
+  createTotalValue: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
+  createSubmit: { minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 9, paddingHorizontal: theme.spacing.lg, backgroundColor: theme.colors.primary },
+  createSubmitDisabled: { opacity: 0.45 },
+  createSubmitText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.onPrimary },
   infoGroup: { padding: theme.spacing.md, gap: 4, borderRadius: 10, backgroundColor: theme.colors.background },
   sectionLabel: { marginBottom: theme.spacing.sm, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold, color: theme.colors.textLight, textTransform: 'uppercase', letterSpacing: 0.3 },
   infoPrimary: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
