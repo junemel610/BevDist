@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { availableStock, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../components/inventory/inventoryUtils';
+import { caseAvailabilityLabel } from '../components/orders/casePacks';
 
 const FILTERS = [
   { key: 'all', label: 'All products' },
@@ -83,11 +84,8 @@ export function InventoryScreen() {
     }
 
     const available = totalStock - editingProduct.reservedStock;
-    const status = stockState(available);
     setEditingProduct(null);
-    setToast(status === 'healthy'
-      ? `${editingProduct.name} updated.`
-      : `${editingProduct.name}: ${available} ${available === 1 ? 'unit' : 'units'} left.`);
+    setToast(`${editingProduct.name}: ${available} ${available === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(editingProduct.name, available)}`);
   };
 
   return (
@@ -275,6 +273,7 @@ function InventoryCard({ product, compact, onEdit }) {
           <Text style={styles.stockLabel}>Total</Text>
         </View>
       </View>
+      <Text style={styles.caseAvailability}>Case equivalents · {caseAvailabilityLabel(product.name, available)}</Text>
       <View accessibilityLabel={`Available stock ${available} of ${product.totalStock} units`} style={styles.stockTrack}>
         <View style={[styles.stockFill, { width: `${Math.min(Math.max((available / total) * 100, 0), 100)}%`, backgroundColor: state.color }]} />
       </View>
@@ -331,6 +330,7 @@ const styles = StyleSheet.create({
   statusBadge: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: theme.spacing.sm, borderRadius: 20 },
   statusLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   stockNumbers: { flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
+  caseAvailability: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 18, marginTop: theme.spacing.sm },
   stockMetric: { flex: 1 },
   stockValue: { color: theme.colors.text, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
   stockLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },

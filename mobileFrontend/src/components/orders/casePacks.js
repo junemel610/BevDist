@@ -35,3 +35,10 @@ export function availableCases(availableUnits, pack) {
   if (!pack?.unitsPerCase || availableUnits <= 0) return 0;
   return Math.floor((availableUnits / pack.unitsPerCase) * 2) / 2;
 }
+
+export function caseAvailabilityLabel(productName, availableUnits) {
+  const packs = String(productName).toLowerCase().includes('mucho')
+    ? CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO'))
+    : CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO'));
+  return packs.map(pack => `${pack.id}: ${availableCases(availableUnits, pack)} cases`).join(' · ');
+}
