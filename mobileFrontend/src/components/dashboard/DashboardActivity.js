@@ -7,7 +7,7 @@ import { recentOrders } from './recentOrders';
 import { invoiceSummary } from './salesSummary';
 
 const actions = [
-  { label: 'Create Invoice', icon: 'add', route: 'Invoices' },
+  { label: 'Create Invoice', icon: 'add', route: 'Invoices', primary: true },
   { label: 'Supplier Orders', icon: 'local-shipping', route: 'Orders' },
   { label: 'Outstanding Balances', icon: 'account-balance-wallet', route: 'Balances' },
 ];
@@ -26,10 +26,12 @@ export function DashboardActivity({ orders, balances, onNavigate, wide }) {
         <Text accessibilityRole="header" style={styles.title}>Quick Actions</Text>
         <View style={[styles.actions, wide && styles.horizontal]}>
           {actions.map(action => (
-            <Pressable key={action.route} accessibilityRole="button" onPress={() => onNavigate(action.route)} style={({ pressed }) => [styles.action, wide && styles.grow, pressed && styles.pressed]}>
-              <MaterialIcons name={action.icon} size={22} color={theme.colors.onPrimary} accessible={false} />
-              <Text style={styles.actionText}>{action.label}</Text>
-              <MaterialIcons name="chevron-right" size={20} color={theme.colors.onPrimary} accessible={false} />
+            <Pressable key={action.route} accessibilityRole="button" onPress={() => onNavigate(action.route)} style={({ pressed }) => [styles.action, action.primary && styles.actionPrimary, wide && styles.grow, pressed && styles.pressed]}>
+              <View style={[styles.actionIcon, action.primary && styles.actionIconPrimary]}>
+                <MaterialIcons name={action.icon} size={21} color={action.primary ? theme.colors.onPrimary : theme.colors.primary} accessible={false} />
+              </View>
+              <Text style={[styles.actionText, action.primary && styles.actionTextPrimary]}>{action.label}</Text>
+              <MaterialIcons name="chevron-right" size={21} color={action.primary ? theme.colors.onPrimary : theme.colors.textLight} accessible={false} />
             </Pressable>
           ))}
         </View>
@@ -84,8 +86,12 @@ const styles = StyleSheet.create({
   actions: { gap: 12, marginTop: 16 },
   horizontal: { flexDirection: 'row' },
   grow: { flex: 1 },
-  action: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, backgroundColor: theme.colors.primary, borderRadius: 10 },
-  actionText: { flex: 1, color: theme.colors.onPrimary, fontSize: theme.fontSize.base, fontWeight: '600' },
+  action: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, borderRadius: 10 },
+  actionPrimary: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  actionIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: theme.colors.primarySoft },
+  actionIconPrimary: { backgroundColor: theme.colors.onPrimaryOverlay },
+  actionText: { flex: 1, color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: '600' },
+  actionTextPrimary: { color: theme.colors.onPrimary },
   pressed: { opacity: 0.8 },
   softPressed: { backgroundColor: theme.colors.primarySoft },
   headingRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, justifyContent: 'space-between', marginBottom: 12 },

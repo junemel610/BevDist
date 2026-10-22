@@ -21,12 +21,10 @@ export function DashboardScreen({ navigation }) {
   const sales = salesSummary(orders, balances, paymentTransactions);
   const trends = salesTrends(orders, balances, paymentTransactions);
   const summary = [
-    { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
-    { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Cash applied · excludes excess' },
-    { label: 'Outstanding Invoices', value: sales.outstandingInvoices, icon: 'assignment' },
-    { label: 'Completed Orders', value: sales.completedOrders, icon: 'check-circle-outline', hint: 'Delivered and fully paid' },
-    { label: 'Outstanding Balances', value: formatPeso(sales.outstanding), icon: 'account-balance-wallet' },
-    { label: 'Case Types to Restock', value: getLowStockCount(), icon: 'inventory-2' },
+    { label: 'Outstanding Invoices', value: sales.outstandingInvoices },
+    { label: 'Completed Orders', value: sales.completedOrders, hint: 'Delivered and fully paid' },
+    { label: 'Outstanding Balances', value: formatPeso(sales.outstanding) },
+    { label: 'Case Types to Restock', value: getLowStockCount() },
   ];
 
   return (
@@ -38,17 +36,35 @@ export function DashboardScreen({ navigation }) {
             <Text accessibilityRole="header" style={styles.title}>Dashboard</Text>
             <Text style={styles.subtitle}>Business overview</Text>
             <View style={styles.demoNotice}>
-              <MaterialIcons name="info-outline" size={18} color={theme.colors.primary} accessible={false} />
-              <Text style={styles.demoText}>Sales totals and charts use invoice and payment records. Cash applied is shown; cancelled invoices and excess payments are excluded.</Text>
+              <Text style={styles.demoText}>Cancelled invoices and extra payments are excluded from sales.</Text>
             </View>
+          </View>
+
+          <View style={styles.salesCard}>
+            <View style={styles.salesHeading}>
+              <View>
+                <Text style={styles.sectionTitle}>Sales</Text>
+                <Text style={styles.sectionHint}>Expected invoice value and cash received</Text>
+              </View>
+              <MaterialIcons name="payments" size={22} color={theme.colors.primary} accessible={false} />
+            </View>
+            <View style={styles.salesValues}>
+              <View style={styles.salesMetric}>
+                <Text style={styles.cardLabel}>Total expected</Text>
+                <Text style={styles.expectedValue}>{formatPeso(sales.expected)}</Text>
+              </View>
+              <View style={styles.salesDivider} />
+              <View style={styles.salesMetric}>
+                <Text style={styles.cardLabel}>Actual sales</Text>
+                <Text style={styles.actualValue}>{formatPeso(sales.actual)}</Text>
+              </View>
+            </View>
+            <Text style={styles.salesHint}>Actual sales counts cash payments applied to invoices.</Text>
           </View>
 
           <View style={styles.grid}>
             {summary.map(card => (
               <View key={card.label} style={[styles.card, { width: cardWidth ?? '100%' }]}>
-                <View style={styles.icon}>
-                  <MaterialIcons name={card.icon} size={22} color={theme.colors.primary} accessible={false} />
-                </View>
                 <Text style={styles.cardLabel}>{card.label}</Text>
                 <Text style={styles.cardValue}>{card.value}</Text>
                 {!!card.hint && <Text style={styles.cardHint}>{card.hint}</Text>}
@@ -77,12 +93,21 @@ const styles = StyleSheet.create({
   sections: { gap: theme.spacing.xl },
   title: { fontSize: theme.fontSize['2xl'], fontWeight: '700', color: theme.colors.text },
   subtitle: { fontSize: theme.fontSize.base, color: theme.colors.textLight, marginTop: 4 },
-  demoNotice: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, padding: 12, borderRadius: 8, backgroundColor: theme.colors.primarySoft },
-  demoText: { flex: 1, fontSize: theme.fontSize.sm, color: theme.colors.primary },
+  demoNotice: { marginTop: theme.spacing.md },
+  demoText: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, lineHeight: 21 },
+  salesCard: { padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
+  salesHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, marginBottom: theme.spacing.lg },
+  sectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
+  sectionHint: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, lineHeight: 21, marginTop: 2 },
+  salesValues: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  salesMetric: { flex: 1 },
+  salesDivider: { width: 1, height: 48, backgroundColor: theme.colors.border },
+  cardLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginBottom: theme.spacing.xs },
+  expectedValue: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
+  actualValue: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: theme.colors.primary },
+  salesHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 20, marginTop: theme.spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md },
-  card: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: theme.spacing.lg },
-  icon: { width: 40, height: 40, borderRadius: 10, backgroundColor: theme.colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  cardLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginBottom: 8 },
-  cardValue: { fontSize: theme.fontSize['2xl'], fontWeight: '700', color: theme.colors.primary },
-  cardHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginTop: 6 },
+  card: { minHeight: 104, justifyContent: 'center', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: theme.spacing.md },
+  cardValue: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.text },
+  cardHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, lineHeight: 19, marginTop: 5 },
 });
