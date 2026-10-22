@@ -339,19 +339,23 @@ function OrderCard({ order, compact, onView, onInvoice }) {
           onPress={onView}
           accessibilityRole="button"
           accessibilityLabel={`View details for ${order.invoiceNumber}`}
+          accessibilityHint="Opens invoice delivery and payment details"
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
           <MaterialIcons name="visibility" size={18} color={theme.colors.primary} accessible={false} />
           <Text style={styles.secondaryButtonText}>{compact ? 'Details' : 'View details'}</Text>
+          <MaterialIcons name="chevron-right" size={18} color={theme.colors.primary} accessible={false} />
         </Pressable>
         <Pressable
           onPress={onInvoice}
           accessibilityRole="button"
           accessibilityLabel={`Preview ${order.invoiceNumber}`}
+          accessibilityHint="Opens the invoice preview"
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
           <MaterialIcons name="description" size={18} color={theme.colors.primary} accessible={false} />
           <Text style={styles.secondaryButtonText}>Invoice</Text>
+          <MaterialIcons name="chevron-right" size={18} color={theme.colors.primary} accessible={false} />
         </Pressable>
       </View>
     </View>
