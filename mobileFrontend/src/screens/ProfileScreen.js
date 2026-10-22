@@ -19,8 +19,10 @@ export function ProfileScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <View style={styles.content}>
-        <Text accessibilityRole="header" style={styles.title}>My profile</Text>
-        <Text style={styles.subtitle}>Your app account</Text>
+        <View style={styles.pageHeadingBand}>
+          <Text accessibilityRole="header" style={styles.title}>My profile</Text>
+          <Text style={styles.subtitle}>Your app account</Text>
+        </View>
 
         <View style={styles.accountCard}>
           <View style={styles.avatar}>
@@ -53,8 +55,9 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: theme.spacing.lg, gap: theme.spacing.md },
-  title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
-  subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.base, marginTop: -theme.spacing.sm },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
+  subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.base, marginTop: theme.spacing.xs },
   accountCard: { minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm, padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
   avatar: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: 28, backgroundColor: theme.colors.primarySoft },
   accountDetails: { flex: 1, gap: theme.spacing.xs },

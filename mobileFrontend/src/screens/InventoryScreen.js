@@ -168,14 +168,14 @@ export function InventoryScreen() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={(
           <View style={styles.headerContent}>
-            <View style={styles.titleRow}>
+            <View style={[styles.titleRow, styles.pageHeadingBand]}>
               <View style={styles.heading}>
                 <Text accessibilityRole="header" style={styles.title}>Inventory</Text>
                 <Text style={styles.subtitle}>{products.length} products tracked</Text>
               </View>
-              <Pressable onPress={startAdding} accessibilityRole="button" style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
-                <MaterialIcons name="add" size={19} color={theme.colors.onPrimary} accessible={false} />
-                <Text style={styles.addButtonLabel}>Add product</Text>
+              <Pressable onPress={startAdding} accessibilityRole="button" style={({ pressed }) => [styles.addButton, styles.headerActionButton, pressed && styles.pressed]}>
+                <MaterialIcons name="add" size={19} color={theme.colors.primary} accessible={false} />
+                <Text style={[styles.addButtonLabel, styles.headerActionText]}>Add product</Text>
               </Pressable>
             </View>
             <View style={styles.summary}>
@@ -428,8 +428,11 @@ const styles = StyleSheet.create({
   heading: { flex: 1 },
   addButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.primary },
   addButtonLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
-  subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 3 },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
+  subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, marginTop: 3 },
+  headerActionButton: { backgroundColor: theme.colors.surface },
+  headerActionText: { color: theme.colors.primary },
   summary: { flexDirection: 'row', marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   summaryItem: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2 },
   summaryCount: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },

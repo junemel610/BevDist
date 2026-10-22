@@ -108,7 +108,7 @@ export function OrdersScreen({ navigation, route }) {
         ListHeaderComponent={(
           <View style={styles.headerContent}>
             <View style={styles.headingBlock}>
-              <View style={styles.titleRow}>
+            <View style={[styles.titleRow, styles.pageHeadingBand]}>
                 <View style={styles.headingBlock}>
                   <Text accessibilityRole="header" style={styles.title}>Invoice management</Text>
                   <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'invoice' : 'invoices'}</Text>
@@ -117,10 +117,10 @@ export function OrdersScreen({ navigation, route }) {
                   onPress={() => setCreatingInvoice(true)}
                   accessibilityRole="button"
                   accessibilityLabel="Create invoice"
-                  style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.createButton, styles.headerActionButton, pressed && styles.pressed]}
                 >
-                  <MaterialIcons name="add" size={20} color={theme.colors.onPrimary} accessible={false} />
-                  <Text style={styles.createButtonText}>{compact ? 'Create' : 'Create invoice'}</Text>
+                  <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
+                  <Text style={[styles.createButtonText, styles.headerActionText]}>{compact ? 'Create' : 'Create invoice'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -734,8 +734,11 @@ const styles = StyleSheet.create({
   createButtonText: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   customerProfilesLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: theme.spacing.sm },
   customerProfilesLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  title: { fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold, color: theme.colors.text },
-  subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold, color: theme.colors.onPrimary },
+  subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.onPrimary, opacity: 0.82, marginTop: 4 },
+  headerActionButton: { backgroundColor: theme.colors.surface },
+  headerActionText: { color: theme.colors.primary },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: theme.spacing.md },
   searchInput: { flex: 1, minHeight: 46, fontSize: theme.fontSize.base, color: theme.colors.text, paddingVertical: theme.spacing.sm },
   clearSearch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

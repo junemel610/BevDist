@@ -114,13 +114,13 @@ export function SupplierOrdersScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.pageHeading}>
+        <View style={[styles.pageHeading, styles.pageHeadingBand]}>
           <View style={styles.headingCopy}>
             <Text accessibilityRole="header" style={styles.title}>Supplier order</Text>
             <Text style={styles.subtitle}>Record deliveries in cases and returned-case credits.</Text>
           </View>
           <View style={styles.headingIcon}>
-            <MaterialIcons name="local-shipping" size={23} color={theme.colors.primary} accessible={false} />
+            <MaterialIcons name="local-shipping" size={23} color={theme.colors.onPrimary} accessible={false} />
           </View>
         </View>
 
@@ -389,9 +389,10 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: 760, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'], gap: theme.spacing.md },
   pageHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.xs },
   headingCopy: { flex: 1 },
-  title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
-  subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: theme.spacing.xs },
-  headingIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: theme.colors.primarySoft },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
+  subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, marginTop: theme.spacing.xs },
+  headingIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)' },
   section: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
   sectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },

@@ -59,14 +59,14 @@ export function CustomerProfilesScreen() {
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListHeaderComponent={(
-          <View style={styles.header}>
+          <View style={[styles.header, styles.pageHeadingBand]}>
             <View style={styles.headerCopy}>
               <Text accessibilityRole="header" style={styles.title}>Customer profiles</Text>
               <Text style={styles.subtitle}>{customers.length} saved customers</Text>
             </View>
-            <Pressable onPress={() => openEditor(null)} accessibilityRole="button" style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
-              <MaterialIcons name="person-add" size={19} color={theme.colors.onPrimary} accessible={false} />
-              <Text style={styles.addButtonText}>Add customer</Text>
+            <Pressable onPress={() => openEditor(null)} accessibilityRole="button" style={({ pressed }) => [styles.addButton, styles.headerActionButton, pressed && styles.pressed]}>
+              <MaterialIcons name="person-add" size={19} color={theme.colors.primary} accessible={false} />
+              <Text style={[styles.addButtonText, styles.headerActionText]}>Add customer</Text>
             </Pressable>
           </View>
         )}
@@ -119,8 +119,11 @@ const styles = StyleSheet.create({
   list: { padding: theme.spacing.lg, gap: theme.spacing.md, flexGrow: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.md },
   headerCopy: { flex: 1 },
-  title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
-  subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 4 },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
+  subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, marginTop: 4 },
+  headerActionButton: { backgroundColor: theme.colors.surface },
+  headerActionText: { color: theme.colors.primary },
   addButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: theme.spacing.md, borderRadius: 9, backgroundColor: theme.colors.primary },
   addButtonText: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   card: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface, gap: theme.spacing.md },

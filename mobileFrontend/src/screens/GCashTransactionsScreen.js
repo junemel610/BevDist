@@ -30,8 +30,10 @@ export function GCashTransactionsScreen() {
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListHeaderComponent={(
           <View style={styles.header}>
-            <Text accessibilityRole="header" style={styles.title}>GCash transactions</Text>
-            <Text style={styles.subtitle}>Recorded GCash payments, separate from cash sales</Text>
+            <View style={styles.pageHeadingBand}>
+              <Text accessibilityRole="header" style={styles.title}>GCash transactions</Text>
+              <Text style={styles.subtitle}>Recorded GCash payments, separate from cash sales</Text>
+            </View>
             <View style={styles.summary}>
               <Summary label="Received" value={totals.received} />
               <Summary label="Applied" value={totals.applied} />
@@ -77,8 +79,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   list: { padding: theme.spacing.lg, flexGrow: 1 },
   header: { gap: theme.spacing.sm, marginBottom: theme.spacing.md },
-  title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
-  subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, lineHeight: 20 },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
+  subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, lineHeight: 20 },
   summary: { flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
   summaryItem: { flex: 1, padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.surface },
   summaryLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs },

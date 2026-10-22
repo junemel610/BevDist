@@ -142,7 +142,7 @@ export function BalancesScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={(
           <View style={styles.headerContent}>
-            <View style={styles.titleRow}>
+            <View style={[styles.titleRow, styles.pageHeadingBand]}>
               <View style={styles.heading}>
                 <Text accessibilityRole="header" style={styles.title}>Balance tracker</Text>
                 <Text style={styles.subtitle}>Customer accounts and invoice balances</Text>
@@ -397,8 +397,9 @@ const styles = StyleSheet.create({
   headerContent: { marginBottom: theme.spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.md },
   heading: { flex: 1 },
-  title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
-  subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 3 },
+  pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
+  subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, marginTop: 3 },
   totalCard: { maxWidth: '48%', paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: '#fecaca', borderRadius: 12, backgroundColor: theme.colors.dangerSoft },
   totalLabel: { color: theme.colors.danger, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   totalValue: { color: theme.colors.danger, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, marginTop: 2 },
