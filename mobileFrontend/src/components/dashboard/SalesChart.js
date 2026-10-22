@@ -26,7 +26,7 @@ export function SalesChart({ title, subtitle, data, variant = 'area' }) {
               return (
                 <React.Fragment key={ratio}>
                   <Line x1={left} y1={y} x2={right} y2={y} stroke={theme.colors.border} strokeDasharray="3 4" />
-                  <SvgText x={left - 8} y={y + 4} textAnchor="end" fontSize={12} fill={theme.colors.textLight}>{formatAxis(ceiling * ratio)}</SvgText>
+                  <SvgText x={left - 8} y={y + 4} textAnchor="end" fontSize={14} fill={theme.colors.textLight}>{formatAxis(ceiling * ratio)}</SvgText>
                 </React.Fragment>
               );
             })}
@@ -37,7 +37,7 @@ export function SalesChart({ title, subtitle, data, variant = 'area' }) {
                 {variant === 'bar' ? (
                   <Rect x={point.x - slot * 0.27} y={point.y} width={slot * 0.54} height={bottom - point.y} rx={4} fill={theme.colors.primary} />
                 ) : <Circle cx={point.x} cy={point.y} r={3.5} fill={theme.colors.primary} />}
-                <SvgText x={point.x} y={bottom + 23} textAnchor="middle" fontSize={12} fill={theme.colors.textLight}>{data[index].label}</SvgText>
+                <SvgText x={point.x} y={bottom + 23} textAnchor="middle" fontSize={14} fill={theme.colors.textLight}>{data[index].label}</SvgText>
               </React.Fragment>
             ))}
           </Svg>
