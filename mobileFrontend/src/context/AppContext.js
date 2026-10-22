@@ -5,6 +5,7 @@ import {
   INITIAL_BALANCES,
   INITIAL_RESTOCK_RECORDS,
 } from '../data/initialData';
+import { isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
 
 const AppContext = createContext();
 
@@ -169,6 +170,19 @@ export function AppProvider({ children }) {
     return newRecord;
   }, [products, restockRecords]);
 
+  const updateProductInventory = useCallback((productId, changes) => {
+    const product = products.find((item) => item.id === productId);
+    const totalStock = Number(changes.totalStock);
+    const unitPrice = Number(changes.unitPrice);
+    if (!product || !isValidInventoryUpdate(product, totalStock, unitPrice)) return false;
+
+    setProducts((current) => current.map((item) => item.id === productId
+      ? { ...item, totalStock, unitPrice }
+      : item
+    ));
+    return true;
+  }, [products]);
+
   // Derived queries
   const getAvailableStock = useCallback((productId) => {
     const product = products.find((p) => p.id === productId);
@@ -211,6 +225,7 @@ export function AppProvider({ children }) {
     updateOrderStatus,
     recordPayment,
     addRestockRecord,
+    updateProductInventory,
     getAvailableStock,
     getTodaySales,
     getPendingOrdersCount,

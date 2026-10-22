@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import theme from '../styles/theme';
 export { OrdersScreen } from './OrdersScreen';
+export { InventoryScreen } from './InventoryScreen';
 
 function PlaceholderScreen({ title }) {
   return (
@@ -15,7 +16,6 @@ function PlaceholderScreen({ title }) {
   );
 }
 
-export const InventoryScreen = () => <PlaceholderScreen title="Inventory" />;
 export const RestockScreen = () => <PlaceholderScreen title="Restock" />;
 export const BalancesScreen = () => <PlaceholderScreen title="Balances" />;
 
