@@ -43,7 +43,7 @@ These meeting notes are newer than the original BRD where the two conflict. Keep
 
 - Use cases as the canonical inventory, reservation, invoice, and restock quantity. Do not expose loose-item counts as stock quantities.
 - Sales invoice lines must support multiple pack groups for one product and quantities in 0.5-case increments.
-- Initial pack definitions from the meeting: A = 12 items per case, B = 24 items per case, C = 6 items per case; Mucho Red Horse has 6-item and 12-item packs. Use pack size to calculate case pricing, not to convert stock balances into loose-item counts.
+- Initial pack definitions from the meeting: A = 12 bottles per case, B = 24 bottles per case, C = 6 bottles per case; Mucho Red Horse has 6-bottle and 12-bottle packs. Save a direct price for each case type; pack size must not calculate the price or convert stock balances into loose-item counts.
 - Returned-case credits on supplier orders are a separate rule from the sales pack definitions. Preserve the four supplier return-case types from the BRD/prototype.
 - Inventory responses should include total, reserved, and available case quantities. Low-stock feedback should report available cases.
 - Supplier restock quantities and costs should be recorded per case; support 0.5-case increments where received quantities allow them.
@@ -67,8 +67,8 @@ These meeting notes are newer than the original BRD where the two conflict. Keep
 Add these to the design before implementing backend routes:
 
 - `customers`: profile fields and timestamps.
-- `products`: supplier, base price reference, case stock and reservation totals, and low-stock threshold.
-- `product_case_packs`: product/pack label, item count per case for price snapshots, active flag; seed the meeting's A/B/C and Mucho pack sizes only after product associations are confirmed.
+- `products`: supplier, case stock and reservation totals, and low-stock threshold.
+- `product_case_packs`: product/pack label, item count per case, and direct price per case; seed the meeting's A/B/C and Mucho pack sizes only after product associations are confirmed.
 - `invoices` and `invoice_items`: customer, delivery status, invoice status, totals, pack ID, case quantity, unit conversion, and price snapshots.
 - `inventory_reservations`: invoice/item reference and reserved case quantity, with one-time release/finalize state.
 - `invoice_balances`: one independent receivable balance per invoice, including original amount, amount paid, and remaining amount.
@@ -81,7 +81,7 @@ Plan the route contracts around these operations: customer profile CRUD; invoice
 
 - Duplicate completion, cancellation, payment, or stock release cannot apply twice.
 - Concurrent pending invoices cannot reserve more stock than is available.
-- A 0.5 case reserves 0.5 cases; pack size affects case pricing only, and invoice totals use saved price snapshots.
+- A 0.5 case reserves 0.5 cases; invoice totals use the direct saved price for the selected case type.
 - Creating a second invoice leaves the first invoice's balance intact and shows both invoices in the customer's account total.
 - A customer account payment settles the oldest open invoice first, creates a separate allocation for each invoice paid, and never changes either invoice's original sale total.
 - Cancelling a new invoice leaves all older invoice balances unchanged.
