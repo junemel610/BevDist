@@ -4,7 +4,6 @@ import {
   INITIAL_ORDERS,
   INITIAL_BALANCES,
   INITIAL_RESTOCK_RECORDS,
-  INITIAL_CUSTOMERS,
 } from '../data/initialData';
 
 const AppContext = createContext();
@@ -12,26 +11,19 @@ const AppContext = createContext();
 export function AppProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [currentScreen, setCurrentScreen] = useState('dashboard');
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [restockRecords, setRestockRecords] = useState(INITIAL_RESTOCK_RECORDS);
   const [balances, setBalances] = useState(INITIAL_BALANCES);
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [showInvoice, setShowInvoice] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-
   // Auth actions
   const login = useCallback((username, password) => {
     setCurrentUser(username);
     setIsLoggedIn(true);
-    setCurrentScreen('dashboard');
   }, []);
 
   const logout = useCallback(() => {
     setCurrentUser(null);
     setIsLoggedIn(false);
-    setCurrentScreen('dashboard');
   }, []);
 
   // Order actions
@@ -204,31 +196,19 @@ export function AppProvider({ children }) {
     return products.filter((p) => getAvailableStock(p.id) < 20).length;
   }, [products, getAvailableStock]);
 
-  const selectOrder = useCallback((orderId) => {
-    setSelectedOrderId(orderId);
-  }, []);
-
   const value = {
     isLoggedIn,
     currentUser,
-    currentScreen,
-    setCurrentScreen,
     products,
     orders,
     restockRecords,
     balances,
-    selectedOrderId,
-    showInvoice,
-    setShowInvoice,
-    showPayment,
-    setShowPayment,
     login,
     logout,
     createOrder,
     updateOrderStatus,
     recordPayment,
     addRestockRecord,
-    selectOrder,
     getAvailableStock,
     getTodaySales,
     getPendingOrdersCount,

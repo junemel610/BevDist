@@ -16,137 +16,43 @@ import theme from '../styles/theme';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function DashboardStackScreen() {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.colors.primary,
-        },
-        headerTintColor: theme.colors.surface,
-        headerTitleStyle: {
-          fontWeight: theme.fontWeight.bold,
-        },
-      }}
-    >
-      <Stack.Screen
-        name="DashboardMain"
-        component={DashboardScreen}
-        options={{ title: 'Dashboard' }}
-      />
-    </Stack.Navigator>
-  );
+const stackScreenOptions = {
+  headerStyle: { backgroundColor: theme.colors.primary },
+  headerTintColor: theme.colors.surface,
+  headerTitleStyle: { fontWeight: theme.fontWeight.bold },
+};
+
+function createStackScreen(title, component) {
+  return function AppStackScreen() {
+    return (
+      <Stack.Navigator screenOptions={stackScreenOptions}>
+        <Stack.Screen name={`${title}Main`} component={component} options={{ title }} />
+      </Stack.Navigator>
+    );
+  };
 }
 
-function OrdersStackScreen() {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.colors.primary,
-        },
-        headerTintColor: theme.colors.surface,
-        headerTitleStyle: {
-          fontWeight: theme.fontWeight.bold,
-        },
-      }}
-    >
-      <Stack.Screen
-        name="OrdersMain"
-        component={OrdersScreen}
-        options={{ title: 'Orders' }}
-      />
-    </Stack.Navigator>
-  );
-}
+const DashboardStackScreen = createStackScreen('Dashboard', DashboardScreen);
+const OrdersStackScreen = createStackScreen('Orders', OrdersScreen);
+const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
+const RestockStackScreen = createStackScreen('Restock', RestockScreen);
+const BalancesStackScreen = createStackScreen('Balances', BalancesScreen);
 
-function InventoryStackScreen() {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.colors.primary,
-        },
-        headerTintColor: theme.colors.surface,
-        headerTitleStyle: {
-          fontWeight: theme.fontWeight.bold,
-        },
-      }}
-    >
-      <Stack.Screen
-        name="InventoryMain"
-        component={InventoryScreen}
-        options={{ title: 'Inventory' }}
-      />
-    </Stack.Navigator>
-  );
-}
-
-function RestockStackScreen() {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.colors.primary,
-        },
-        headerTintColor: theme.colors.surface,
-        headerTitleStyle: {
-          fontWeight: theme.fontWeight.bold,
-        },
-      }}
-    >
-      <Stack.Screen
-        name="RestockMain"
-        component={RestockScreen}
-        options={{ title: 'Restock' }}
-      />
-    </Stack.Navigator>
-  );
-}
-
-function BalancesStackScreen() {
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: theme.colors.primary,
-        },
-        headerTintColor: theme.colors.surface,
-        headerTitleStyle: {
-          fontWeight: theme.fontWeight.bold,
-        },
-      }}
-    >
-      <Stack.Screen
-        name="BalancesMain"
-        component={BalancesScreen}
-        options={{ title: 'Balances' }}
-      />
-    </Stack.Navigator>
-  );
-}
+const tabIcons = {
+  Dashboard: 'dashboard',
+  Orders: 'shopping-cart',
+  Inventory: 'inventory',
+  Restock: 'local-shipping',
+  Balances: 'account-balance',
+};
 
 function HomeTabsScreen() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'Dashboard') {
-            iconName = focused ? 'dashboard' : 'dashboard';
-          } else if (route.name === 'Orders') {
-            iconName = focused ? 'shopping-cart' : 'shopping-cart';
-          } else if (route.name === 'Inventory') {
-            iconName = focused ? 'inventory' : 'inventory';
-          } else if (route.name === 'Restock') {
-            iconName = focused ? 'local-shipping' : 'local-shipping';
-          } else if (route.name === 'Balances') {
-            iconName = focused ? 'account-balance' : 'account-balance';
-          }
-
-          return <MaterialIcons name={iconName} size={size} color={color} />;
-        },
+        tabBarIcon: ({ color, size }) => (
+          <MaterialIcons name={tabIcons[route.name]} size={size} color={color} />
+        ),
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textLight,
         tabBarStyle: {

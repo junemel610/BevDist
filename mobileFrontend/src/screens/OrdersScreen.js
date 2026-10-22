@@ -31,7 +31,7 @@ const STATUS = {
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
 export function OrdersScreen() {
-  const { orders, balances, selectOrder, setShowInvoice } = useApp();
+  const { orders, balances } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
@@ -55,12 +55,6 @@ export function OrdersScreen() {
     })
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date)), [orders, activeFilter, search]);
-
-  const openInvoice = order => {
-    selectOrder(order.id);
-    setShowInvoice(true);
-    setInvoiceOrder(order);
-  };
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.container}>
@@ -130,7 +124,7 @@ export function OrdersScreen() {
             order={item}
             compact={compact}
             onView={() => setDetailOrder(item)}
-            onInvoice={() => openInvoice(item)}
+            onInvoice={() => setInvoiceOrder(item)}
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
@@ -151,7 +145,6 @@ export function OrdersScreen() {
         balance={balances.find(balance => balance.orderId === invoiceOrder?.id)}
         onClose={() => {
           setInvoiceOrder(null);
-          setShowInvoice(false);
         }}
         width={width}
       />

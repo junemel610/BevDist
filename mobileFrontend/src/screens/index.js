@@ -1,40 +1,23 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import theme from '../styles/theme';
 export { OrdersScreen } from './OrdersScreen';
 
-export function InventoryScreen() {
+function PlaceholderScreen({ title }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Inventory</Text>
-        <Text style={styles.placeholder}>Inventory screen coming soon...</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.placeholder}>{title} screen coming soon...</Text>
       </View>
     </SafeAreaView>
   );
 }
 
-export function RestockScreen() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Restock</Text>
-        <Text style={styles.placeholder}>Restock screen coming soon...</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-export function BalancesScreen() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Balances</Text>
-        <Text style={styles.placeholder}>Balances screen coming soon...</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
+export const InventoryScreen = () => <PlaceholderScreen title="Inventory" />;
+export const RestockScreen = () => <PlaceholderScreen title="Restock" />;
+export const BalancesScreen = () => <PlaceholderScreen title="Balances" />;
 
 const styles = StyleSheet.create({
   container: {
