@@ -1,15 +1,18 @@
 export const theme = {
+  // Navy for actions and emphasis; semantic colors only for status feedback.
   colors: {
     primary: '#1e3a8a',
-    secondary: '#0284c7',
-    success: '#16a34a',
-    warning: '#ea580c',
+    secondary: '#1e3a8a',
+    primarySoft: '#eff6ff',
+    onPrimary: '#ffffff',
+    success: '#15803d',
+    warning: '#b45309',
     danger: '#dc2626',
-    background: '#f9fafb',
+    background: '#f8fafc',
     surface: '#ffffff',
-    text: '#1f2937',
-    textLight: '#6b7280',
-    border: '#e5e7eb',
+    text: '#0f172a',
+    textLight: '#475569',
+    border: '#e2e8f0',
     overlay: 'rgba(0, 0, 0, 0.5)',
   },
   suppliers: {

@@ -152,14 +152,14 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.semibold,
-    color: theme.colors.surface,
+    color: theme.colors.onPrimary,
   },
   demoInfo: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.primarySoft,
     padding: theme.spacing.md,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: theme.colors.warning,
+    borderLeftColor: theme.colors.primary,
   },
   demoText: {
     fontSize: theme.fontSize.sm,

@@ -25,27 +25,27 @@ export function DashboardScreen() {
 
         {/* KPI Cards */}
         <View style={styles.kpiGrid}>
-          <View style={[styles.card, styles.cardPrimary]}>
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>Today's Sales</Text>
             <Text style={styles.cardValue}>₱{getTodaySales().toLocaleString()}</Text>
           </View>
 
-          <View style={[styles.card, styles.cardSecondary]}>
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>Pending Orders</Text>
             <Text style={styles.cardValue}>{getPendingOrdersCount()}</Text>
           </View>
 
-          <View style={[styles.card, styles.cardSuccess]}>
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>Completed Orders</Text>
             <Text style={styles.cardValue}>{getCompletedOrdersCount()}</Text>
           </View>
 
-          <View style={[styles.card, styles.cardWarning]}>
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>Outstanding Balance</Text>
             <Text style={styles.cardValue}>₱{getOutstandingBalance().toLocaleString()}</Text>
           </View>
 
-          <View style={[styles.card, styles.cardDanger]}>
+          <View style={styles.card}>
             <Text style={styles.cardLabel}>Low Stock Items</Text>
             <Text style={styles.cardValue}>{getLowStockCount()}</Text>
           </View>
@@ -83,36 +83,24 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: '45%',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.lg,
     borderRadius: 12,
     justifyContent: 'center',
   },
-  cardPrimary: {
-    backgroundColor: theme.colors.primary,
-  },
-  cardSecondary: {
-    backgroundColor: theme.colors.secondary,
-  },
-  cardSuccess: {
-    backgroundColor: theme.colors.success,
-  },
-  cardWarning: {
-    backgroundColor: theme.colors.warning,
-  },
-  cardDanger: {
-    backgroundColor: theme.colors.danger,
-  },
   cardLabel: {
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: theme.colors.textLight,
     marginBottom: theme.spacing.xs,
   },
   cardValue: {
     fontSize: theme.fontSize['2xl'],
     fontWeight: theme.fontWeight.bold,
-    color: theme.colors.surface,
+    color: theme.colors.primary,
   },
   chartPlaceholder: {
     backgroundColor: theme.colors.surface,
