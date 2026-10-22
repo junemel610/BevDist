@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { INITIAL_CUSTOMERS } from '../data/initialData';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
+import { availableCases, CASE_PACKS, invoiceCaseItem } from '../components/orders/casePacks';
 import theme from '../styles/theme';
 
 const FILTERS = [
@@ -45,8 +46,15 @@ export function OrdersScreen() {
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [cart, setCart] = useState({});
+  const [caseToast, setCaseToast] = useState('');
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 * Math.min(fontScale, 1.25);
+
+  useEffect(() => {
+    if (!caseToast) return undefined;
+    const timer = setTimeout(() => setCaseToast(''), 4000);
+    return () => clearTimeout(timer);
+  }, [caseToast]);
 
   const invoiceFor = order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
   const counts = useMemo(() => {
@@ -199,25 +207,39 @@ export function OrdersScreen() {
         onSelectCustomer={setSelectedCustomer}
         onSelectCustomerMode={setIsNewCustomer}
         onChangeNewCustomer={(field, value) => setNewCustomer(current => ({ ...current, [field]: value }))}
-        onChangeQuantity={(productId, quantity) => setCart(current => ({ ...current, [productId]: quantity }))}
+        onChangeQuantity={(productId, quantity, packId) => setCart(current => {
+          const selectedPack = CASE_PACKS.find(option => option.id === packId) || CASE_PACKS.find(option => option.id === current[productId]?.packId) || CASE_PACKS[0];
+          const max = availableCases(getAvailableStock(productId), selectedPack);
+          return { ...current, [productId]: { packId: selectedPack.id, quantity: Math.min(quantity, max) } };
+        })}
         onClose={() => setCreatingInvoice(false)}
         onCreate={() => {
-          const items = products.filter(product => cart[product.id] > 0).map(product => ({
-            productId: product.id,
-            productName: product.name,
-            quantity: cart[product.id],
-            unitPrice: product.unitPrice,
-          }));
+          const items = products.flatMap(product => {
+            const selection = cart[product.id];
+            const pack = CASE_PACKS.find(option => option.id === selection?.packId);
+            const item = selection?.quantity > 0 ? invoiceCaseItem(product, pack, selection.quantity) : null;
+            return item ? [item] : [];
+          });
           if (!items.length) return;
           const customer = isNewCustomer
             ? { id: `new_${Date.now()}`, name: newCustomer.name.trim(), contact: newCustomer.contact.trim(), address: newCustomer.address.trim() }
             : selectedCustomer;
           const order = createOrder(customer, items);
+          if (!order) {
+            Alert.alert('Not enough stock', 'Available stock changed. Review the case quantities and try again.');
+            return;
+          }
           const invoiceNumber = order.invoiceNumber || `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
           setCart({});
           setNewCustomer({ name: '', contact: '', address: '' });
           setIsNewCustomer(false);
           setCreatingInvoice(false);
+          setCaseToast(items.map(item => {
+            const product = products.find(entry => entry.id === item.productId);
+            const remaining = Math.max(0, product.totalStock - product.reservedStock - item.stockQuantity);
+            const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
+            return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
+          }).join(' · '));
           Alert.alert('Invoice created', order.appliedCredit > 0
             ? `${invoiceNumber} created. ${formatPeso(order.appliedCredit)} customer credit applied.`
             : `${invoiceNumber} saved as outstanding.`);
@@ -231,13 +253,21 @@ export function OrdersScreen() {
         }}
         width={width}
       />
+      {caseToast ? (
+        <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.caseToast}>
+          <MaterialIcons name="inventory-2" size={19} color={theme.colors.onPrimary} accessible={false} />
+          <Text style={styles.caseToastText}>{caseToast}</Text>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
 
 function OrderCard({ order, compact, onView, onInvoice }) {
   const status = STATUS[order.status] ?? STATUS.unpaid;
-  const itemCount = order.items.length;
+  const caseCount = order.items.every(item => item.unitsPerCase)
+    ? order.items.reduce((sum, item) => sum + item.quantity, 0)
+    : null;
   return (
     <View style={styles.orderCard}>
       <View style={styles.cardTop}>
@@ -255,7 +285,7 @@ function OrderCard({ order, compact, onView, onInvoice }) {
         <View style={styles.customerBlock}>
           <Text style={styles.customerName} numberOfLines={1}>{order.customer.name}</Text>
           <Text style={styles.customerContact} numberOfLines={1}>{order.customer.contact}</Text>
-          <Text style={styles.itemMeta}>{itemCount} {itemCount === 1 ? 'item' : 'items'}</Text>
+          <Text style={styles.itemMeta}>{caseCount === null ? `${order.items.length} ${order.items.length === 1 ? 'item' : 'items'}` : `${caseCount} ${caseCount === 1 ? 'case' : 'cases'}`}</Text>
         </View>
         <View style={styles.totalBlock}>
           <Text style={styles.totalCaption}>Invoice total</Text>
@@ -321,8 +351,13 @@ function ModalHeader({ title, subtitle, onClose }) {
 }
 
 function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
-  const total = products.reduce((sum, product) => sum + (cart[product.id] || 0) * product.unitPrice, 0);
-  const itemCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
+  const total = products.reduce((sum, product) => {
+    const selection = cart[product.id];
+    const pack = CASE_PACKS.find(option => option.id === selection?.packId);
+    const item = selection?.quantity > 0 ? invoiceCaseItem(product, pack, selection.quantity) : null;
+    return sum + (item ? item.quantity * item.unitPrice : 0);
+  }, 0);
+  const itemCount = Object.values(cart).reduce((sum, selection) => sum + (selection?.quantity || 0), 0);
   const canCreate = itemCount > 0 && (!isNewCustomer || !!newCustomer.name.trim());
 
   return (
@@ -374,34 +409,59 @@ function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCus
         <View style={styles.createSection}>
           <Text style={styles.createSectionTitle}>Products</Text>
           {products.map(product => {
-            const quantity = cart[product.id] || 0;
+            const selection = cart[product.id] || { packId: CASE_PACKS[0].id, quantity: 0 };
+            const productPacks = product.name.toLowerCase().includes('mucho')
+              ? CASE_PACKS.filter(option => option.id.startsWith('MUCHO'))
+              : CASE_PACKS.filter(option => !option.id.startsWith('MUCHO'));
+            const pack = productPacks.find(option => option.id === selection.packId) || productPacks[0];
+            const quantity = selection.quantity || 0;
             const available = getAvailableStock(product.id);
+            const maxCases = availableCases(available, pack);
             return (
-              <View key={product.id} style={styles.productOption}>
+              <View key={product.id} style={styles.caseProductOption}>
                 <View style={styles.productOptionInfo}>
                   <Text style={styles.infoPrimary}>{product.name}</Text>
-                  <Text style={styles.infoSecondary}>{formatPeso(product.unitPrice)} · {available} available</Text>
+                  <Text style={styles.infoSecondary}>{formatPeso(product.unitPrice)} per bottle · {available} bottles available</Text>
                 </View>
-                <View style={styles.quantityControls}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packOptions}>
+                  {productPacks.map(option => {
+                    const selected = option.id === pack.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => onChangeQuantity(product.id, quantity, option.id)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        style={[styles.packChip, selected && styles.packChipSelected]}
+                      >
+                        <Text style={[styles.packChipText, selected && styles.packChipTextSelected]}>{option.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <View style={styles.caseQuantityRow}>
+                  <Text style={styles.infoSecondary}>Cases · {maxCases} available</Text>
+                  <View style={styles.quantityControls}>
                   <Pressable
-                    onPress={() => onChangeQuantity(product.id, Math.max(0, quantity - 1))}
+                    onPress={() => onChangeQuantity(product.id, Math.max(0, quantity - 0.5))}
                     disabled={!quantity}
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove one ${product.name}`}
+                    accessibilityLabel={`Remove half a case of ${product.name}`}
                     style={[styles.quantityButton, !quantity && styles.quantityButtonDisabled]}
                   >
                     <MaterialIcons name="remove" size={18} color={quantity ? theme.colors.primary : theme.colors.textLight} accessible={false} />
                   </Pressable>
                   <Text style={styles.quantityValue}>{quantity}</Text>
                   <Pressable
-                    onPress={() => onChangeQuantity(product.id, quantity + 1)}
-                    disabled={quantity >= available}
+                    onPress={() => onChangeQuantity(product.id, quantity + 0.5)}
+                    disabled={quantity + 0.5 > maxCases}
                     accessibilityRole="button"
-                    accessibilityLabel={`Add one ${product.name}`}
-                    style={[styles.quantityButton, quantity >= available && styles.quantityButtonDisabled]}
+                    accessibilityLabel={`Add half a case of ${product.name}`}
+                    style={[styles.quantityButton, quantity + 0.5 > maxCases && styles.quantityButtonDisabled]}
                   >
-                    <MaterialIcons name="add" size={18} color={quantity < available ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                    <MaterialIcons name="add" size={18} color={quantity + 0.5 <= maxCases ? theme.colors.primary : theme.colors.textLight} accessible={false} />
                   </Pressable>
+                  </View>
                 </View>
               </View>
             );
@@ -410,7 +470,7 @@ function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCus
       </ScrollView>
       <View style={styles.createOrderFooter}>
         <View style={styles.createTotal}>
-          <Text style={styles.infoSecondary}>{itemCount} {itemCount === 1 ? 'item' : 'items'}</Text>
+          <Text style={styles.infoSecondary}>{itemCount} {itemCount === 1 ? 'case' : 'cases'} selected</Text>
           <Text style={styles.createTotalValue}>{formatPeso(total)}</Text>
         </View>
         <Pressable
@@ -469,7 +529,7 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
             <View key={`${item.productId}-${index}`} style={styles.itemRow}>
               <View style={styles.itemDescription}>
                 <Text style={styles.itemName}>{item.productName}</Text>
-                <Text style={styles.infoSecondary}>{item.quantity} × {formatPeso(item.unitPrice)}</Text>
+                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} case × ${item.unitsPerCase} bottles · ${formatPeso(item.unitPrice)} per case` : `${item.quantity} units × ${formatPeso(item.unitPrice)}`}</Text>
               </View>
               <Text style={styles.itemAmount}>{formatPeso(item.quantity * item.unitPrice)}</Text>
             </View>
@@ -535,7 +595,7 @@ function InvoiceModal({ order, balance, onClose, width }) {
           <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
             <View style={styles.itemDescription}>
               <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.infoSecondary}>{item.quantity} × {formatPeso(item.unitPrice)}</Text>
+              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} case × ${item.unitsPerCase} bottles · ${formatPeso(item.unitPrice)} per case` : `${item.quantity} units × ${formatPeso(item.unitPrice)}`}</Text>
             </View>
             <Text style={styles.itemAmount}>{formatPeso(item.quantity * item.unitPrice)}</Text>
           </View>
@@ -643,6 +703,15 @@ const styles = StyleSheet.create({
   customerOptionSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   customerOptionText: { gap: 2 },
   productOption: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  caseProductOption: { gap: theme.spacing.sm, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  packOptions: { gap: theme.spacing.xs, paddingRight: theme.spacing.md },
+  packChip: { minHeight: 36, justifyContent: 'center', paddingHorizontal: theme.spacing.sm, borderRadius: 8, backgroundColor: theme.colors.surfaceMuted },
+  packChipSelected: { backgroundColor: theme.colors.primary },
+  packChipText: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, fontWeight: theme.fontWeight.medium },
+  packChipTextSelected: { color: theme.colors.onPrimary },
+  caseQuantityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  caseToast: { position: 'absolute', left: theme.spacing.md, right: theme.spacing.md, bottom: theme.spacing.md, minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primary, elevation: 6 },
+  caseToastText: { flex: 1, color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   productOptionInfo: { flex: 1, gap: 3 },
   quantityControls: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   quantityButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: theme.colors.primarySoft },

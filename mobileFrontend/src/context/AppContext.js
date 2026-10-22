@@ -12,7 +12,7 @@ import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/ord
 function finalizeReservedStock(products, order) {
   return products.map((product) => {
     const reservedQty = order.items.reduce((sum, item) => (
-      item.productId === product.id ? sum + item.quantity : sum
+      item.productId === product.id ? sum + (item.stockQuantity ?? item.quantity) : sum
     ), 0);
     return reservedQty ? {
       ...product,
@@ -25,7 +25,7 @@ function finalizeReservedStock(products, order) {
 function releaseReservedStock(products, order) {
   return products.map((product) => {
     const reservedQty = order.items.reduce((sum, item) => (
-      item.productId === product.id ? sum + item.quantity : sum
+      item.productId === product.id ? sum + (item.stockQuantity ?? item.quantity) : sum
     ), 0);
     return reservedQty ? { ...product, reservedStock: product.reservedStock - reservedQty } : product;
   });
@@ -54,6 +54,15 @@ export function AppProvider({ children }) {
 
   // Order actions
   const createOrder = useCallback((customer, items) => {
+    const requestedStock = items.reduce((totals, item) => {
+      totals[item.productId] = (totals[item.productId] || 0) + (item.stockQuantity ?? item.quantity);
+      return totals;
+    }, {});
+    if (Object.entries(requestedStock).some(([productId, quantity]) => {
+      const product = products.find((item) => item.id === productId);
+      return !product || quantity > product.totalStock - product.reservedStock;
+    })) return false;
+
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const creditKey = customerCreditKey(customer.name);
@@ -76,7 +85,7 @@ export function AppProvider({ children }) {
     // Reserve stock for pending orders
     const updatedProducts = products.map((product) => {
       const reservedQty = items.reduce((sum, item) => {
-        if (item.productId === product.id) return sum + item.quantity;
+        if (item.productId === product.id) return sum + (item.stockQuantity ?? item.quantity);
         return sum;
       }, 0);
       return {

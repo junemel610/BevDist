@@ -1,7 +1,7 @@
 export const CASE_PACKS = [
-  { id: 'A', label: 'A', unitsPerCase: 12 },
-  { id: 'B', label: 'B', unitsPerCase: 24 },
-  { id: 'C', label: 'C', unitsPerCase: 6 },
+  { id: 'A', label: 'A · 12 bottles', unitsPerCase: 12 },
+  { id: 'B', label: 'B · 24 bottles', unitsPerCase: 24 },
+  { id: 'C', label: 'C · 6 bottles', unitsPerCase: 6 },
   { id: 'MUCHO_6', label: 'Mucho Red Horse · 6', unitsPerCase: 6 },
   { id: 'MUCHO_12', label: 'Mucho Red Horse · 12', unitsPerCase: 12 },
 ];
