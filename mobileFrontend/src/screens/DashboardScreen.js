@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { DAILY_SALES, MONTHLY_SALES } from '../data/initialData';
+import { DashboardActivity } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
 import theme from '../styles/theme';
@@ -11,10 +12,10 @@ import theme from '../styles/theme';
 const daily = DAILY_SALES.map(item => ({ label: item.day, value: item.sales }));
 const monthly = MONTHLY_SALES.map(item => ({ label: item.month, value: item.revenue }));
 
-export function DashboardScreen() {
+export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { getPendingOrdersCount, getCompletedOrdersCount, getOutstandingBalance, getLowStockCount } = useApp();
+  const { orders, getPendingOrdersCount, getCompletedOrdersCount, getOutstandingBalance, getLowStockCount } = useApp();
   const gap = theme.spacing.md;
   const columns = Math.max(1, Math.min(5, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
@@ -64,6 +65,7 @@ export function DashboardScreen() {
               <SalesChart title="Monthly Revenue Overview" subtitle="January – June · Sample revenue" data={monthly} variant="bar" />
             </View>
           </View>
+          <DashboardActivity orders={orders} wide={wide} onNavigate={route => navigation.getParent().navigate(route)} />
         </View>
       </ScrollView>
     </SafeAreaView>
