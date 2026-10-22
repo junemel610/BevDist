@@ -36,7 +36,7 @@ export function DashboardScreen({ navigation }) {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.sections} onLayout={({ nativeEvent }) => setContentWidth(nativeEvent.layout.width)}>
-          <View>
+          <View style={styles.pageHeader}>
             <Text accessibilityRole="header" style={styles.title}>Dashboard</Text>
             <Text style={styles.subtitle}>Business overview</Text>
           </View>
@@ -100,8 +100,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'] },
   sections: { gap: theme.spacing.xl },
-  title: { fontSize: theme.fontSize['2xl'], fontWeight: '700', color: theme.colors.text },
-  subtitle: { fontSize: theme.fontSize.base, color: theme.colors.textLight, marginTop: 4 },
+  pageHeader: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.lg, backgroundColor: theme.colors.primary },
+  title: { fontSize: theme.fontSize['2xl'], fontWeight: '700', color: theme.colors.onPrimary },
+  subtitle: { fontSize: theme.fontSize.base, color: theme.colors.onPrimary, opacity: 0.82, marginTop: 4 },
   demoNotice: { marginTop: theme.spacing.md },
   demoText: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, lineHeight: 21 },
   salesCard: { padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
