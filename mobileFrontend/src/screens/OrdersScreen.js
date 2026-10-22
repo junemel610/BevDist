@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
-import { availableCases, CASE_PACKS, invoiceCaseItem } from '../components/orders/casePacks';
+import { availableCases, casePacksForProduct, invoiceCaseItem } from '../components/orders/casePacks';
 import theme from '../styles/theme';
 
 const FILTERS = [
@@ -214,19 +214,23 @@ export function OrdersScreen({ navigation }) {
         onSelectCustomer={setSelectedCustomer}
         onSelectCustomerMode={setIsNewCustomer}
         onChangeNewCustomer={(field, value) => setNewCustomer(current => ({ ...current, [field]: value }))}
-        onChangeQuantity={(productId, quantity, packId) => setCart(current => {
-          const selectedPack = CASE_PACKS.find(option => option.id === packId) || CASE_PACKS.find(option => option.id === current[productId]?.packId) || CASE_PACKS[0];
-          const max = availableCases(getAvailableStock(productId), selectedPack);
-          return { ...current, [productId]: { packId: selectedPack.id, quantity: Math.min(quantity, max) } };
+        onChangeQuantity={(productId, packId, quantity) => setCart(current => {
+          const product = products.find(item => item.id === productId);
+          const pack = casePacksForProduct(product).find(option => option.id === packId);
+          if (!pack) return current;
+          const otherReserved = casePacksForProduct(product).reduce((sum, option) => (
+            option.id === packId ? sum : sum + (current[`${productId}:${option.id}`] || 0) * option.unitsPerCase
+          ), 0);
+          const max = availableCases(Math.max(0, getAvailableStock(productId) - otherReserved), pack);
+          return { ...current, [`${productId}:${packId}`]: Math.min(quantity, max) };
         })}
         onClose={() => setCreatingInvoice(false)}
         onCreate={() => {
-          const items = products.flatMap(product => {
-            const selection = cart[product.id];
-            const pack = CASE_PACKS.find(option => option.id === selection?.packId);
-            const item = selection?.quantity > 0 ? invoiceCaseItem(product, pack, selection.quantity) : null;
+          const items = products.flatMap(product => casePacksForProduct(product).flatMap(pack => {
+            const quantity = cart[`${product.id}:${pack.id}`] || 0;
+            const item = quantity > 0 ? invoiceCaseItem(product, pack, quantity) : null;
             return item ? [item] : [];
-          });
+          }));
           if (!items.length) return;
           const customer = isNewCustomer ? saveCustomer(newCustomer) : selectedCustomer;
           if (!customer) {
@@ -361,12 +365,13 @@ function ModalHeader({ title, subtitle, onClose }) {
 
 function CreateInvoiceModal({ visible, width, products, customers, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
   const total = products.reduce((sum, product) => {
-    const selection = cart[product.id];
-    const pack = CASE_PACKS.find(option => option.id === selection?.packId);
-    const item = selection?.quantity > 0 ? invoiceCaseItem(product, pack, selection.quantity) : null;
-    return sum + (item ? item.quantity * item.unitPrice : 0);
+    return sum + casePacksForProduct(product).reduce((productTotal, pack) => {
+      const quantity = cart[`${product.id}:${pack.id}`] || 0;
+      const item = quantity > 0 ? invoiceCaseItem(product, pack, quantity) : null;
+      return productTotal + (item ? item.quantity * item.unitPrice : 0);
+    }, 0);
   }, 0);
-  const itemCount = Object.values(cart).reduce((sum, selection) => sum + (selection?.quantity || 0), 0);
+  const itemCount = Object.values(cart).reduce((sum, quantity) => sum + (quantity || 0), 0);
   const canCreate = itemCount > 0 && (!isNewCustomer || !!newCustomer.name.trim());
 
   return (
@@ -418,60 +423,50 @@ function CreateInvoiceModal({ visible, width, products, customers, cart, custome
         <View style={styles.createSection}>
           <Text style={styles.createSectionTitle}>Products</Text>
           {products.map(product => {
-            const selection = cart[product.id] || { packId: CASE_PACKS[0].id, quantity: 0 };
-            const productPacks = product.name.toLowerCase().includes('mucho')
-              ? CASE_PACKS.filter(option => option.id.startsWith('MUCHO'))
-              : CASE_PACKS.filter(option => !option.id.startsWith('MUCHO'));
-            const pack = productPacks.find(option => option.id === selection.packId) || productPacks[0];
-            const quantity = selection.quantity || 0;
+            const productPacks = casePacksForProduct(product);
             const available = getAvailableStock(product.id);
-            const maxCases = availableCases(available, pack);
             return (
               <View key={product.id} style={styles.caseProductOption}>
                 <View style={styles.productOptionInfo}>
                   <Text style={styles.infoPrimary}>{product.name}</Text>
                   <Text style={styles.infoSecondary}>{formatPeso(product.unitPrice)} per bottle · {available} bottles available</Text>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.packOptions}>
-                  {productPacks.map(option => {
-                    const selected = option.id === pack.id;
-                    return (
-                      <Pressable
-                        key={option.id}
-                        onPress={() => onChangeQuantity(product.id, quantity, option.id)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                        style={[styles.packChip, selected && styles.packChipSelected]}
-                      >
-                        <Text style={[styles.packChipText, selected && styles.packChipTextSelected]}>{option.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-                <View style={styles.caseQuantityRow}>
-                  <Text style={styles.infoSecondary}>Cases · {maxCases} available</Text>
-                  <View style={styles.quantityControls}>
-                  <Pressable
-                    onPress={() => onChangeQuantity(product.id, Math.max(0, quantity - 0.5))}
-                    disabled={!quantity}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove half a case of ${product.name}`}
-                    style={[styles.quantityButton, !quantity && styles.quantityButtonDisabled]}
-                  >
-                    <MaterialIcons name="remove" size={18} color={quantity ? theme.colors.primary : theme.colors.textLight} accessible={false} />
-                  </Pressable>
-                  <Text style={styles.quantityValue}>{quantity}</Text>
-                  <Pressable
-                    onPress={() => onChangeQuantity(product.id, quantity + 0.5)}
-                    disabled={quantity + 0.5 > maxCases}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add half a case of ${product.name}`}
-                    style={[styles.quantityButton, quantity + 0.5 > maxCases && styles.quantityButtonDisabled]}
-                  >
-                    <MaterialIcons name="add" size={18} color={quantity + 0.5 <= maxCases ? theme.colors.primary : theme.colors.textLight} accessible={false} />
-                  </Pressable>
-                  </View>
-                </View>
+                {productPacks.map(pack => {
+                  const quantity = cart[`${product.id}:${pack.id}`] || 0;
+                  const otherReserved = productPacks.reduce((sum, option) => (
+                    option.id === pack.id ? sum : sum + (cart[`${product.id}:${option.id}`] || 0) * option.unitsPerCase
+                  ), 0);
+                  const maxCases = availableCases(Math.max(0, available - otherReserved), pack);
+                  return (
+                    <View key={pack.id} style={styles.caseQuantityRow}>
+                      <View style={styles.packLabelBlock}>
+                        <Text style={styles.packLabel}>{pack.label}</Text>
+                        <Text style={styles.infoSecondary}>{maxCases} cases available</Text>
+                      </View>
+                      <View style={styles.quantityControls}>
+                        <Pressable
+                          onPress={() => onChangeQuantity(product.id, pack.id, Math.max(0, quantity - 0.5))}
+                          disabled={!quantity}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove half a ${pack.label} case of ${product.name}`}
+                          style={[styles.quantityButton, !quantity && styles.quantityButtonDisabled]}
+                        >
+                          <MaterialIcons name="remove" size={18} color={quantity ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                        </Pressable>
+                        <Text style={styles.quantityValue}>{quantity}</Text>
+                        <Pressable
+                          onPress={() => onChangeQuantity(product.id, pack.id, quantity + 0.5)}
+                          disabled={quantity + 0.5 > maxCases}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add half a ${pack.label} case of ${product.name}`}
+                          style={[styles.quantityButton, quantity + 0.5 > maxCases && styles.quantityButtonDisabled]}
+                        >
+                          <MaterialIcons name="add" size={18} color={quantity + 0.5 <= maxCases ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             );
           })}
@@ -716,11 +711,8 @@ const styles = StyleSheet.create({
   customerOptionText: { gap: 2 },
   productOption: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   caseProductOption: { gap: theme.spacing.sm, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-  packOptions: { gap: theme.spacing.xs, paddingRight: theme.spacing.md },
-  packChip: { minHeight: 36, justifyContent: 'center', paddingHorizontal: theme.spacing.sm, borderRadius: 8, backgroundColor: theme.colors.surfaceMuted },
-  packChipSelected: { backgroundColor: theme.colors.primary },
-  packChipText: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, fontWeight: theme.fontWeight.medium },
-  packChipTextSelected: { color: theme.colors.onPrimary },
+  packLabelBlock: { flex: 1, gap: 2 },
+  packLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   caseQuantityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
   caseToast: { position: 'absolute', left: theme.spacing.md, right: theme.spacing.md, bottom: theme.spacing.md, minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primary, elevation: 6 },
   caseToastText: { flex: 1, color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },

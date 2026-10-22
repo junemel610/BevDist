@@ -6,6 +6,12 @@ export const CASE_PACKS = [
   { id: 'MUCHO_12', label: 'Mucho Red Horse · 12', unitsPerCase: 12 },
 ];
 
+export function casePacksForProduct(product) {
+  return String(product?.name).toLowerCase().includes('mucho')
+    ? CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO'))
+    : CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO'));
+}
+
 export function isValidCaseQuantity(quantity) {
   const value = Number(quantity);
   return Number.isFinite(value) && value > 0 && Number.isInteger(value * 2);
