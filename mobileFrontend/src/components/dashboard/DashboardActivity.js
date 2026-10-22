@@ -4,19 +4,21 @@ import { MaterialIcons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 import { formatPeso } from './chartGeometry';
 import { recentOrders } from './recentOrders';
+import { invoiceSummary } from './salesSummary';
 
 const actions = [
-  { label: 'Create New Order', icon: 'add', route: 'Orders' },
+  { label: 'Create Invoice', icon: 'add', route: 'Invoices' },
   { label: 'Restock Inventory', icon: 'refresh', route: 'Restock' },
   { label: 'Outstanding Balances', icon: 'account-balance-wallet', route: 'Balances' },
 ];
 const statuses = {
-  pending: { label: 'Pending', color: theme.colors.warning, icon: 'schedule' },
-  completed: { label: 'Completed', color: theme.colors.success, icon: 'check-circle-outline' },
+  unpaid: { label: 'Unpaid', color: theme.colors.danger, icon: 'error-outline' },
+  partial: { label: 'Partial', color: theme.colors.warning, icon: 'schedule' },
+  paid: { label: 'Fully paid', color: theme.colors.success, icon: 'check-circle-outline' },
   cancelled: { label: 'Cancelled', color: theme.colors.danger, icon: 'cancel' },
 };
 
-export function DashboardActivity({ orders, onNavigate, wide }) {
+export function DashboardActivity({ orders, balances, onNavigate, wide }) {
   const recent = recentOrders(orders);
   return (
     <View style={styles.sections}>
@@ -36,24 +38,25 @@ export function DashboardActivity({ orders, onNavigate, wide }) {
       <View style={styles.section}>
         <View style={styles.headingRow}>
           <View style={styles.heading}>
-            <Text accessibilityRole="header" style={styles.title}>Recent Orders</Text>
-            <Text style={styles.subtitle}>Latest order activity</Text>
+            <Text accessibilityRole="header" style={styles.title}>Recent Invoices</Text>
+            <Text style={styles.subtitle}>Latest customer invoices</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="View all orders" onPress={() => onNavigate('Orders')} style={({ pressed }) => [styles.viewAll, pressed && styles.softPressed]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="View all invoices" onPress={() => onNavigate('Invoices')} style={({ pressed }) => [styles.viewAll, pressed && styles.softPressed]}>
             <Text style={styles.link}>View All</Text>
             <MaterialIcons name="arrow-forward" size={18} color={theme.colors.primary} accessible={false} />
           </Pressable>
         </View>
         {recent.length === 0 ? (
-          <Text style={styles.empty}>No orders yet. Use Create New Order to get started.</Text>
+          <Text style={styles.empty}>No invoices yet. Use Create Invoice to get started.</Text>
         ) : recent.map(order => {
-          const status = statuses[order.status] ?? { label: order.status, color: theme.colors.textLight, icon: 'info-outline' };
+          const invoice = invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
+          const status = statuses[invoice.status] ?? statuses.unpaid;
           return (
             <View key={order.id} style={styles.order}>
               <View style={styles.orderDetails}>
                 <MaterialIcons name="receipt-long" size={22} color={theme.colors.primary} accessible={false} />
                 <View style={styles.orderCopy}>
-                  <Text style={styles.orderNumber}>{order.orderNumber}</Text>
+                  <Text style={styles.orderNumber}>{invoice.invoiceNumber}</Text>
                   <Text style={styles.customer}>{order.customer.name}</Text>
                   <Text style={styles.date}>{order.date}</Text>
                 </View>

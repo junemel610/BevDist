@@ -33,14 +33,14 @@ function createStackScreen(title, component) {
 }
 
 const DashboardStackScreen = createStackScreen('Dashboard', DashboardScreen);
-const OrdersStackScreen = createStackScreen('Orders', OrdersScreen);
+const OrdersStackScreen = createStackScreen('Invoices', OrdersScreen);
 const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
 const RestockStackScreen = createStackScreen('Restock', RestockScreen);
 const BalancesStackScreen = createStackScreen('Balances', BalancesScreen);
 
 const tabIcons = {
   Dashboard: 'dashboard',
-  Orders: 'shopping-cart',
+  Invoices: 'receipt-long',
   Inventory: 'inventory',
   Restock: 'local-shipping',
   Balances: 'account-balance',
@@ -64,7 +64,7 @@ function HomeTabsScreen() {
       })}
     >
       <Tab.Screen name="Dashboard" component={DashboardStackScreen} />
-      <Tab.Screen name="Orders" component={OrdersStackScreen} />
+      <Tab.Screen name="Invoices" component={OrdersStackScreen} />
       <Tab.Screen name="Inventory" component={InventoryStackScreen} />
       <Tab.Screen name="Restock" component={RestockStackScreen} />
       <Tab.Screen name="Balances" component={BalancesStackScreen} />

@@ -15,18 +15,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { INITIAL_CUSTOMERS } from '../data/initialData';
+import { invoiceSummary } from '../components/dashboard/salesSummary';
 import theme from '../styles/theme';
 
 const FILTERS = [
-  { key: 'all', label: 'All orders' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'completed', label: 'Completed' },
+  { key: 'all', label: 'All invoices' },
+  { key: 'outstanding', label: 'Outstanding' },
+  { key: 'paid', label: 'Fully paid' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 
 const STATUS = {
-  pending: { label: 'Pending', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
-  completed: { label: 'Completed', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
+  unpaid: { label: 'Unpaid', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
+  partial: { label: 'Partial', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
+  paid: { label: 'Fully paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   cancelled: { label: 'Cancelled', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'cancel' },
 };
 
@@ -38,7 +40,7 @@ export function OrdersScreen() {
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
-  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(INITIAL_CUSTOMERS[0]);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
@@ -46,22 +48,30 @@ export function OrdersScreen() {
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 * Math.min(fontScale, 1.25);
 
-  const counts = useMemo(() => ({
-    all: orders.length,
-    pending: orders.filter(order => order.status === 'pending').length,
-    completed: orders.filter(order => order.status === 'completed').length,
-    cancelled: orders.filter(order => order.status === 'cancelled').length,
-  }), [orders]);
+  const invoiceFor = order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
+  const counts = useMemo(() => {
+    const result = { all: orders.length, outstanding: 0, paid: 0, cancelled: 0 };
+    orders.forEach(order => {
+      const status = invoiceFor(order).status;
+      if (status === 'unpaid' || status === 'partial') result.outstanding += 1;
+      else if (status === 'paid') result.paid += 1;
+      else result.cancelled += 1;
+    });
+    return result;
+  }, [orders, balances]);
 
   const visibleOrders = useMemo(() => orders
-    .filter(order => activeFilter === 'all' || order.status === activeFilter)
+    .map(order => ({ ...order, ...invoiceFor(order) }))
+    .filter(order => activeFilter === 'all'
+      || (activeFilter === 'outstanding' && ['unpaid', 'partial'].includes(order.status))
+      || order.status === activeFilter)
     .filter(order => {
       const query = search.trim().toLocaleLowerCase();
-      return !query || order.orderNumber.toLocaleLowerCase().includes(query)
+      return !query || order.invoiceNumber.toLocaleLowerCase().includes(query)
         || order.customer.name.toLocaleLowerCase().includes(query);
     })
     .slice()
-    .sort((a, b) => b.date.localeCompare(a.date)), [orders, activeFilter, search]);
+    .sort((a, b) => b.date.localeCompare(a.date)), [orders, balances, activeFilter, search]);
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.container}>
@@ -75,17 +85,17 @@ export function OrdersScreen() {
             <View style={styles.headingBlock}>
               <View style={styles.titleRow}>
                 <View style={styles.headingBlock}>
-                  <Text accessibilityRole="header" style={styles.title}>Order management</Text>
-                  <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'order' : 'orders'}</Text>
+                  <Text accessibilityRole="header" style={styles.title}>Invoice management</Text>
+                  <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'invoice' : 'invoices'}</Text>
                 </View>
                 <Pressable
-                  onPress={() => setCreatingOrder(true)}
+                  onPress={() => setCreatingInvoice(true)}
                   accessibilityRole="button"
-                  accessibilityLabel="Create order"
+                  accessibilityLabel="Create invoice"
                   style={({ pressed }) => [styles.createButton, pressed && styles.pressed]}
                 >
                   <MaterialIcons name="add" size={20} color={theme.colors.onPrimary} accessible={false} />
-                  <Text style={styles.createButtonText}>{compact ? 'Create' : 'Create order'}</Text>
+                  <Text style={styles.createButtonText}>{compact ? 'Create' : 'Create invoice'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -95,9 +105,9 @@ export function OrdersScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search by order or customer"
+                placeholder="Search by invoice or customer"
                 placeholderTextColor={theme.colors.textLight}
-                accessibilityLabel="Search orders by order number or customer"
+                accessibilityLabel="Search invoices by invoice number or customer"
                 returnKeyType="search"
                 style={styles.searchInput}
               />
@@ -105,7 +115,7 @@ export function OrdersScreen() {
                 <Pressable
                   onPress={() => setSearch('')}
                   accessibilityRole="button"
-                  accessibilityLabel="Clear order search"
+                  accessibilityLabel="Clear invoice search"
                   hitSlop={8}
                   style={styles.clearSearch}
                 >
@@ -118,7 +128,7 @@ export function OrdersScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.filterList}
-              accessibilityLabel="Filter orders by status"
+              accessibilityLabel="Filter invoices by payment status"
             >
               {FILTERS.map(filter => {
                 const selected = activeFilter === filter.key;
@@ -127,7 +137,7 @@ export function OrdersScreen() {
                     key={filter.key}
                     onPress={() => setActiveFilter(filter.key)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${filter.label}, ${counts[filter.key]} ${counts[filter.key] === 1 ? 'order' : 'orders'}`}
+                    accessibilityLabel={`${filter.label}, ${counts[filter.key]} ${counts[filter.key] === 1 ? 'invoice' : 'invoices'}`}
                     accessibilityState={{ selected }}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
@@ -153,15 +163,15 @@ export function OrdersScreen() {
             <View style={styles.emptyIcon}>
               <MaterialIcons name="receipt-long" size={26} color={theme.colors.primary} accessible={false} />
             </View>
-            <Text style={styles.emptyTitle}>No orders found</Text>
-            <Text style={styles.emptyText}>{search ? 'Try another order number or customer name.' : 'There are no orders in this status yet.'}</Text>
+            <Text style={styles.emptyTitle}>No invoices found</Text>
+            <Text style={styles.emptyText}>{search ? 'Try another invoice number or customer name.' : 'There are no invoices in this status yet.'}</Text>
           </View>
         )}
       />
 
       <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
-      <CreateOrderModal
-        visible={creatingOrder}
+      <CreateInvoiceModal
+        visible={creatingInvoice}
         width={width}
         products={products}
         cart={cart}
@@ -173,7 +183,7 @@ export function OrdersScreen() {
         onSelectCustomerMode={setIsNewCustomer}
         onChangeNewCustomer={(field, value) => setNewCustomer(current => ({ ...current, [field]: value }))}
         onChangeQuantity={(productId, quantity) => setCart(current => ({ ...current, [productId]: quantity }))}
-        onClose={() => setCreatingOrder(false)}
+        onClose={() => setCreatingInvoice(false)}
         onCreate={() => {
           const items = products.filter(product => cart[product.id] > 0).map(product => ({
             productId: product.id,
@@ -186,11 +196,12 @@ export function OrdersScreen() {
             ? { id: `new_${Date.now()}`, name: newCustomer.name.trim(), contact: newCustomer.contact.trim(), address: newCustomer.address.trim() }
             : selectedCustomer;
           const order = createOrder(customer, items);
+          const invoiceNumber = order.invoiceNumber || `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
           setCart({});
           setNewCustomer({ name: '', contact: '', address: '' });
           setIsNewCustomer(false);
-          setCreatingOrder(false);
-          Alert.alert('Order created', `${order.orderNumber} saved as pending.`);
+          setCreatingInvoice(false);
+          Alert.alert('Invoice created', `${invoiceNumber} saved as outstanding.`);
         }}
       />
       <InvoiceModal
@@ -206,13 +217,13 @@ export function OrdersScreen() {
 }
 
 function OrderCard({ order, compact, onView, onInvoice }) {
-  const status = STATUS[order.status] ?? STATUS.pending;
+  const status = STATUS[order.status] ?? STATUS.unpaid;
   const itemCount = order.items.length;
   return (
     <View style={styles.orderCard}>
       <View style={styles.cardTop}>
         <View style={styles.orderIdentity}>
-          <Text style={styles.orderNumber}>{order.orderNumber}</Text>
+          <Text style={styles.orderNumber}>{order.invoiceNumber}</Text>
           <View style={[styles.statusBadge, { backgroundColor: status.background }]}>
             <MaterialIcons name={status.icon} size={14} color={status.color} accessible={false} />
             <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
@@ -228,9 +239,10 @@ function OrderCard({ order, compact, onView, onInvoice }) {
           <Text style={styles.itemMeta}>{itemCount} {itemCount === 1 ? 'item' : 'items'}</Text>
         </View>
         <View style={styles.totalBlock}>
-          <Text style={styles.totalCaption}>Grand total</Text>
+          <Text style={styles.totalCaption}>Invoice total</Text>
           <Text style={styles.totalValue}>{formatPeso(order.grandTotal)}</Text>
-          {order.deposit > 0 && <Text style={styles.depositText}>Deposit {formatPeso(order.deposit)}</Text>}
+          <Text style={styles.depositText}>Paid {formatPeso(order.amountPaid)}</Text>
+          {order.remainingBalance > 0 && <Text style={styles.balanceText}>Due {formatPeso(order.remainingBalance)}</Text>}
         </View>
       </View>
 
@@ -238,7 +250,7 @@ function OrderCard({ order, compact, onView, onInvoice }) {
         <Pressable
           onPress={onView}
           accessibilityRole="button"
-          accessibilityLabel={`View details for ${order.orderNumber}`}
+          accessibilityLabel={`View details for ${order.invoiceNumber}`}
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
           <MaterialIcons name="visibility" size={18} color={theme.colors.primary} accessible={false} />
@@ -247,7 +259,7 @@ function OrderCard({ order, compact, onView, onInvoice }) {
         <Pressable
           onPress={onInvoice}
           accessibilityRole="button"
-          accessibilityLabel={`Preview invoice for ${order.orderNumber}`}
+          accessibilityLabel={`Preview ${order.invoiceNumber}`}
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
           <MaterialIcons name="description" size={18} color={theme.colors.primary} accessible={false} />
@@ -289,14 +301,14 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateOrderModal({ visible, width, products, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
+function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
   const total = products.reduce((sum, product) => sum + (cart[product.id] || 0) * product.unitPrice, 0);
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
   const canCreate = itemCount > 0 && (!isNewCustomer || !!newCustomer.name.trim());
 
   return (
     <OverlayModal visible={visible} onClose={onClose} width={width}>
-      <ModalHeader title="Create order" subtitle="Choose a customer and add products" onClose={onClose} />
+      <ModalHeader title="Create invoice" subtitle="Choose a customer and add products" onClose={onClose} />
       <ScrollView contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
         <View style={styles.createSection}>
           <Text style={styles.createSectionTitle}>Customer</Text>
@@ -386,10 +398,10 @@ function CreateOrderModal({ visible, width, products, cart, customer, isNewCusto
           onPress={onCreate}
           disabled={!canCreate}
           accessibilityRole="button"
-          accessibilityLabel="Save order as pending"
+          accessibilityLabel="Save invoice"
           style={({ pressed }) => [styles.createSubmit, !canCreate && styles.createSubmitDisabled, pressed && canCreate && styles.pressed]}
         >
-          <Text style={styles.createSubmitText}>Create order</Text>
+          <Text style={styles.createSubmitText}>Create invoice</Text>
         </Pressable>
       </View>
     </OverlayModal>
@@ -398,10 +410,10 @@ function CreateOrderModal({ visible, width, products, cart, customer, isNewCusto
 
 function OrderDetailModal({ order, onClose }) {
   if (!order) return null;
-  const status = STATUS[order.status] ?? STATUS.pending;
+  const status = STATUS[order.status] ?? STATUS.unpaid;
   return (
     <OverlayModal visible={!!order} onClose={onClose}>
-      <ModalHeader title="Order details" subtitle={`${order.orderNumber} · ${order.date}`} onClose={onClose} />
+      <ModalHeader title="Invoice details" subtitle={`${order.invoiceNumber} · ${order.date}`} onClose={onClose} />
       <ScrollView contentContainerStyle={styles.modalBody}>
         <View style={styles.infoGroup}>
           <Text style={styles.sectionLabel}>Customer</Text>
@@ -410,14 +422,18 @@ function OrderDetailModal({ order, onClose }) {
           {!!order.customer.address && <Text style={styles.infoSecondary}>{order.customer.address}</Text>}
         </View>
         <View style={styles.infoGroup}>
-          <Text style={styles.sectionLabel}>Order</Text>
+          <Text style={styles.sectionLabel}>Invoice</Text>
           <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Status</Text>
+            <Text style={styles.infoSecondary}>Payment status</Text>
             <Text style={[styles.infoValue, { color: status.color }]}>{status.label}</Text>
           </View>
           <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Deposit</Text>
-            <Text style={styles.infoValue}>{formatPeso(order.deposit)}</Text>
+            <Text style={styles.infoSecondary}>Paid</Text>
+            <Text style={styles.infoValue}>{formatPeso(order.amountPaid)}</Text>
+          </View>
+          <View style={styles.infoLine}>
+            <Text style={styles.infoSecondary}>Balance due</Text>
+            <Text style={styles.infoValue}>{formatPeso(order.remainingBalance)}</Text>
           </View>
         </View>
         <View>
@@ -448,9 +464,9 @@ function OrderDetailModal({ order, onClose }) {
 
 function InvoiceModal({ order, balance, onClose, width }) {
   if (!order) return null;
-  const invoiceNumber = balance?.invoiceNumber || `INV-${order.orderNumber.replace('ORD-', '')}`;
-  const remaining = balance?.remainingBalance ?? Math.max(0, order.grandTotal - order.deposit);
-  const status = STATUS[order.status] ?? STATUS.pending;
+  const invoice = invoiceSummary(order, balance);
+  const invoiceNumber = invoice.invoiceNumber;
+  const status = STATUS[invoice.status] ?? STATUS.unpaid;
   return (
     <OverlayModal visible={!!order} onClose={onClose} width={width}>
       <ModalHeader title="Invoice preview" subtitle={invoiceNumber} onClose={onClose} />
@@ -475,7 +491,7 @@ function InvoiceModal({ order, balance, onClose, width }) {
           {!!order.customer.address && <Text style={styles.infoSecondary}>{order.customer.address}</Text>}
         </View>
 
-        <Text style={styles.sectionLabel}>Order items</Text>
+        <Text style={styles.sectionLabel}>Invoice items</Text>
         {order.items.map((item, index) => (
           <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
             <View style={styles.itemDescription}>
@@ -488,8 +504,8 @@ function InvoiceModal({ order, balance, onClose, width }) {
 
         <View style={styles.invoiceSummary}>
           <SummaryLine label="Subtotal" value={formatPeso(order.subtotal)} />
-          <SummaryLine label="Deposit paid" value={`−${formatPeso(order.deposit)}`} valueColor={theme.colors.success} />
-          <SummaryLine label="Remaining balance" value={formatPeso(remaining)} valueColor={remaining > 0 ? theme.colors.danger : theme.colors.success} />
+          <SummaryLine label="Payments received" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
+          <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
           <View style={styles.invoiceGrandTotal}>
             <Text style={styles.invoiceTotalLabel}>Grand total</Text>
             <Text style={styles.invoiceTotalValue}>{formatPeso(order.grandTotal)}</Text>
@@ -498,7 +514,7 @@ function InvoiceModal({ order, balance, onClose, width }) {
 
         <View style={styles.invoiceStatusNote}>
           <MaterialIcons name={status.icon} size={17} color={status.color} accessible={false} />
-          <Text style={[styles.invoiceStatusText, { color: status.color }]}>Order status: {status.label}</Text>
+          <Text style={[styles.invoiceStatusText, { color: status.color }]}>Payment status: {status.label}</Text>
         </View>
       </ScrollView>
       <View style={styles.modalFooter}>
@@ -556,6 +572,7 @@ const styles = StyleSheet.create({
   totalCaption: { fontSize: theme.fontSize.xs, color: theme.colors.textLight },
   totalValue: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: theme.colors.text, textAlign: 'right' },
   depositText: { fontSize: theme.fontSize.xs, color: theme.colors.success, marginTop: 2, textAlign: 'right' },
+  balanceText: { fontSize: theme.fontSize.xs, color: theme.colors.danger, marginTop: 2, textAlign: 'right' },
   cardActions: { flexDirection: 'row', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm },
   secondaryButton: { minHeight: 44, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, paddingHorizontal: theme.spacing.sm },
   secondaryButtonText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.primary },

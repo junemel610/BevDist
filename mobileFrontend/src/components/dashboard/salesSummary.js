@@ -1,19 +1,38 @@
+export function invoiceSummary(order, balance) {
+  const total = Math.max(0, Number(order.grandTotal || 0));
+  const received = balance ? Number(balance.amountPaid || 0) : Number(order.deposit || 0);
+  const amountPaid = Math.min(total, Math.max(0, received));
+  const status = order.status === 'cancelled'
+    ? 'cancelled'
+    : total > 0 && amountPaid >= total ? 'paid' : amountPaid > 0 ? 'partial' : 'unpaid';
+
+  return {
+    invoiceNumber: balance?.invoiceNumber || order.orderNumber?.replace(/^ORD-/, 'INV-'),
+    amountPaid,
+    remainingBalance: status === 'cancelled' ? 0 : total - amountPaid,
+    status,
+  };
+}
+
 export function salesSummary(orders, balances) {
-  const paymentsByOrder = new Map();
+  const balancesByOrder = new Map();
   balances.forEach(balance => {
-    paymentsByOrder.set(balance.orderId, (paymentsByOrder.get(balance.orderId) || 0) + Number(balance.amountPaid || 0));
+    const previous = balancesByOrder.get(balance.orderId);
+    balancesByOrder.set(balance.orderId, {
+      invoiceNumber: previous?.invoiceNumber || balance.invoiceNumber,
+      amountPaid: (previous?.amountPaid || 0) + Number(balance.amountPaid || 0),
+    });
   });
 
   return orders.reduce((summary, order) => {
-    if (order.status === 'cancelled') return summary;
-
     const total = Math.max(0, Number(order.grandTotal || 0));
-    const payment = paymentsByOrder.has(order.id) ? paymentsByOrder.get(order.id) : Number(order.deposit || 0);
-    const applied = Math.min(total, Math.max(0, payment));
+    const { amountPaid, status } = invoiceSummary(order, balancesByOrder.get(order.id));
+    if (status === 'cancelled') return summary;
     summary.expected += total;
-    summary.actual += applied;
-    summary.outstanding += total - applied;
-    if (total > 0 && applied >= total) summary.fullyPaid += 1;
+    summary.actual += amountPaid;
+    summary.outstanding += total - amountPaid;
+    if (status === 'paid') summary.fullyPaid += 1;
+    else if (status === 'partial' || status === 'unpaid') summary.outstandingInvoices += 1;
     return summary;
-  }, { expected: 0, actual: 0, outstanding: 0, fullyPaid: 0 });
+  }, { expected: 0, actual: 0, outstanding: 0, outstandingInvoices: 0, fullyPaid: 0 });
 }

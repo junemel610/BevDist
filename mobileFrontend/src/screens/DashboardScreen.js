@@ -16,7 +16,7 @@ const monthly = MONTHLY_SALES.map(item => ({ label: item.month, value: item.reve
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { orders, balances, getPendingOrdersCount, getLowStockCount } = useApp();
+  const { orders, balances, getLowStockCount } = useApp();
   const gap = theme.spacing.md;
   const columns = Math.max(1, Math.min(4, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
@@ -26,7 +26,7 @@ export function DashboardScreen({ navigation }) {
   const summary = [
     { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
     { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Payments applied · excludes excess' },
-    { label: 'Pending Orders', value: getPendingOrdersCount(), icon: 'assignment' },
+    { label: 'Outstanding Invoices', value: sales.outstandingInvoices, icon: 'assignment' },
     { label: 'Completed Orders', value: sales.fullyPaid, icon: 'check-circle-outline', hint: 'Fully paid invoices' },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding), icon: 'account-balance-wallet' },
     { label: 'Low Stock Products', value: getLowStockCount(), icon: 'inventory-2' },
@@ -39,7 +39,7 @@ export function DashboardScreen({ navigation }) {
         <View style={styles.sections} onLayout={({ nativeEvent }) => setContentWidth(nativeEvent.layout.width)}>
           <View>
             <Text accessibilityRole="header" style={styles.title}>Dashboard</Text>
-            <Text style={styles.subtitle}>Business overview for today</Text>
+            <Text style={styles.subtitle}>Business overview</Text>
             <View style={styles.demoNotice}>
               <MaterialIcons name="info-outline" size={18} color={theme.colors.primary} accessible={false} />
               <Text style={styles.demoText}>Sales totals use invoices and payments. Charts show sample data.</Text>
@@ -67,7 +67,7 @@ export function DashboardScreen({ navigation }) {
               <SalesChart title="Monthly Revenue Overview" subtitle="January – June · Sample revenue" data={monthly} variant="bar" />
             </View>
           </View>
-          <DashboardActivity orders={orders} wide={wide} onNavigate={route => navigation.getParent().navigate(route)} />
+          <DashboardActivity orders={orders} balances={balances} wide={wide} onNavigate={route => navigation.getParent().navigate(route)} />
         </View>
       </ScrollView>
     </SafeAreaView>

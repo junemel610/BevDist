@@ -28,9 +28,11 @@ export function AppProvider({ children }) {
 
   // Order actions
   const createOrder = useCallback((customer, items) => {
+    const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
     const newOrder = {
       id: `o${Date.now()}`,
       orderNumber: `ORD-2026-${String(orders.length + 1).padStart(3, '0')}`,
+      invoiceNumber,
       customer,
       items,
       subtotal: items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
@@ -60,7 +62,7 @@ export function AppProvider({ children }) {
       id: `b${Date.now()}`,
       orderId: newOrder.id,
       customerName: customer.name,
-      invoiceNumber: `INV-2026-${String(balances.length + 1).padStart(3, '0')}`,
+      invoiceNumber,
       totalAmount: newOrder.grandTotal,
       amountPaid: 0,
       remainingBalance: newOrder.grandTotal,
