@@ -20,7 +20,7 @@ export function SalesChart({ title, subtitle, data, variant = 'area' }) {
       <Text style={styles.caption}>Total for this sample period</Text>
       {data.length ? (
         <View accessible accessibilityRole="image" accessibilityLabel={`${title}. Total ${formatPeso(total)}. Use Show values for every data point.`}>
-          <Svg width="100%" height={204} viewBox="0 0 360 204" accessible={false}>
+          <Svg width="100%" height={204} viewBox="0 0 360 204">
             {[0, 0.5, 1].map(ratio => {
               const y = bottom - ratio * (bottom - top);
               return (
