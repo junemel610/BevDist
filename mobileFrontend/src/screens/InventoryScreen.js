@@ -297,22 +297,30 @@ export function InventoryScreen() {
                 return (
                   <View key={id} style={styles.casePriceRow}>
                     <Text style={styles.casePriceLabel}>{pack.id.startsWith('MUCHO') ? `Mucho ${pack.unitsPerCase}` : pack.id}</Text>
-                    <TextInput
-                      value={String(stockByCasePack[id] ?? '')}
-                      onChangeText={value => { setStockByCasePack(current => ({ ...current, [id]: value })); setError(''); }}
-                      keyboardType="decimal-pad"
-                      placeholder="Cases in stock"
-                      accessibilityLabel={`${pack.label} stock in cases`}
-                      style={[styles.fieldInput, styles.caseStockInput]}
-                    />
-                    <TextInput
-                      value={String(casePrices[id] ?? '')}
-                      onChangeText={value => { setCasePrices(current => ({ ...current, [id]: value })); setError(''); }}
-                      keyboardType="decimal-pad"
-                      placeholder="Price per case"
-                      accessibilityLabel={`${pack.label} price per case in pesos`}
-                      style={[styles.fieldInput, styles.casePriceInput]}
-                    />
+                    <View style={styles.caseInputRow}>
+                      <View style={styles.caseInputGroup}>
+                        <Text style={styles.caseInputLabel}>Quantity (cases)</Text>
+                        <TextInput
+                          value={String(stockByCasePack[id] ?? '')}
+                          onChangeText={value => { setStockByCasePack(current => ({ ...current, [id]: value })); setError(''); }}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 10"
+                          accessibilityLabel={`${pack.label} quantity in cases`}
+                          style={styles.fieldInput}
+                        />
+                      </View>
+                      <View style={styles.caseInputGroup}>
+                        <Text style={styles.caseInputLabel}>Price per case (₱)</Text>
+                        <TextInput
+                          value={String(casePrices[id] ?? '')}
+                          onChangeText={value => { setCasePrices(current => ({ ...current, [id]: value })); setError(''); }}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 1200"
+                          accessibilityLabel={`${pack.label} price per case in pesos`}
+                          style={styles.fieldInput}
+                        />
+                      </View>
+                    </View>
                   </View>
                 );
               })}
@@ -482,10 +490,11 @@ const styles = StyleSheet.create({
   caseTypeChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   caseTypeText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
   caseTypeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
-  casePriceRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
-  casePriceLabel: { width: 72, color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  caseStockInput: { flex: 1 },
-  casePriceInput: { flex: 1 },
+  casePriceRow: { gap: theme.spacing.xs, marginBottom: theme.spacing.md },
+  casePriceLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
+  caseInputRow: { flexDirection: 'row', gap: theme.spacing.sm },
+  caseInputGroup: { flex: 1, gap: theme.spacing.xs },
+  caseInputLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
   caseStockList: { gap: theme.spacing.xs, marginVertical: theme.spacing.md },
   caseStockSummary: { padding: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.surfaceMuted },
   caseStockSummaryHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs },
