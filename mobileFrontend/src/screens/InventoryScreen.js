@@ -376,9 +376,16 @@ function InventoryCard({ product, compact, onEdit }) {
         {packs.map(pack => {
           const stock = stockForCasePack(product, pack.id);
           const packAvailable = stock.totalStock - stock.reservedStock;
+          const packState = STATUS[stockState(packAvailable)];
           return (
-            <View key={pack.id} style={styles.caseStockSummary}>
-              <Text style={styles.caseStockSummaryName}>{pack.label}</Text>
+            <View key={pack.id} style={styles.caseStockSummary} accessibilityLabel={`${pack.label}: ${packState.label}, ${packAvailable} cases available`}>
+              <View style={styles.caseStockSummaryHeading}>
+                <Text style={styles.caseStockSummaryName}>{pack.label}</Text>
+                <View style={[styles.caseTypeHealthBadge, { backgroundColor: packState.background }]}>
+                  <MaterialIcons name={packState.icon} size={14} color={packState.color} accessible={false} />
+                  <Text style={[styles.caseTypeHealthLabel, { color: packState.color }]}>{packState.label}</Text>
+                </View>
+              </View>
               <Text style={styles.caseStockSummaryValue}>{packAvailable} available · {stock.reservedStock} reserved · {stock.totalStock} total</Text>
               <Text style={styles.caseStockSummaryPrice}>{formatPeso(pack.casePrice)} / case</Text>
             </View>
@@ -480,7 +487,10 @@ const styles = StyleSheet.create({
   casePriceInput: { flex: 1 },
   caseStockList: { gap: theme.spacing.xs, marginVertical: theme.spacing.md },
   caseStockSummary: { padding: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.surfaceMuted },
+  caseStockSummaryHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs },
   caseStockSummaryName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
+  caseTypeHealthBadge: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: theme.spacing.xs, borderRadius: 12 },
+  caseTypeHealthLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   caseStockSummaryValue: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
   caseStockSummaryPrice: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
   priceLabel: { marginTop: theme.spacing.md },
