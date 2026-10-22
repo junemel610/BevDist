@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterInventoryProducts, isValidInventoryUpdate, stockState } from '../src/components/inventory/inventoryUtils.js';
+import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../src/components/inventory/inventoryUtils.js';
 
 const products = [
   { id: 'a', name: 'Cola 1.5L', supplier: 'Coca-Cola', totalStock: 30, reservedStock: 10 },
@@ -29,4 +29,28 @@ test('inventory edits cannot lower stock below reservations or accept invalid pr
   assert.equal(isValidInventoryUpdate(products[0], 10.5, 20), false);
   assert.equal(isValidInventoryUpdate(products[0], 30, 0), false);
   assert.equal(isValidInventoryUpdate(products[0], 30, Number.NaN), false);
+});
+
+test('new inventory products require unique names, supplier, whole stock, and a positive price', () => {
+  const { product, error } = createProductProfile(products, {
+    name: 'Mucho Red Horse', supplier: 'Local supplier', totalStock: '48', unitPrice: '72',
+  }, () => 'mucho');
+  assert.equal(error, null);
+  assert.deepEqual(product, {
+    id: 'mucho', name: 'Mucho Red Horse', supplier: 'Local supplier',
+    totalStock: 48, reservedStock: 0, unitPrice: 72,
+  });
+});
+
+test('new inventory products reject duplicate or invalid product details', () => {
+  assert.match(createProductProfile(products, {
+    name: ' cola 1.5l ', supplier: 'Coca-Cola', totalStock: 20, unitPrice: 5,
+  }).error, /already exists/);
+  for (const profile of [
+    { name: '', supplier: 'Supplier', totalStock: 1, unitPrice: 5 },
+    { name: 'New', supplier: '', totalStock: 1, unitPrice: 5 },
+    { name: 'New', supplier: 'Supplier', totalStock: -1, unitPrice: 5 },
+    { name: 'New', supplier: 'Supplier', totalStock: 1.5, unitPrice: 5 },
+    { name: 'New', supplier: 'Supplier', totalStock: 1, unitPrice: 0 },
+  ]) assert.ok(createProductProfile(products, profile).error);
 });

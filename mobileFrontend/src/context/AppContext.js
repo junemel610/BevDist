@@ -7,7 +7,7 @@ import {
   INITIAL_CUSTOMERS,
   INITIAL_PAYMENT_TRANSACTIONS,
 } from '../data/initialData';
-import { isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
+import { createProductProfile, isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
@@ -260,6 +260,12 @@ export function AppProvider({ children }) {
     return true;
   }, [products]);
 
+  const addProduct = useCallback((profile) => {
+    const result = createProductProfile(products, profile);
+    if (!result.error) setProducts((current) => [result.product, ...current]);
+    return result.product;
+  }, [products]);
+
   // Derived queries
   const getAvailableStock = useCallback((productId) => {
     const product = products.find((p) => p.id === productId);
@@ -307,6 +313,7 @@ export function AppProvider({ children }) {
     recordPayment,
     addRestockRecord,
     updateProductInventory,
+    addProduct,
     getAvailableStock,
     getTodaySales,
     getPendingOrdersCount,

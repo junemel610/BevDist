@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
-import { availableStock, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../components/inventory/inventoryUtils';
+import { availableStock, createProductProfile, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../components/inventory/inventoryUtils';
 import { caseAvailabilityLabel } from '../components/orders/casePacks';
 
 const FILTERS = [
@@ -33,11 +33,14 @@ const STATUS = {
 };
 
 export function InventoryScreen() {
-  const { products, updateProductInventory } = useApp();
+  const { products, addProduct, updateProductInventory } = useApp();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [supplierFilter, setSupplierFilter] = useState('All');
   const [editingProduct, setEditingProduct] = useState(null);
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [productName, setProductName] = useState('');
+  const [supplierName, setSupplierName] = useState('');
   const [stockInput, setStockInput] = useState('');
   const [priceInput, setPriceInput] = useState('');
   const [error, setError] = useState('');
@@ -61,15 +64,46 @@ export function InventoryScreen() {
   }, [products, search, supplierFilter, activeFilter]);
 
   const startEditing = product => {
+    setAddingProduct(false);
     setEditingProduct(product);
     setStockInput(String(product.totalStock));
     setPriceInput(String(product.unitPrice));
     setError('');
   };
 
+  const startAdding = () => {
+    setAddingProduct(true);
+    setEditingProduct({ name: 'New product', reservedStock: 0 });
+    setProductName('');
+    setSupplierName('');
+    setStockInput('0');
+    setPriceInput('');
+    setError('');
+  };
+
   const saveProduct = () => {
     const totalStock = Number(stockInput);
     const unitPrice = Number(priceInput);
+    if (addingProduct) {
+      const { product, error: validationError } = createProductProfile(products, {
+        name: productName,
+        supplier: supplierName,
+        totalStock,
+        unitPrice,
+      });
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      if (!addProduct({ name: productName, supplier: supplierName, totalStock, unitPrice })) {
+        setError('Could not add this product. Check the details and try again.');
+        return;
+      }
+      setEditingProduct(null);
+      setAddingProduct(false);
+      setToast(`${product.name}: ${totalStock} ${totalStock === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(product.name, totalStock)}`);
+      return;
+    }
     if (!isValidInventoryUpdate(editingProduct, totalStock, Number(priceInput))) {
       if (!Number.isInteger(totalStock) || totalStock < editingProduct.reservedStock) {
         setError(`Enter a whole number at least ${editingProduct.reservedStock}; reserved stock cannot be reduced.`);
@@ -102,6 +136,10 @@ export function InventoryScreen() {
                 <Text accessibilityRole="header" style={styles.title}>Inventory</Text>
                 <Text style={styles.subtitle}>{products.length} products tracked</Text>
               </View>
+              <Pressable onPress={startAdding} accessibilityRole="button" style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
+                <MaterialIcons name="add" size={19} color={theme.colors.onPrimary} accessible={false} />
+                <Text style={styles.addButtonLabel}>Add product</Text>
+              </Pressable>
               <View style={styles.summary}>
                 <SummaryCount count={counts.healthy} label="Healthy" color={theme.colors.success} />
                 <SummaryCount count={counts.low} label="Low" color={theme.colors.warning} />
@@ -179,18 +217,26 @@ export function InventoryScreen() {
         )}
       />
 
-      <Modal visible={Boolean(editingProduct)} transparent animationType="fade" onRequestClose={() => setEditingProduct(null)}>
+      <Modal visible={Boolean(editingProduct)} transparent animationType="fade" onRequestClose={() => { setEditingProduct(null); setAddingProduct(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
           <View style={styles.editDialog}>
             <View style={styles.modalHeading}>
               <View style={styles.modalHeadingText}>
-                <Text style={styles.modalTitle}>Edit inventory</Text>
-                <Text style={styles.modalSubtitle} numberOfLines={2}>{editingProduct?.name}</Text>
+                <Text style={styles.modalTitle}>{addingProduct ? 'Add product' : 'Edit inventory'}</Text>
+                <Text style={styles.modalSubtitle} numberOfLines={2}>{addingProduct ? 'Enter product details and starting stock.' : editingProduct?.name}</Text>
               </View>
               <Pressable onPress={() => setEditingProduct(null)} accessibilityRole="button" accessibilityLabel="Close inventory editor" hitSlop={8} style={styles.closeButton}>
                 <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
               </Pressable>
             </View>
+            {addingProduct ? (
+              <>
+                <Text style={styles.fieldLabel}>Product name</Text>
+                <TextInput value={productName} onChangeText={value => { setProductName(value); setError(''); }} placeholder="e.g. Mucho Red Horse" placeholderTextColor={theme.colors.textLight} accessibilityLabel="Product name" style={styles.fieldInput} />
+                <Text style={[styles.fieldLabel, styles.priceLabel]}>Supplier</Text>
+                <TextInput value={supplierName} onChangeText={value => { setSupplierName(value); setError(''); }} placeholder="Supplier name" placeholderTextColor={theme.colors.textLight} accessibilityLabel="Supplier name" style={styles.fieldInput} />
+              </>
+            ) : null}
             <Text style={styles.fieldLabel}>Total stock (units)</Text>
             <TextInput
               value={stockInput}
@@ -199,7 +245,7 @@ export function InventoryScreen() {
               accessibilityLabel="Total stock in units"
               style={styles.fieldInput}
             />
-            <Text style={styles.helperText}>Reserved stock: {editingProduct?.reservedStock ?? 0} units. Total must cover reserved stock.</Text>
+            <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock in the smallest unit used for this product.' : `Reserved stock: ${editingProduct?.reservedStock ?? 0} units. Total must cover reserved stock.`}</Text>
             <Text style={[styles.fieldLabel, styles.priceLabel]}>Unit price</Text>
             <TextInput
               value={priceInput}
@@ -214,7 +260,7 @@ export function InventoryScreen() {
                 <Text style={styles.cancelLabel}>Cancel</Text>
               </Pressable>
               <Pressable onPress={saveProduct} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
-                <Text style={styles.saveLabel}>Save changes</Text>
+                <Text style={styles.saveLabel}>{addingProduct ? 'Add product' : 'Save changes'}</Text>
               </Pressable>
             </View>
           </View>
@@ -300,6 +346,8 @@ const styles = StyleSheet.create({
   headerContent: { marginBottom: theme.spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md },
   heading: { flex: 1 },
+  addButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primary },
+  addButtonLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
   title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
   subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 3 },
   summary: { flexDirection: 'row', gap: theme.spacing.md, marginLeft: theme.spacing.sm },
