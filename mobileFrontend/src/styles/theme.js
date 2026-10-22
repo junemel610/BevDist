@@ -36,8 +36,8 @@ export const theme = {
     '2xl': 32,
   },
   fontSize: {
-    xs: 12,
-    sm: 14,
+    xs: 14,
+    sm: 15,
     base: 16,
     lg: 18,
     xl: 20,

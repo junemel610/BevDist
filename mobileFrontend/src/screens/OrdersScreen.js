@@ -108,7 +108,7 @@ export function OrdersScreen({ navigation }) {
                 </Pressable>
               </View>
             </View>
-            <Pressable onPress={() => navigation.navigate('Customers')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
+            <Pressable onPress={() => navigation.navigate('CustomerProfiles')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
               <MaterialIcons name="groups" size={18} color={theme.colors.primary} accessible={false} />
               <Text style={styles.customerProfilesLinkText}>Manage customer profiles</Text>
             </Pressable>
@@ -690,15 +690,15 @@ const styles = StyleSheet.create({
   headerContent: { gap: theme.spacing.md, marginBottom: theme.spacing.lg },
   headingBlock: { marginBottom: theme.spacing.xs },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
-  createButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 9, paddingHorizontal: theme.spacing.md, backgroundColor: theme.colors.primary },
+  createButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 9, paddingHorizontal: theme.spacing.md, backgroundColor: theme.colors.primary },
   createButtonText: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  customerProfilesLink: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: theme.spacing.sm },
+  customerProfilesLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: theme.spacing.sm },
   customerProfilesLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   title: { fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: theme.spacing.md },
   searchInput: { flex: 1, minHeight: 46, fontSize: theme.fontSize.base, color: theme.colors.text, paddingVertical: theme.spacing.sm },
-  clearSearch: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  clearSearch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   filterList: { gap: theme.spacing.sm, paddingVertical: 2, paddingRight: theme.spacing.md },
   filterChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
   filterChipSelected: { backgroundColor: theme.colors.primary },
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
   orderIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: theme.spacing.sm },
   orderNumber: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
-  statusBadge: { minHeight: 26, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
+  statusBadge: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
   statusText: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   orderDate: { fontSize: theme.fontSize.xs, color: theme.colors.textLight },
   cardMiddle: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: theme.spacing.sm },
@@ -745,7 +745,7 @@ const styles = StyleSheet.create({
   createSection: { gap: theme.spacing.sm },
   createSectionTitle: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text, marginBottom: theme.spacing.xs },
   customerMode: { flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.xs },
-  customerModeButton: { minHeight: 42, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  customerModeButton: { minHeight: 46, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   customerModeButtonSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   customerModeText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium, color: theme.colors.textLight },
   customerModeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.semibold },
@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
   caseToastText: { flex: 1, color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   productOptionInfo: { flex: 1, gap: 3 },
   quantityControls: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  quantityButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: theme.colors.primarySoft },
+  quantityButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: theme.colors.primarySoft },
   quantityButtonDisabled: { opacity: 0.45 },
   quantityValue: { minWidth: 20, textAlign: 'center', fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
   createOrderFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },

@@ -19,9 +19,10 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const stackScreenOptions = {
-  headerStyle: { backgroundColor: theme.colors.primary },
-  headerTintColor: theme.colors.surface,
-  headerTitleStyle: { fontWeight: theme.fontWeight.bold },
+  headerStyle: { backgroundColor: theme.colors.surface },
+  headerTintColor: theme.colors.text,
+  headerTitleStyle: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.semibold },
+  headerShadowVisible: false,
 };
 
 function createStackScreen(title, component) {
@@ -39,12 +40,12 @@ function OrdersStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="InvoicesMain" component={OrdersScreen} options={{ title: 'Invoices' }} />
+      <Stack.Screen name="CustomerProfiles" component={CustomerProfilesScreen} options={{ title: 'Customers' }} />
     </Stack.Navigator>
   );
 }
 const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
 const SupplierOrdersStackScreen = createStackScreen('Orders', SupplierOrdersScreen);
-const CustomerProfilesStackScreen = createStackScreen('Customers', CustomerProfilesScreen);
 function BalancesStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
@@ -57,7 +58,6 @@ function BalancesStackScreen() {
 const tabIcons = {
   Dashboard: 'dashboard',
   Invoices: 'receipt-long',
-  Customers: 'groups',
   Inventory: 'inventory',
   Orders: 'local-shipping',
   Balances: 'account-balance',
@@ -72,8 +72,11 @@ function HomeTabsScreen() {
         ),
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textLight,
-        tabBarActiveBackgroundColor: theme.colors.primarySoft,
+        tabBarLabelStyle: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
+        tabBarItemStyle: { paddingVertical: 4 },
         tabBarStyle: {
+          minHeight: 64,
+          paddingTop: 5,
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.border,
           borderTopWidth: 1,
@@ -83,7 +86,6 @@ function HomeTabsScreen() {
     >
       <Tab.Screen name="Dashboard" component={DashboardStackScreen} />
       <Tab.Screen name="Invoices" component={OrdersStackScreen} />
-      <Tab.Screen name="Customers" component={CustomerProfilesStackScreen} />
       <Tab.Screen name="Inventory" component={InventoryStackScreen} />
       <Tab.Screen name="Orders" component={SupplierOrdersStackScreen} />
       <Tab.Screen name="Balances" component={BalancesStackScreen} />
