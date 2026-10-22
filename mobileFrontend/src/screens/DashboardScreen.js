@@ -19,7 +19,7 @@ export function DashboardScreen({ navigation }) {
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
   const sales = salesSummary(orders, balances, paymentTransactions);
-  const trends = salesTrends(orders, paymentTransactions);
+  const trends = salesTrends(orders, balances, paymentTransactions);
   const summary = [
     { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
     { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Cash applied · excludes excess' },

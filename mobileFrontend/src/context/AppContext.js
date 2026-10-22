@@ -304,14 +304,17 @@ export function AppProvider({ children }) {
 
   const getTodaySales = useCallback(() => {
     const orderById = new Map(orders.map(order => [order.id, order]));
+    const balanceById = new Map(balances.map(balance => [balance.id, balance]));
     const today = new Date().toISOString().slice(0, 10);
     return paymentTransactions.reduce((sum, payment) => {
       const order = orderById.get(payment.orderId);
+      const balance = balanceById.get(payment.balanceId);
       const amount = Number(payment.amountApplied);
       return payment.method === PAYMENT_METHOD.CASH && payment.date === today && order && order.status !== 'cancelled'
-        && Number.isFinite(amount) ? sum + Math.max(0, amount) : sum;
+        && balance?.orderId === order.id && balance.status !== 'cancelled' && Number.isFinite(amount)
+        ? sum + Math.max(0, amount) : sum;
     }, 0);
-  }, [orders, paymentTransactions]);
+  }, [orders, balances, paymentTransactions]);
 
   const getPendingOrdersCount = useCallback(() => {
     return orders.filter((o) => o.status === 'pending').length;

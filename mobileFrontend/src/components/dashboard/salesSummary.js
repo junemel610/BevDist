@@ -39,10 +39,13 @@ export function salesSummary(orders, balances, paymentTransactions) {
   }, { expected: 0, actual: 0, outstanding: 0, outstandingInvoices: 0, fullyPaid: 0, completedOrders: 0 });
   if (Array.isArray(paymentTransactions)) {
     const ordersById = new Map(orders.map(order => [order.id, order]));
+    const balancesById = new Map(balances.map(balance => [balance.id, balance]));
     summary.actual = paymentTransactions.reduce((sum, payment) => {
       const order = ordersById.get(payment.orderId);
+      const balance = balancesById.get(payment.balanceId);
       const amount = Number(payment.amountApplied);
-      return payment.method === 'Cash' && order && order.status !== 'cancelled' && Number.isFinite(amount)
+      return payment.method === 'Cash' && order && order.status !== 'cancelled'
+        && balance?.orderId === order.id && balance.status !== 'cancelled' && Number.isFinite(amount)
         ? sum + Math.max(0, amount) : sum;
     }, 0);
   } else {
@@ -55,15 +58,18 @@ export function salesSummary(orders, balances, paymentTransactions) {
   return summary;
 }
 
-export function salesTrends(orders, paymentTransactions, today = new Date()) {
+export function salesTrends(orders, balances, paymentTransactions, today = new Date()) {
   const todayDate = today instanceof Date ? today : new Date(`${today}T00:00:00.000Z`);
   const todayKey = todayDate.toISOString().slice(0, 10);
   const ordersById = new Map(orders.map(order => [order.id, order]));
+  const balancesById = new Map(balances.map(balance => [balance.id, balance]));
   const cashByDate = new Map();
   paymentTransactions.forEach(payment => {
     const order = ordersById.get(payment.orderId);
+    const balance = balancesById.get(payment.balanceId);
     const amount = Number(payment.amountApplied);
-    if (payment.method !== 'Cash' || !order || order.status === 'cancelled' || !/^\d{4}-\d{2}-\d{2}$/.test(payment.date) || !Number.isFinite(amount) || amount <= 0) return;
+    if (payment.method !== 'Cash' || !order || order.status === 'cancelled' || balance?.orderId !== order.id || balance.status === 'cancelled'
+      || !/^\d{4}-\d{2}-\d{2}$/.test(payment.date) || !Number.isFinite(amount) || amount <= 0) return;
     cashByDate.set(payment.date, (cashByDate.get(payment.date) || 0) + amount);
   });
 
