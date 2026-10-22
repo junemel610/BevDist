@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
+import { confirmAction } from '../utils/confirmAction';
 
 const blankProfile = { name: '', contact: '', address: '' };
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
@@ -31,12 +32,23 @@ export function CustomerProfilesScreen() {
   };
 
   const save = () => {
-    const saved = saveCustomer(draft);
-    if (!saved) {
+    if (!draft.name.trim()) {
       setError('Enter a customer name.');
       return;
     }
-    setEditor(null);
+    confirmAction({
+      title: editor?.id ? 'Save customer changes?' : 'Add this customer?',
+      message: `Customer profile: ${draft.name.trim()}.`,
+      confirmLabel: editor?.id ? 'Save changes' : 'Add customer',
+      onConfirm: () => {
+        const saved = saveCustomer(draft);
+        if (!saved) {
+          setError('Enter a customer name.');
+          return;
+        }
+        setEditor(null);
+      },
+    });
   };
 
   return (

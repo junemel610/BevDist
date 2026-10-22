@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { availableStock, createProductProfile, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../components/inventory/inventoryUtils';
 import { caseAvailabilityLabel } from '../components/orders/casePacks';
+import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
   { key: 'all', label: 'All products' },
@@ -85,7 +86,7 @@ export function InventoryScreen() {
     const totalStock = Number(stockInput);
     const unitPrice = Number(priceInput);
     if (addingProduct) {
-      const { product, error: validationError } = createProductProfile(products, {
+      const { error: validationError } = createProductProfile(products, {
         name: productName,
         supplier: supplierName,
         totalStock,
@@ -95,13 +96,21 @@ export function InventoryScreen() {
         setError(validationError);
         return;
       }
-      if (!addProduct({ name: productName, supplier: supplierName, totalStock, unitPrice })) {
-        setError('Could not add this product. Check the details and try again.');
-        return;
-      }
-      setEditingProduct(null);
-      setAddingProduct(false);
-      setToast(`${product.name}: ${totalStock} ${totalStock === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(product.name, totalStock)}`);
+      confirmAction({
+        title: 'Add product to inventory?',
+        message: `${productName.trim()} will be added with ${totalStock} units at ${formatPeso(unitPrice)} per unit.`,
+        confirmLabel: 'Add product',
+        onConfirm: () => {
+          const product = addProduct({ name: productName, supplier: supplierName, totalStock, unitPrice });
+          if (!product) {
+            setError('Could not add this product. Check the details and try again.');
+            return;
+          }
+          setEditingProduct(null);
+          setAddingProduct(false);
+          setToast(`${product.name}: ${totalStock} ${totalStock === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(product.name, totalStock)}`);
+        },
+      });
       return;
     }
     if (!isValidInventoryUpdate(editingProduct, totalStock, Number(priceInput))) {
@@ -112,14 +121,20 @@ export function InventoryScreen() {
       setError('Enter a price greater than ₱0.');
       return;
     }
-    if (!updateProductInventory(editingProduct.id, { totalStock, unitPrice })) {
-      setError('Could not save these inventory values. Check them and try again.');
-      return;
-    }
-
-    const available = totalStock - editingProduct.reservedStock;
-    setEditingProduct(null);
-    setToast(`${editingProduct.name}: ${available} ${available === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(editingProduct.name, available)}`);
+    confirmAction({
+      title: 'Save inventory changes?',
+      message: `${editingProduct.name}: set total stock to ${totalStock} units and unit price to ${formatPeso(unitPrice)}.`,
+      confirmLabel: 'Save changes',
+      onConfirm: () => {
+        if (!updateProductInventory(editingProduct.id, { totalStock, unitPrice })) {
+          setError('Could not save these inventory values. Check them and try again.');
+          return;
+        }
+        const available = totalStock - editingProduct.reservedStock;
+        setEditingProduct(null);
+        setToast(`${editingProduct.name}: ${available} ${available === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(editingProduct.name, available)}`);
+      },
+    });
   };
 
   return (

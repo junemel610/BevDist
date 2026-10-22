@@ -16,6 +16,7 @@ import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { balanceStatus, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
 import { PAYMENT_METHOD } from '../types';
+import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -100,16 +101,23 @@ export function BalancesScreen({ navigation }) {
       setError('Enter a payment amount greater than ₱0.');
       return;
     }
-    const result = recordPayment(selectedBalance.id, Number(paymentAmount), paymentMethod);
-    if (!result) {
-      setError('This balance could not be updated. Reopen it and try again.');
-      return;
-    }
-    setSelectedBalance(null);
-    setPaymentAmount('');
-    setNotice(result.excess > 0
-      ? `${formatPeso(result.applied)} applied. ${formatPeso(result.excess)} carried to the customer's next invoice.`
-      : 'Payment recorded.');
+    confirmAction({
+      title: 'Record this payment?',
+      message: `${formatPeso(Number(paymentAmount))} by ${paymentMethod} for ${selectedBalance.customerName}. Any amount above the balance will be saved as credit for the customer’s next invoice.`,
+      confirmLabel: 'Record payment',
+      onConfirm: () => {
+        const result = recordPayment(selectedBalance.id, Number(paymentAmount), paymentMethod);
+        if (!result) {
+          setError('This balance could not be updated. Reopen it and try again.');
+          return;
+        }
+        setSelectedBalance(null);
+        setPaymentAmount('');
+        setNotice(result.excess > 0
+          ? `${formatPeso(result.applied)} applied. ${formatPeso(result.excess)} saved as customer credit for the next invoice.`
+          : 'Payment recorded.');
+      },
+    });
   };
 
   return (

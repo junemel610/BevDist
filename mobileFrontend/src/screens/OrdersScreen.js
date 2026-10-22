@@ -17,6 +17,7 @@ import { useApp } from '../context/AppContext';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
 import { availableCases, casePacksForProduct, invoiceCaseItem } from '../components/orders/casePacks';
 import theme from '../styles/theme';
+import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -187,18 +188,29 @@ export function OrdersScreen({ navigation }) {
         order={detailOrder}
         onClose={() => setDetailOrder(null)}
         onMarkDelivered={() => {
-          if (detailOrder && updateOrderStatus(detailOrder.id, 'completed')) setDetailOrder(null);
-          else Alert.alert('Could not update invoice', 'This invoice may already be delivered or cancelled.');
+          if (!detailOrder) return;
+          confirmAction({
+            title: 'Mark invoice as delivered?',
+            message: `${detailOrder.orderNumber} for ${detailOrder.customer.name}. It will be completed once it is fully paid.`,
+            confirmLabel: 'Mark delivered',
+            onConfirm: () => {
+              if (updateOrderStatus(detailOrder.id, 'completed')) setDetailOrder(null);
+              else Alert.alert('Could not update invoice', 'This invoice may already be delivered or cancelled.');
+            },
+          });
         }}
         onCancel={() => {
           if (!detailOrder) return;
-          Alert.alert('Cancel invoice?', 'Reserved stock will be released. This action cannot be undone.', [
-            { text: 'Keep invoice', style: 'cancel' },
-            { text: 'Cancel invoice', style: 'destructive', onPress: () => {
+          confirmAction({
+            title: 'Cancel invoice?',
+            message: 'Reserved stock will be released. This action cannot be undone.',
+            confirmLabel: 'Cancel invoice',
+            destructive: true,
+            onConfirm: () => {
               if (updateOrderStatus(detailOrder.id, 'cancelled')) setDetailOrder(null);
               else Alert.alert('Could not cancel', 'Delivered or completed invoices cannot be cancelled here.');
-            } },
-          ]);
+            },
+          });
         }}
       />
       <CreateInvoiceModal
@@ -232,30 +244,43 @@ export function OrdersScreen({ navigation }) {
             return item ? [item] : [];
           }));
           if (!items.length) return;
-          const customer = isNewCustomer ? saveCustomer(newCustomer) : selectedCustomer;
-          if (!customer) {
+          const customerName = isNewCustomer ? newCustomer.name.trim() : selectedCustomer?.name;
+          if (!customerName) {
             Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
             return;
           }
-          const order = createOrder(customer, items);
-          if (!order) {
-            Alert.alert('Not enough stock', 'Available stock changed. Review the case quantities and try again.');
-            return;
-          }
-          const invoiceNumber = order.invoiceNumber || `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
-          setCart({});
-          setNewCustomer({ name: '', contact: '', address: '' });
-          setIsNewCustomer(false);
-          setCreatingInvoice(false);
-          setCaseToast(items.map(item => {
-            const product = products.find(entry => entry.id === item.productId);
-            const remaining = Math.max(0, product.totalStock - product.reservedStock - item.stockQuantity);
-            const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
-            return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
-          }).join(' · '));
-          Alert.alert('Invoice created', order.appliedCredit > 0
-            ? `${invoiceNumber} created. ${formatPeso(order.appliedCredit)} customer credit applied.`
-            : `${invoiceNumber} saved as outstanding.`);
+          const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+          confirmAction({
+            title: 'Create this invoice?',
+            message: `${customerName} · ${items.length} product lines · ${formatPeso(total)}${isNewCustomer ? '. A new customer profile will also be saved.' : ''}`,
+            confirmLabel: 'Create invoice',
+            onConfirm: () => {
+              const customer = isNewCustomer ? saveCustomer(newCustomer) : selectedCustomer;
+              if (!customer) {
+                Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
+                return;
+              }
+              const order = createOrder(customer, items);
+              if (!order) {
+                Alert.alert('Not enough stock', 'Available stock changed. Review the case quantities and try again.');
+                return;
+              }
+              const invoiceNumber = order.invoiceNumber || `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
+              setCart({});
+              setNewCustomer({ name: '', contact: '', address: '' });
+              setIsNewCustomer(false);
+              setCreatingInvoice(false);
+              setCaseToast(items.map(item => {
+                const product = products.find(entry => entry.id === item.productId);
+                const remaining = Math.max(0, product.totalStock - product.reservedStock - item.stockQuantity);
+                const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
+                return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
+              }).join(' · '));
+              Alert.alert('Invoice created', order.appliedCredit > 0
+                ? `${invoiceNumber} created. ${formatPeso(order.appliedCredit)} customer credit applied.`
+                : `${invoiceNumber} saved as outstanding.`);
+            },
+          });
         }}
       />
       <InvoiceModal
