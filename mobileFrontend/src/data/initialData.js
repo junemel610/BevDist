@@ -48,6 +48,7 @@ export const INITIAL_ORDERS = [
     deposit: 800,
     grandTotal: 1540,
     status: 'completed',
+    deliveryStatus: 'delivered',
     date: '2026-06-16',
   },
   {
@@ -88,7 +89,8 @@ export const INITIAL_ORDERS = [
     subtotal: 990,
     deposit: 500,
     grandTotal: 990,
-    status: 'completed',
+    status: 'pending',
+    deliveryStatus: 'delivered',
     date: '2026-06-14',
   },
 ];

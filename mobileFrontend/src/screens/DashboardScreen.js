@@ -27,7 +27,7 @@ export function DashboardScreen({ navigation }) {
     { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
     { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Payments applied · excludes excess' },
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices, icon: 'assignment' },
-    { label: 'Completed Orders', value: sales.fullyPaid, icon: 'check-circle-outline', hint: 'Fully paid invoices' },
+    { label: 'Completed Orders', value: sales.completedOrders, icon: 'check-circle-outline', hint: 'Delivered and fully paid' },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding), icon: 'account-balance-wallet' },
     { label: 'Low Stock Products', value: getLowStockCount(), icon: 'inventory-2' },
   ];

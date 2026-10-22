@@ -7,6 +7,29 @@ import {
 } from '../data/initialData';
 import { isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
+import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
+
+function finalizeReservedStock(products, order) {
+  return products.map((product) => {
+    const reservedQty = order.items.reduce((sum, item) => (
+      item.productId === product.id ? sum + item.quantity : sum
+    ), 0);
+    return reservedQty ? {
+      ...product,
+      totalStock: product.totalStock - reservedQty,
+      reservedStock: product.reservedStock - reservedQty,
+    } : product;
+  });
+}
+
+function releaseReservedStock(products, order) {
+  return products.map((product) => {
+    const reservedQty = order.items.reduce((sum, item) => (
+      item.productId === product.id ? sum + item.quantity : sum
+    ), 0);
+    return reservedQty ? { ...product, reservedStock: product.reservedStock - reservedQty } : product;
+  });
+}
 
 const AppContext = createContext();
 
@@ -46,6 +69,7 @@ export function AppProvider({ children }) {
       deposit: 0,
       grandTotal: total,
       status: 'pending',
+      deliveryStatus: 'pending',
       date: new Date().toISOString().split('T')[0],
     };
 
@@ -92,45 +116,25 @@ export function AppProvider({ children }) {
 
   const updateOrderStatus = useCallback((orderId, newStatus) => {
     const order = orders.find((o) => o.id === orderId);
-    if (!order) return;
-
-    const updatedOrders = orders.map((o) =>
-      o.id === orderId ? { ...o, status: newStatus } : o
-    );
-
-    let updatedProducts = products;
-
-    // Handle stock changes
-    if (newStatus === 'completed') {
-      // Deduct from total stock, clear reserved
-      updatedProducts = products.map((product) => {
-        const reservedQty = order.items.reduce((sum, item) => {
-          if (item.productId === product.id) return sum + item.quantity;
-          return sum;
-        }, 0);
-        return {
-          ...product,
-          totalStock: product.totalStock - reservedQty,
-          reservedStock: product.reservedStock - reservedQty,
-        };
-      });
-    } else if (newStatus === 'cancelled') {
-      // Release reserved stock
-      updatedProducts = products.map((product) => {
-        const reservedQty = order.items.reduce((sum, item) => {
-          if (item.productId === product.id) return sum + item.quantity;
-          return sum;
-        }, 0);
-        return {
-          ...product,
-          reservedStock: product.reservedStock - reservedQty,
-        };
-      });
+    if (!order || order.status === 'cancelled' || order.status === 'completed') return false;
+    if (newStatus === 'cancelled') {
+      if (order.deliveryStatus === 'delivered') return false;
+      const balance = balances.find((item) => item.orderId === orderId);
+      if (balance && balance.amountPaid > 0) return false;
+      setProducts(releaseReservedStock(products, order));
+      setOrders(orders.map((item) => item.id === orderId ? { ...item, status: 'cancelled' } : item));
+      return true;
     }
+    if (newStatus !== 'completed' || !canMarkDelivered(order)) return false;
 
-    setProducts(updatedProducts);
-    setOrders(updatedOrders);
-  }, [orders, products]);
+    const balance = balances.find((item) => item.orderId === orderId);
+    const paid = balance ? balance.remainingBalance <= 0 : order.grandTotal <= 0;
+    const deliveredOrder = { ...order, deliveryStatus: 'delivered' };
+    const status = orderLifecycleStatus(deliveredOrder, paid ? 'paid' : 'partial');
+    setOrders(orders.map((item) => item.id === orderId ? { ...deliveredOrder, status } : item));
+    if (status === 'completed') setProducts(finalizeReservedStock(products, order));
+    return true;
+  }, [orders, products, balances]);
 
   const recordPayment = useCallback((balanceId, amountPaid) => {
     const balance = balances.find((item) => item.id === balanceId);
@@ -146,6 +150,11 @@ export function AppProvider({ children }) {
       status: balanceStatus({ ...item, remainingBalance: nextRemaining }, today),
     } : item);
     setBalances(updatedBalances);
+    const paidOrder = orders.find((item) => item.id === balance.orderId);
+    if (paidOrder && paidOrder.deliveryStatus === 'delivered' && nextRemaining === 0 && paidOrder.status !== 'completed') {
+      setProducts((current) => finalizeReservedStock(current, paidOrder));
+      setOrders((current) => current.map((item) => item.id === paidOrder.id ? { ...item, status: 'completed' } : item));
+    }
     if (payment.excess > 0) {
       const order = orders.find((item) => item.id === balance.orderId);
       const creditKey = customerCreditKey(order?.customer?.name || balance.customerName);

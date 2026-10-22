@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-
-const source = await readFile(new URL('../src/components/dashboard/salesSummary.js', import.meta.url), 'utf8');
-const { salesSummary } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+import { invoiceSummary, salesSummary } from '../src/components/dashboard/salesSummary.js';
 
 test('counts invoice totals and excludes cancelled orders and excess payments', () => {
   const orders = [
@@ -22,6 +19,7 @@ test('counts invoice totals and excludes cancelled orders and excess payments', 
     outstanding: 0,
     outstandingInvoices: 0,
     fullyPaid: 2,
+    completedOrders: 1,
   });
 });
 
@@ -29,11 +27,10 @@ test('partial payments count toward actual sales and leave a balance due', () =>
   assert.deepEqual(salesSummary(
     [{ id: 'order', status: 'pending', grandTotal: 1000 }],
     [{ orderId: 'order', amountPaid: 300 }],
-  ), { expected: 1000, actual: 300, outstanding: 700, outstandingInvoices: 1, fullyPaid: 0 });
+  ), { expected: 1000, actual: 300, outstanding: 700, outstandingInvoices: 1, fullyPaid: 0, completedOrders: 0 });
 });
 
 test('invoice status distinguishes unpaid, partial, paid, and cancelled', async () => {
-  const { invoiceSummary } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
   const order = { id: 'order', orderNumber: 'ORD-2026-007', grandTotal: 1000, deposit: 0, status: 'pending' };
   assert.equal(invoiceSummary(order, null).status, 'unpaid');
   assert.equal(invoiceSummary(order, { amountPaid: 250 }).status, 'partial');

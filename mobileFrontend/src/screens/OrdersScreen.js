@@ -35,7 +35,7 @@ const STATUS = {
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
 export function OrdersScreen() {
-  const { orders, balances, products, createOrder, getAvailableStock } = useApp();
+  const { orders, balances, products, createOrder, updateOrderStatus, getAvailableStock } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
@@ -61,7 +61,7 @@ export function OrdersScreen() {
   }, [orders, balances]);
 
   const visibleOrders = useMemo(() => orders
-    .map(order => ({ ...order, ...invoiceFor(order) }))
+    .map(order => ({ ...order, lifecycleStatus: order.status, ...invoiceFor(order) }))
     .filter(order => activeFilter === 'all'
       || (activeFilter === 'outstanding' && ['unpaid', 'partial'].includes(order.status))
       || order.status === activeFilter)
@@ -169,7 +169,24 @@ export function OrdersScreen() {
         )}
       />
 
-      <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
+      <OrderDetailModal
+        order={detailOrder}
+        onClose={() => setDetailOrder(null)}
+        onMarkDelivered={() => {
+          if (detailOrder && updateOrderStatus(detailOrder.id, 'completed')) setDetailOrder(null);
+          else Alert.alert('Could not update invoice', 'This invoice may already be delivered or cancelled.');
+        }}
+        onCancel={() => {
+          if (!detailOrder) return;
+          Alert.alert('Cancel invoice?', 'Reserved stock will be released. This action cannot be undone.', [
+            { text: 'Keep invoice', style: 'cancel' },
+            { text: 'Cancel invoice', style: 'destructive', onPress: () => {
+              if (updateOrderStatus(detailOrder.id, 'cancelled')) setDetailOrder(null);
+              else Alert.alert('Could not cancel', 'Delivered or completed invoices cannot be cancelled here.');
+            } },
+          ]);
+        }}
+      />
       <CreateInvoiceModal
         visible={creatingInvoice}
         width={width}
@@ -410,7 +427,7 @@ function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCus
   );
 }
 
-function OrderDetailModal({ order, onClose }) {
+function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
   if (!order) return null;
   const status = STATUS[order.status] ?? STATUS.unpaid;
   return (
@@ -425,6 +442,14 @@ function OrderDetailModal({ order, onClose }) {
         </View>
         <View style={styles.infoGroup}>
           <Text style={styles.sectionLabel}>Invoice</Text>
+          <View style={styles.infoLine}>
+            <Text style={styles.infoSecondary}>Delivery</Text>
+            <Text style={styles.infoValue}>{order.deliveryStatus === 'delivered' ? 'Delivered' : 'Pending delivery'}</Text>
+          </View>
+          <View style={styles.infoLine}>
+            <Text style={styles.infoSecondary}>Overall status</Text>
+            <Text style={styles.infoValue}>{order.lifecycleStatus === 'completed' ? 'Completed' : order.lifecycleStatus === 'cancelled' ? 'Cancelled' : 'Ongoing'}</Text>
+          </View>
           <View style={styles.infoLine}>
             <Text style={styles.infoSecondary}>Payment status</Text>
             <Text style={[styles.infoValue, { color: status.color }]}>{status.label}</Text>
@@ -456,6 +481,18 @@ function OrderDetailModal({ order, onClose }) {
         </View>
       </ScrollView>
       <View style={styles.modalFooter}>
+          {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
+          <>
+            {order.amountPaid === 0 ? (
+              <Pressable onPress={onCancel} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
+                <Text style={styles.footerOutlineText}>Cancel invoice</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={onMarkDelivered} style={({ pressed }) => [styles.footerButton, styles.createSubmit, pressed && styles.pressed]}>
+              <Text style={styles.createSubmitText}>Mark delivered</Text>
+            </Pressable>
+          </>
+        ) : null}
         <Pressable onPress={onClose} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
           <Text style={styles.footerOutlineText}>Close</Text>
         </Pressable>
