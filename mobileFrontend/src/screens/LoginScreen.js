@@ -8,6 +8,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -44,9 +45,12 @@ export function LoginScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.brand}>
-            <View style={styles.brandMark}>
-              <MaterialIcons name="local-drink" size={25} color={theme.colors.onPrimary} accessible={false} />
-            </View>
+            <Image
+              source={require('../../assets/images/bevdist-icon.png')}
+              style={styles.brandMark}
+              resizeMode="cover"
+              accessible={false}
+            />
             <Text style={styles.logo}>BevDist</Text>
           </View>
 
