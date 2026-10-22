@@ -22,7 +22,7 @@ const FILTERS = [
   { key: 'all', label: 'All invoices' },
   { key: 'outstanding', label: 'Outstanding' },
   { key: 'paid', label: 'Fully paid' },
-  { key: 'carried_forward', label: 'Carried forward' },
+  { key: 'carried_forward', label: 'Moved to new invoice' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -30,7 +30,7 @@ const STATUS = {
   unpaid: { label: 'Unpaid', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
   partial: { label: 'Partial', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
   paid: { label: 'Fully paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
-  carried_forward: { label: 'Carried forward', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
+  carried_forward: { label: 'Moved to new invoice', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
   cancelled: { label: 'Cancelled', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'cancel' },
 };
 
@@ -607,7 +607,7 @@ function InvoiceModal({ order, balance, onClose, width }) {
 
         <View style={styles.invoiceSummary}>
           <SummaryLine label="Subtotal" value={formatPeso(order.subtotal)} />
-          {Number(balance?.carriedForwardAmount) > 0 ? <SummaryLine label="Prior balance carried forward" value={formatPeso(balance.carriedForwardAmount)} /> : null}
+          {Number(balance?.carriedForwardAmount) > 0 ? <SummaryLine label="Previous unpaid balance" value={formatPeso(balance.carriedForwardAmount)} /> : null}
           <SummaryLine label="Payments received" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
           <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
           <View style={styles.invoiceGrandTotal}>

@@ -47,7 +47,7 @@ export function GCashTransactionsScreen() {
             <View style={styles.copy}>
               <Text style={styles.customer}>{item.customerName}</Text>
               <Text style={styles.meta}>{item.invoiceNumber} · {item.date}</Text>
-              {item.excess > 0 ? <Text style={styles.creditText}>{formatPeso(item.excess)} carried forward</Text> : null}
+              {item.excess > 0 ? <Text style={styles.creditText}>{formatPeso(item.excess)} credit for next invoice</Text> : null}
             </View>
             <Text style={styles.amount}>{formatPeso(item.amountApplied)}</Text>
           </View>

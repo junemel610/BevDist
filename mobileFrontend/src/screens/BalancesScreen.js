@@ -22,14 +22,14 @@ const FILTERS = [
   { key: 'unpaid', label: 'Unpaid' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
-  { key: 'carried_forward', label: 'Carried forward' },
+  { key: 'carried_forward', label: 'Moved to new invoice' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 const STATUS = {
   paid: { label: 'Paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   unpaid: { label: 'Unpaid', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
   overdue: { label: 'Overdue', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
-  carried_forward: { label: 'Carried forward', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
+  carried_forward: { label: 'Moved to new invoice', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
   cancelled: { label: 'Cancelled', color: theme.colors.textLight, background: theme.colors.surfaceMuted, icon: 'cancel' },
 };
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
@@ -140,9 +140,16 @@ export function BalancesScreen({ navigation }) {
               <View style={styles.creditNotice}>
                 <MaterialIcons name="account-balance-wallet" size={19} color={theme.colors.primary} accessible={false} />
                 <View style={styles.creditNoticeCopy}>
-                  <Text style={styles.creditNoticeTitle}>Customer credit carried forward</Text>
-                  <Text style={styles.creditNoticeText}>{formatPeso(totalCredit)} will be applied to the customers’ next invoices.</Text>
+                  <Text style={styles.creditNoticeTitle}>Customer credit available</Text>
+                  <Text style={styles.creditNoticeText}>{formatPeso(totalCredit)} in extra payments will automatically reduce customers’ next invoice totals.</Text>
                 </View>
+              </View>
+            ) : null}
+
+            {counts.carried_forward > 0 ? (
+              <View style={styles.transferNotice}>
+                <Text style={styles.transferNoticeTitle}>About “Moved to new invoice”</Text>
+                <Text style={styles.transferNoticeText}>An unpaid amount from an older invoice was added to the customer’s newer invoice. It is listed there once, so it is not counted twice.</Text>
               </View>
             ) : null}
 
@@ -346,6 +353,9 @@ const styles = StyleSheet.create({
   creditNoticeCopy: { flex: 1 },
   creditNoticeTitle: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   creditNoticeText: { color: theme.colors.primary, fontSize: theme.fontSize.xs, marginTop: 3 },
+  transferNotice: { marginBottom: theme.spacing.md, padding: theme.spacing.md, borderRadius: 12, backgroundColor: theme.colors.surfaceMuted },
+  transferNoticeTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
+  transferNoticeText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 18, marginTop: 3 },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   searchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: theme.fontSize.base, paddingVertical: 0 },
   clearButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
