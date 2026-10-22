@@ -192,6 +192,7 @@ export function InventoryScreen() {
                     accessibilityState={{ selected }}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
+                    {selected && <MaterialIcons name="check" size={15} color={theme.colors.onPrimary} accessible={false} />}
                     <Text style={[styles.filterLabel, selected && styles.filterLabelSelected]}>{filter.label}</Text>
                     <Text style={[styles.filterCount, selected && styles.filterCountSelected]}>{count}</Text>
                   </Pressable>
@@ -209,6 +210,7 @@ export function InventoryScreen() {
                     accessibilityState={{ selected }}
                     style={({ pressed }) => [styles.supplierChip, selected && styles.supplierChipSelected, pressed && styles.pressed]}
                   >
+                    {selected && <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />}
                     <Text style={[styles.supplierLabel, selected && styles.supplierLabelSelected]}>{supplier}</Text>
                   </Pressable>
                 );
@@ -380,7 +382,7 @@ const styles = StyleSheet.create({
   filterCount: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
   filterCountSelected: { color: theme.colors.onPrimary },
   supplierRow: { gap: theme.spacing.sm, paddingBottom: theme.spacing.md },
-  supplierChip: { minHeight: 40, justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
+  supplierChip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
   supplierChipSelected: { backgroundColor: theme.colors.primarySoft },
   supplierLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium },
   supplierLabelSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },

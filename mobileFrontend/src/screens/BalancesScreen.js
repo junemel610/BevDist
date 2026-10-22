@@ -191,6 +191,7 @@ export function BalancesScreen({ navigation }) {
                     accessibilityState={{ selected }}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
+                    {selected && <MaterialIcons name="check" size={15} color={theme.colors.onPrimary} accessible={false} />}
                     <Text style={[styles.filterLabel, selected && styles.filterLabelSelected]}>{filter.label}</Text>
                     <Text style={[styles.filterCount, selected && styles.filterLabelSelected]}>{counts[filter.key]}</Text>
                   </Pressable>
@@ -241,6 +242,7 @@ export function BalancesScreen({ navigation }) {
                   accessibilityState={{ selected: paymentMethod === method }}
                   style={[styles.methodChip, paymentMethod === method && styles.methodChipSelected]}
                 >
+                  <MaterialIcons name={paymentMethod === method ? 'radio-button-checked' : 'radio-button-unchecked'} size={17} color={paymentMethod === method ? theme.colors.primary : theme.colors.textLight} accessible={false} />
                   <Text style={[styles.methodText, paymentMethod === method && styles.methodTextSelected]}>{method}</Text>
                 </Pressable>
               ))}
@@ -409,7 +411,7 @@ const styles = StyleSheet.create({
   paymentDue: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 4 },
   amountLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: theme.spacing.md, marginBottom: theme.spacing.xs },
   paymentMethods: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs },
-  methodChip: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  methodChip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   methodChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   methodText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
   methodTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },

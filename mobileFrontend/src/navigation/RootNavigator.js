@@ -72,6 +72,7 @@ function HomeTabsScreen() {
         ),
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textLight,
+        tabBarActiveBackgroundColor: theme.colors.primarySoft,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.border,

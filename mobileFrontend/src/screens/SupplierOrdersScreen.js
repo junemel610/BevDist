@@ -134,7 +134,7 @@ export function SupplierOrdersScreen() {
                   accessibilityState={{ selected }}
                   style={({ pressed }) => [styles.supplierChip, selected && styles.supplierChipSelected, pressed && styles.pressed]}
                 >
-                  <MaterialIcons name="inventory-2" size={18} color={selected ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                  <MaterialIcons name={selected ? 'check-circle' : 'inventory-2'} size={18} color={selected ? theme.colors.primary : theme.colors.textLight} accessible={false} />
                   <Text style={[styles.supplierLabel, selected && styles.supplierLabelSelected]}>{name}</Text>
                 </Pressable>
               );

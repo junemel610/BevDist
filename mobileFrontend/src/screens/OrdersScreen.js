@@ -156,6 +156,7 @@ export function OrdersScreen({ navigation }) {
                     accessibilityState={{ selected }}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
+                    {selected && <MaterialIcons name="check" size={15} color={theme.colors.onPrimary} accessible={false} />}
                     <Text style={[styles.filterLabel, selected && styles.filterLabelSelected]}>{filter.label}</Text>
                     <Text style={[styles.filterCount, selected && styles.filterCountSelected]}>{counts[filter.key]}</Text>
                   </Pressable>
@@ -414,6 +415,7 @@ function CreateInvoiceModal({ visible, width, products, customers, cart, custome
                 accessibilityState={{ selected: isNewCustomer === isNew }}
                 style={[styles.customerModeButton, isNewCustomer === isNew && styles.customerModeButtonSelected]}
               >
+                {isNewCustomer === isNew && <MaterialIcons name="check-circle" size={17} color={theme.colors.primary} accessible={false} />}
                 <Text style={[styles.customerModeText, isNewCustomer === isNew && styles.customerModeTextSelected]}>
                   {isNew ? 'New customer' : 'Existing customer'}
                 </Text>
@@ -725,7 +727,7 @@ const styles = StyleSheet.create({
   createSection: { gap: theme.spacing.sm },
   createSectionTitle: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text, marginBottom: theme.spacing.xs },
   customerMode: { flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.xs },
-  customerModeButton: { minHeight: 42, flex: 1, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  customerModeButton: { minHeight: 42, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   customerModeButtonSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   customerModeText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium, color: theme.colors.textLight },
   customerModeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.semibold },
