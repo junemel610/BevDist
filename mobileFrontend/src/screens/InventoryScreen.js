@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
-import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, productStockState, stockForCasePack } from '../components/inventory/inventoryUtils';
+import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, productStockState, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
 import { casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
 import { confirmAction } from '../utils/confirmAction';
 
