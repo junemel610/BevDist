@@ -43,6 +43,21 @@ test('cash is included in actual sales while GCash stays in its separate total',
   assert.equal(summary.expected, 1800);
 });
 
+test('carried balances move to the new invoice without counting the old sale twice', () => {
+  const orders = [
+    { id: 'old', status: 'pending', grandTotal: 500 },
+    { id: 'new', status: 'pending', grandTotal: 800 },
+  ];
+  const balances = [
+    { orderId: 'old', totalAmount: 500, amountPaid: 100, remainingBalance: 0, status: 'carried_forward', carriedForwardToOrderId: 'new' },
+    { orderId: 'new', totalAmount: 1200, currentInvoiceTotal: 800, amountPaid: 100, currentInvoicePaid: 0, carriedForwardAmount: 400, remainingBalance: 1100 },
+  ];
+  const summary = salesSummary(orders, balances, []);
+  assert.equal(summary.expected, 1300);
+  assert.equal(summary.outstanding, 1100);
+  assert.equal(invoiceSummary(orders[0], balances[0]).status, 'carried_forward');
+});
+
 test('invoice status distinguishes unpaid, partial, paid, and cancelled', async () => {
   const order = { id: 'order', orderNumber: 'ORD-2026-007', grandTotal: 1000, deposit: 0, status: 'pending' };
   assert.equal(invoiceSummary(order, null).status, 'unpaid');

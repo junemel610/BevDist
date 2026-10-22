@@ -1,4 +1,6 @@
 export function balanceStatus(balance, today = new Date().toISOString().slice(0, 10)) {
+  if (balance.status === 'carried_forward') return 'carried_forward';
+  if (balance.status === 'cancelled') return 'cancelled';
   if (Number(balance.remainingBalance) <= 0) return 'paid';
   return balance.dueDate < today ? 'overdue' : 'unpaid';
 }

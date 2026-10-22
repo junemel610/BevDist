@@ -22,11 +22,15 @@ const FILTERS = [
   { key: 'unpaid', label: 'Unpaid' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
+  { key: 'carried_forward', label: 'Carried forward' },
+  { key: 'cancelled', label: 'Cancelled' },
 ];
 const STATUS = {
   paid: { label: 'Paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   unpaid: { label: 'Unpaid', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
   overdue: { label: 'Overdue', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
+  carried_forward: { label: 'Carried forward', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
+  cancelled: { label: 'Cancelled', color: theme.colors.textLight, background: theme.colors.surfaceMuted, icon: 'cancel' },
 };
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
 
@@ -55,7 +59,7 @@ export function BalancesScreen({ navigation }) {
   const counts = useMemo(() => records.reduce((result, balance) => {
     result[balance.status] += 1;
     return result;
-  }, { all: records.length, unpaid: 0, overdue: 0, paid: 0 }), [records]);
+  }, { all: records.length, unpaid: 0, overdue: 0, paid: 0, carried_forward: 0, cancelled: 0 }), [records]);
   const outstanding = useMemo(() => records.reduce((sum, balance) => (
     balance.status === 'paid' ? sum : sum + Math.max(0, Number(balance.remainingBalance) || 0)
   ), 0), [records]);
@@ -67,7 +71,7 @@ export function BalancesScreen({ navigation }) {
         || balance.invoiceNumber.toLocaleLowerCase().includes(query)))
       .slice()
       .sort((a, b) => {
-        const statusOrder = { overdue: 0, unpaid: 1, paid: 2 };
+        const statusOrder = { overdue: 0, unpaid: 1, paid: 2, carried_forward: 3, cancelled: 4 };
         return statusOrder[a.status] - statusOrder[b.status]
           || a.dueDate.localeCompare(b.dueDate);
       });
@@ -302,7 +306,7 @@ function BalanceCard({ balance, compact, onPay }) {
           <Text style={styles.remainingLabel}>Remaining</Text>
           <Text style={[styles.remainingAmount, { color: remaining ? theme.colors.danger : theme.colors.success }]}>{formatPeso(remaining)}</Text>
         </View>
-        {balance.status !== 'paid' && (
+        {!['paid', 'carried_forward', 'cancelled'].includes(balance.status) && (
           <Pressable
             onPress={onPay}
             accessibilityRole="button"

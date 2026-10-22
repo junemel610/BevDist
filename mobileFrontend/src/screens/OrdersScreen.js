@@ -22,6 +22,7 @@ const FILTERS = [
   { key: 'all', label: 'All invoices' },
   { key: 'outstanding', label: 'Outstanding' },
   { key: 'paid', label: 'Fully paid' },
+  { key: 'carried_forward', label: 'Carried forward' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -29,6 +30,7 @@ const STATUS = {
   unpaid: { label: 'Unpaid', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
   partial: { label: 'Partial', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
   paid: { label: 'Fully paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
+  carried_forward: { label: 'Carried forward', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
   cancelled: { label: 'Cancelled', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'cancel' },
 };
 
@@ -57,11 +59,12 @@ export function OrdersScreen({ navigation }) {
 
   const invoiceFor = order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
   const counts = useMemo(() => {
-    const result = { all: orders.length, outstanding: 0, paid: 0, cancelled: 0 };
+    const result = { all: orders.length, outstanding: 0, paid: 0, carried_forward: 0, cancelled: 0 };
     orders.forEach(order => {
       const status = invoiceFor(order).status;
       if (status === 'unpaid' || status === 'partial') result.outstanding += 1;
       else if (status === 'paid') result.paid += 1;
+      else if (status === 'carried_forward') result.carried_forward += 1;
       else result.cancelled += 1;
     });
     return result;
@@ -547,7 +550,7 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
         </View>
       </ScrollView>
       <View style={styles.modalFooter}>
-          {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
+          {order.lifecycleStatus === 'pending' && order.status !== 'carried_forward' && order.deliveryStatus !== 'delivered' ? (
           <>
             {order.amountPaid === 0 ? (
               <Pressable onPress={onCancel} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
@@ -609,6 +612,7 @@ function InvoiceModal({ order, balance, onClose, width }) {
 
         <View style={styles.invoiceSummary}>
           <SummaryLine label="Subtotal" value={formatPeso(order.subtotal)} />
+          {Number(balance?.carriedForwardAmount) > 0 ? <SummaryLine label="Prior balance carried forward" value={formatPeso(balance.carriedForwardAmount)} /> : null}
           <SummaryLine label="Payments received" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
           <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
           <View style={styles.invoiceGrandTotal}>

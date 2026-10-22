@@ -13,6 +13,7 @@ import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/ord
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
 import { createPaymentTransaction } from '../components/balances/paymentLedger';
 import { PAYMENT_METHOD } from '../types';
+import { allocatePayment, carryForwardBalances, forwardBalanceRecords } from '../components/balances/carryForward';
 
 function finalizeReservedStock(products, order) {
   return products.map((product) => {
@@ -78,9 +79,12 @@ export function AppProvider({ children }) {
 
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const carryForward = carryForwardBalances(balances, customer);
+    const totalDue = total + carryForward.amount;
     const creditKey = customerCreditKey(customer);
     const creditAvailable = Number(customerCredits[creditKey] || 0);
-    const appliedCredit = creditAppliedToInvoice(creditAvailable, total);
+    const appliedCredit = creditAppliedToInvoice(creditAvailable, totalDue);
+    const creditAppliedToCarry = Math.min(carryForward.amount, appliedCredit);
     const newOrder = {
       id: `o${Date.now()}`,
       orderNumber: `ORD-2026-${String(orders.length + 1).padStart(3, '0')}`,
@@ -117,13 +121,18 @@ export function AppProvider({ children }) {
       customerName: customer.name,
       customerId: customer.id,
       invoiceNumber,
-      totalAmount: newOrder.grandTotal,
+      totalAmount: totalDue,
+      currentInvoiceTotal: total,
+      currentInvoicePaid: Math.max(0, appliedCredit - creditAppliedToCarry),
+      carriedForwardAmount: carryForward.amount,
+      carriedForwardPaid: creditAppliedToCarry,
+      carriedForwardItems: carryForward.items,
       amountPaid: appliedCredit,
-      remainingBalance: newOrder.grandTotal - appliedCredit,
+      remainingBalance: totalDue - appliedCredit,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: appliedCredit >= newOrder.grandTotal ? 'paid' : 'unpaid',
+      status: appliedCredit >= totalDue ? 'paid' : appliedCredit > 0 ? 'partial' : 'unpaid',
     };
-    setBalances([...balances, newBalance]);
+    setBalances([...forwardBalanceRecords(balances, carryForward.items, newOrder.id), newBalance]);
     if (appliedCredit > 0) {
       const remainingCredit = creditAvailable - appliedCredit;
       setCustomerCredits((current) => {
@@ -140,17 +149,27 @@ export function AppProvider({ children }) {
   const updateOrderStatus = useCallback((orderId, newStatus) => {
     const order = orders.find((o) => o.id === orderId);
     if (!order || order.status === 'cancelled' || order.status === 'completed') return false;
+    const orderBalance = balances.find((item) => item.orderId === orderId);
+    if (orderBalance?.carriedForwardToOrderId) return false;
     if (newStatus === 'cancelled') {
       if (order.deliveryStatus === 'delivered') return false;
-      const balance = balances.find((item) => item.orderId === orderId);
+      const balance = orderBalance;
       if (balance && balance.amountPaid > 0) return false;
       setProducts(releaseReservedStock(products, order));
       setOrders(orders.map((item) => item.id === orderId ? { ...item, status: 'cancelled' } : item));
+      const carriedItems = balance?.carriedForwardItems || [];
+      const restoreById = new Map(carriedItems.map(item => [item.balanceId, item.amount]));
+      setBalances(balances.map((item) => {
+        if (item.orderId === orderId) return { ...item, status: 'cancelled', remainingBalance: 0 };
+        if (!restoreById.has(item.id)) return item;
+        const restored = { ...item, carriedForwardToOrderId: null, remainingBalance: item.remainingBalance + restoreById.get(item.id) };
+        return { ...restored, status: balanceStatus(restored) };
+      }));
       return true;
     }
     if (newStatus !== 'completed' || !canMarkDelivered(order)) return false;
 
-    const balance = balances.find((item) => item.orderId === orderId);
+    const balance = orderBalance;
     const paid = balance ? balance.remainingBalance <= 0 : order.grandTotal <= 0;
     const deliveredOrder = { ...order, deliveryStatus: 'delivered' };
     const status = orderLifecycleStatus(deliveredOrder, paid ? 'paid' : 'partial');
@@ -168,10 +187,13 @@ export function AppProvider({ children }) {
     const transaction = createPaymentTransaction(balance, order, amountPaid, method);
     if (!transaction) return false;
     const nextRemaining = Math.max(0, balance.remainingBalance - payment.applied);
+    const allocation = allocatePayment(balance, payment.applied);
     const today = new Date().toISOString().slice(0, 10);
     const updatedBalances = balances.map((item) => item.id === balanceId ? {
       ...item,
       amountPaid: item.amountPaid + payment.applied,
+      currentInvoicePaid: allocation.currentInvoicePaid,
+      carriedForwardPaid: allocation.carriedForwardPaid,
       remainingBalance: nextRemaining,
       status: balanceStatus({ ...item, remainingBalance: nextRemaining }, today),
     } : item);
