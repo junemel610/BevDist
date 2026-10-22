@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { LoginScreen } from '../screens/LoginScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import {
   OrdersScreen,
@@ -61,6 +62,7 @@ const tabIcons = {
   Inventory: 'inventory',
   Orders: 'local-shipping',
   Balances: 'account-balance',
+  Profile: 'account-circle',
 };
 
 function HomeTabsScreen() {
@@ -89,6 +91,7 @@ function HomeTabsScreen() {
       <Tab.Screen name="Inventory" component={InventoryStackScreen} />
       <Tab.Screen name="Orders" component={SupplierOrdersStackScreen} />
       <Tab.Screen name="Balances" component={BalancesStackScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
