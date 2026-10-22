@@ -6,6 +6,7 @@ import {
   INITIAL_RESTOCK_RECORDS,
 } from '../data/initialData';
 import { isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
+import { balanceStatus, creditAppliedToInvoice, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
 
 const AppContext = createContext();
 
@@ -16,6 +17,7 @@ export function AppProvider({ children }) {
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [restockRecords, setRestockRecords] = useState(INITIAL_RESTOCK_RECORDS);
   const [balances, setBalances] = useState(INITIAL_BALANCES);
+  const [customerCredits, setCustomerCredits] = useState({});
   // Auth actions
   const login = useCallback((username, password) => {
     setCurrentUser(username);
@@ -30,15 +32,19 @@ export function AppProvider({ children }) {
   // Order actions
   const createOrder = useCallback((customer, items) => {
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
+    const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const creditKey = customerCreditKey(customer.name);
+    const creditAvailable = Number(customerCredits[creditKey] || 0);
+    const appliedCredit = creditAppliedToInvoice(creditAvailable, total);
     const newOrder = {
       id: `o${Date.now()}`,
       orderNumber: `ORD-2026-${String(orders.length + 1).padStart(3, '0')}`,
       invoiceNumber,
       customer,
       items,
-      subtotal: items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+      subtotal: total,
       deposit: 0,
-      grandTotal: items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
+      grandTotal: total,
       status: 'pending',
       date: new Date().toISOString().split('T')[0],
     };
@@ -65,15 +71,24 @@ export function AppProvider({ children }) {
       customerName: customer.name,
       invoiceNumber,
       totalAmount: newOrder.grandTotal,
-      amountPaid: 0,
-      remainingBalance: newOrder.grandTotal,
+      amountPaid: appliedCredit,
+      remainingBalance: newOrder.grandTotal - appliedCredit,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'unpaid',
+      status: appliedCredit >= newOrder.grandTotal ? 'paid' : 'unpaid',
     };
     setBalances([...balances, newBalance]);
+    if (appliedCredit > 0) {
+      const remainingCredit = creditAvailable - appliedCredit;
+      setCustomerCredits((current) => {
+        const next = { ...current };
+        if (remainingCredit > 0) next[creditKey] = remainingCredit;
+        else delete next[creditKey];
+        return next;
+      });
+    }
 
-    return newOrder;
-  }, [orders, products, balances]);
+    return { ...newOrder, appliedCredit };
+  }, [orders, products, balances, customerCredits]);
 
   const updateOrderStatus = useCallback((orderId, newStatus) => {
     const order = orders.find((o) => o.id === orderId);
@@ -118,21 +133,26 @@ export function AppProvider({ children }) {
   }, [orders, products]);
 
   const recordPayment = useCallback((balanceId, amountPaid) => {
-    const updatedBalances = balances.map((balance) => {
-      if (balance.id === balanceId) {
-        const newAmountPaid = balance.amountPaid + amountPaid;
-        const remainingBalance = balance.totalAmount - newAmountPaid;
-        return {
-          ...balance,
-          amountPaid: newAmountPaid,
-          remainingBalance: remainingBalance > 0 ? remainingBalance : 0,
-          status: remainingBalance <= 0 ? 'paid' : 'unpaid',
-        };
-      }
-      return balance;
-    });
+    const balance = balances.find((item) => item.id === balanceId);
+    if (!balance) return false;
+    const payment = paymentBreakdown(balance, amountPaid);
+    if (!payment.valid) return false;
+    const nextRemaining = Math.max(0, balance.remainingBalance - payment.applied);
+    const today = new Date().toISOString().slice(0, 10);
+    const updatedBalances = balances.map((item) => item.id === balanceId ? {
+      ...item,
+      amountPaid: item.amountPaid + payment.applied,
+      remainingBalance: nextRemaining,
+      status: balanceStatus({ ...item, remainingBalance: nextRemaining }, today),
+    } : item);
     setBalances(updatedBalances);
-  }, [balances]);
+    if (payment.excess > 0) {
+      const order = orders.find((item) => item.id === balance.orderId);
+      const creditKey = customerCreditKey(order?.customer?.name || balance.customerName);
+      setCustomerCredits((current) => ({ ...current, [creditKey]: (Number(current[creditKey]) || 0) + payment.excess }));
+    }
+    return payment;
+  }, [balances, orders]);
 
   const addRestockRecord = useCallback((supplier, items, returnedCases) => {
     const totalProductCost = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
@@ -219,6 +239,7 @@ export function AppProvider({ children }) {
     orders,
     restockRecords,
     balances,
+    customerCredits,
     login,
     logout,
     createOrder,

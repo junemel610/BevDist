@@ -201,7 +201,9 @@ export function OrdersScreen() {
           setNewCustomer({ name: '', contact: '', address: '' });
           setIsNewCustomer(false);
           setCreatingInvoice(false);
-          Alert.alert('Invoice created', `${invoiceNumber} saved as outstanding.`);
+          Alert.alert('Invoice created', order.appliedCredit > 0
+            ? `${invoiceNumber} created. ${formatPeso(order.appliedCredit)} customer credit applied.`
+            : `${invoiceNumber} saved as outstanding.`);
         }}
       />
       <InvoiceModal

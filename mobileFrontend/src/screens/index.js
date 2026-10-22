@@ -5,6 +5,7 @@ import theme from '../styles/theme';
 export { OrdersScreen } from './OrdersScreen';
 export { InventoryScreen } from './InventoryScreen';
 export { SupplierOrdersScreen } from './SupplierOrdersScreen';
+export { BalancesScreen } from './BalancesScreen';
 
 function PlaceholderScreen({ title }) {
   return (
@@ -16,8 +17,6 @@ function PlaceholderScreen({ title }) {
     </SafeAreaView>
   );
 }
-
-export const BalancesScreen = () => <PlaceholderScreen title="Balances" />;
 
 const styles = StyleSheet.create({
   container: {
