@@ -8,7 +8,7 @@ import theme from './src/styles/theme';
 export default function App() {
   return (
     <AppProvider>
-      <StatusBar hidden={false} style="dark" backgroundColor={theme.colors.background} />
+      <StatusBar hidden={false} style="light" backgroundColor={theme.colors.primary} />
       <NavigationContainer>
         <RootNavigator />
       </NavigationContainer>

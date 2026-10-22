@@ -183,7 +183,6 @@ export function OrdersScreen({ navigation, route }) {
             order={item}
             compact={compact}
             onView={() => setDetailOrder(item)}
-            onInvoice={() => setInvoiceOrder(item)}
           />
         )}
         ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
@@ -201,6 +200,10 @@ export function OrdersScreen({ navigation, route }) {
       <OrderDetailModal
         order={detailOrder}
         onClose={() => setDetailOrder(null)}
+        onShowInvoice={() => {
+          setInvoiceOrder(detailOrder);
+          setDetailOrder(null);
+        }}
         onMarkDelivered={() => {
           if (!detailOrder) return;
           confirmAction({
@@ -321,7 +324,7 @@ export function OrdersScreen({ navigation, route }) {
   );
 }
 
-function OrderCard({ order, compact, onView, onInvoice }) {
+function OrderCard({ order, compact, onView }) {
   const status = STATUS[order.status] ?? STATUS.unpaid;
   const caseCount = order.items.every(item => item.unitsPerCase)
     ? order.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -362,18 +365,7 @@ function OrderCard({ order, compact, onView, onInvoice }) {
           style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
         >
           <MaterialIcons name="visibility" size={18} color={theme.colors.primary} accessible={false} />
-          <Text style={styles.secondaryButtonText}>{compact ? 'Details' : 'View details'}</Text>
-          <MaterialIcons name="chevron-right" size={18} color={theme.colors.primary} accessible={false} />
-        </Pressable>
-        <Pressable
-          onPress={onInvoice}
-          accessibilityRole="button"
-          accessibilityLabel={`Preview ${order.invoiceNumber}`}
-          accessibilityHint="Opens the invoice preview"
-          style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-        >
-          <MaterialIcons name="description" size={18} color={theme.colors.primary} accessible={false} />
-          <Text style={styles.secondaryButtonText}>Invoice</Text>
+          <Text style={styles.secondaryButtonText}>{compact ? 'Details' : 'View details & invoice'}</Text>
           <MaterialIcons name="chevron-right" size={18} color={theme.colors.primary} accessible={false} />
         </Pressable>
       </View>
@@ -559,7 +551,7 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
   );
 }
 
-function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
+function OrderDetailModal({ order, onClose, onShowInvoice, onMarkDelivered, onCancel }) {
   if (!order) return null;
   const status = STATUS[order.status] ?? STATUS.unpaid;
   return (
@@ -613,6 +605,9 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
         </View>
       </ScrollView>
       <View style={styles.modalFooter}>
+        <Pressable onPress={onShowInvoice} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
+          <Text style={styles.footerOutlineText}>Preview / export invoice</Text>
+        </Pressable>
           {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
           <>
             {order.amountPaid === 0 ? (
