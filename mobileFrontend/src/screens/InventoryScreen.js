@@ -16,8 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
-import { availableStock, createProductProfile, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../components/inventory/inventoryUtils';
-import { caseAvailabilityLabel, casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
+import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, productStockState, stockForCasePack } from '../components/inventory/inventoryUtils';
+import { casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
 import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
@@ -42,7 +42,7 @@ export function InventoryScreen() {
   const [addingProduct, setAddingProduct] = useState(false);
   const [productName, setProductName] = useState('');
   const [supplierName, setSupplierName] = useState('');
-  const [stockInput, setStockInput] = useState('');
+  const [stockByCasePack, setStockByCasePack] = useState({});
   const [casePackIds, setCasePackIds] = useState([]);
   const [casePrices, setCasePrices] = useState({});
   const [error, setError] = useState('');
@@ -58,7 +58,7 @@ export function InventoryScreen() {
 
   const suppliers = useMemo(() => ['All', ...new Set(products.map(product => product.supplier))], [products]);
   const counts = useMemo(() => products.reduce((result, product) => {
-    result[stockState(availableStock(product))] += 1;
+    result[productStockState(product)] += 1;
     return result;
   }, { all: products.length, healthy: 0, low: 0, out: 0 }), [products]);
   const visibleProducts = useMemo(() => {
@@ -70,10 +70,10 @@ export function InventoryScreen() {
   const startEditing = product => {
     setAddingProduct(false);
     setEditingProduct(product);
-    setStockInput(String(product.totalStock));
     const packs = casePacksForProduct(product);
     setCasePackIds(packs.map(pack => pack.id));
     setCasePrices(Object.fromEntries(packs.map(pack => [pack.id, String(pack.casePrice)])));
+    setStockByCasePack(Object.fromEntries(packs.map(pack => [pack.id, String(stockForCasePack(product, pack.id).totalStock)])));
     setError('');
   };
 
@@ -82,19 +82,19 @@ export function InventoryScreen() {
     setEditingProduct({ name: 'New product', reservedStock: 0 });
     setProductName('');
     setSupplierName('');
-    setStockInput('0');
     setCasePackIds([]);
     setCasePrices({});
+    setStockByCasePack({});
     setError('');
   };
 
   const saveProduct = () => {
-    const totalStock = Number(stockInput);
+    const normalizedStock = Object.fromEntries(selectedCasePackIds.map(id => [id, { totalStock: Number(stockByCasePack[id]) }]));
     if (addingProduct) {
       const { error: validationError } = createProductProfile(products, {
         name: productName,
         supplier: supplierName,
-        totalStock,
+        stockByCasePack: normalizedStock,
         casePackIds: selectedCasePackIds,
         casePrices,
       });
@@ -104,42 +104,37 @@ export function InventoryScreen() {
       }
       confirmAction({
         title: 'Add product to inventory?',
-        message: `${productName.trim()} · ${totalStock} cases · ${selectedCasePackIds.map(id => `${id}: ${formatPeso(casePrices[id])}/case`).join(' · ')}.`,
+        message: `${productName.trim()} · ${selectedCasePackIds.map(id => `${id}: ${stockByCasePack[id] || 0} cases at ${formatPeso(casePrices[id])}/case`).join(' · ')}.`,
         confirmLabel: 'Add product',
         onConfirm: () => {
-          const product = addProduct({ name: productName, supplier: supplierName, totalStock, casePackIds: selectedCasePackIds, casePrices });
+          const product = addProduct({ name: productName, supplier: supplierName, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices });
           if (!product) {
             setError('Could not add this product. Check the details and try again.');
             return;
           }
           setEditingProduct(null);
           setAddingProduct(false);
-          setToast(`${product.name}: ${caseAvailabilityLabel(totalStock)}`);
+          setToast(`${product.name} added with separate stock by case type.`);
         },
       });
       return;
     }
-    if (!isValidInventoryUpdate(editingProduct, totalStock, selectedCasePackIds, casePrices)) {
-      if (!Number.isFinite(totalStock) || !Number.isInteger(totalStock * 2) || totalStock < editingProduct.reservedStock) {
-        setError(`Enter a half-case increment at least ${editingProduct.reservedStock}; reserved stock cannot be reduced.`);
-        return;
-      }
-      setError('Select at least one case type and enter a price greater than ₱0 for each.');
+    if (!isValidInventoryUpdate(editingProduct, normalizedStock, selectedCasePackIds, casePrices)) {
+      setError('Enter half-case stock at least as high as reserved stock for each case type, and a price greater than ₱0.');
       return;
     }
-    const priceSummary = selectedCasePackIds.map(id => `${id}: ${formatPeso(casePrices[id])}/case`).join(' · ');
+    const priceSummary = selectedCasePackIds.map(id => `${id}: ${stockByCasePack[id] || 0} cases · ${formatPeso(casePrices[id])}/case`).join(' · ');
     confirmAction({
       title: 'Save inventory changes?',
-      message: `${editingProduct.name}: ${totalStock} cases · ${priceSummary}.`,
+      message: `${editingProduct.name}: ${priceSummary}.`,
       confirmLabel: 'Save changes',
       onConfirm: () => {
-        if (!updateProductInventory(editingProduct.id, { totalStock, casePackIds: selectedCasePackIds, casePrices })) {
+        if (!updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices })) {
           setError('Could not save these inventory values. Check them and try again.');
           return;
         }
-        const available = totalStock - editingProduct.reservedStock;
         setEditingProduct(null);
-        setToast(`${editingProduct.name}: ${caseAvailabilityLabel(available)}`);
+        setToast(`${editingProduct.name} stock updated by case type.`);
       },
     });
   };
@@ -302,6 +297,14 @@ export function InventoryScreen() {
                   <View key={id} style={styles.casePriceRow}>
                     <Text style={styles.casePriceLabel}>{pack.id.startsWith('MUCHO') ? `Mucho ${pack.unitsPerCase}` : pack.id}</Text>
                     <TextInput
+                      value={String(stockByCasePack[id] ?? '')}
+                      onChangeText={value => { setStockByCasePack(current => ({ ...current, [id]: value })); setError(''); }}
+                      keyboardType="decimal-pad"
+                      placeholder="Cases in stock"
+                      accessibilityLabel={`${pack.label} stock in cases`}
+                      style={[styles.fieldInput, styles.caseStockInput]}
+                    />
+                    <TextInput
                       value={String(casePrices[id] ?? '')}
                       onChangeText={value => { setCasePrices(current => ({ ...current, [id]: value })); setError(''); }}
                       keyboardType="decimal-pad"
@@ -313,15 +316,7 @@ export function InventoryScreen() {
                 );
               })}
               {!selectedCasePackIds.length ? <Text style={styles.helperText}>Select at least one case type.</Text> : null}
-              <Text style={[styles.fieldLabel, styles.priceLabel]}>Total stock (cases)</Text>
-              <TextInput
-                value={stockInput}
-                onChangeText={value => { setStockInput(value); setError(''); }}
-                keyboardType="decimal-pad"
-                accessibilityLabel="Total stock in cases"
-                style={styles.fieldInput}
-              />
-              <Text style={styles.helperText}>{addingProduct ? 'Cases can be entered in half-case steps.' : `Reserved stock: ${editingProduct?.reservedStock ?? 0} cases. Total must cover reserved stock.`}</Text>
+              <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock separately for each case type. Use half-case steps.' : 'Stock and reservations stay separate for each case type.'}</Text>
               {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
             </ScrollView>
             <View style={styles.modalActions}>
@@ -362,12 +357,8 @@ function SummaryCount({ count, label, color }) {
 }
 
 function InventoryCard({ product, compact, onEdit }) {
-  const available = availableStock(product);
-  const state = STATUS[stockState(available)];
-  const total = Math.max(product.totalStock, 1);
-  const casePriceSummary = casePacksForProduct(product)
-    .map(pack => `${pack.id.startsWith('MUCHO') ? pack.id.slice(6) : pack.id} ${formatPeso(pack.casePrice)}/case`)
-    .join(' · ');
+  const state = STATUS[productStockState(product)];
+  const packs = casePacksForProduct(product);
   return (
     <View style={styles.productCard}>
       <View style={styles.productTop}>
@@ -381,29 +372,22 @@ function InventoryCard({ product, compact, onEdit }) {
         </View>
       </View>
 
-      <View style={styles.stockNumbers}>
-        <View style={styles.stockMetric}>
-          <Text style={styles.stockValue}>{available}</Text>
-          <Text style={styles.stockLabel}>Available cases</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.stockMetric}>
-          <Text style={styles.stockValue}>{product.reservedStock}</Text>
-          <Text style={styles.stockLabel}>Reserved cases</Text>
-        </View>
-        <View style={styles.metricDivider} />
-        <View style={styles.stockMetric}>
-          <Text style={styles.stockValue}>{product.totalStock}</Text>
-          <Text style={styles.stockLabel}>Total cases</Text>
-        </View>
-      </View>
-      <Text style={styles.caseAvailability}>{caseAvailabilityLabel(available)}</Text>
-      <View accessibilityLabel={`Available stock ${available} of ${product.totalStock} cases`} style={styles.stockTrack}>
-        <View style={[styles.stockFill, { width: `${Math.min(Math.max((available / total) * 100, 0), 100)}%`, backgroundColor: state.color }]} />
+      <View style={styles.caseStockList}>
+        {packs.map(pack => {
+          const stock = stockForCasePack(product, pack.id);
+          const packAvailable = stock.totalStock - stock.reservedStock;
+          return (
+            <View key={pack.id} style={styles.caseStockSummary}>
+              <Text style={styles.caseStockSummaryName}>{pack.label}</Text>
+              <Text style={styles.caseStockSummaryValue}>{packAvailable} available · {stock.reservedStock} reserved · {stock.totalStock} total</Text>
+              <Text style={styles.caseStockSummaryPrice}>{formatPeso(pack.casePrice)} / case</Text>
+            </View>
+          );
+        })}
       </View>
 
       <View style={styles.productFooter}>
-        <Text numberOfLines={2} style={styles.price}>{casePriceSummary}</Text>
+        <Text style={styles.price}>Stock tracked by case type</Text>
         <Pressable
           onPress={onEdit}
           accessibilityRole="button"
@@ -492,7 +476,13 @@ const styles = StyleSheet.create({
   caseTypeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
   casePriceRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
   casePriceLabel: { width: 72, color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  caseStockInput: { flex: 1 },
   casePriceInput: { flex: 1 },
+  caseStockList: { gap: theme.spacing.xs, marginVertical: theme.spacing.md },
+  caseStockSummary: { padding: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.surfaceMuted },
+  caseStockSummaryName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
+  caseStockSummaryValue: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
+  caseStockSummaryPrice: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
   priceLabel: { marginTop: theme.spacing.md },
   errorText: { color: theme.colors.danger, fontSize: theme.fontSize.sm, marginTop: theme.spacing.sm },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.lg },

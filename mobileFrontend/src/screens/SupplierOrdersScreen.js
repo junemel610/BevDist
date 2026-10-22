@@ -16,6 +16,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { hasValidSupplierOrderItems, RETURNED_CASE_TYPES, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
+import { casePacksForProduct } from '../components/orders/casePacks';
+import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -40,7 +42,8 @@ export function SupplierOrdersScreen() {
 
   const suppliers = useMemo(() => [...new Set(products.map(product => product.supplier))], [products]);
   const supplierProducts = useMemo(() => products.filter(product => product.supplier === supplier), [products, supplier]);
-  const availableProducts = supplierProducts.filter(product => !items.some(item => item.productId === product.id));
+  const availableProducts = supplierProducts.flatMap(product => casePacksForProduct(product).map(pack => ({ product, pack })))
+    .filter(({ product, pack }) => !items.some(item => item.productId === product.id && item.packId === pack.id));
   const numericReturns = returnedCases.map(item => ({ ...item, quantity: Number(item.quantity) || 0 }));
   const totals = supplierOrderTotals(items.map(item => ({
     ...item,
@@ -65,14 +68,14 @@ export function SupplierOrdersScreen() {
     apply();
   };
 
-  const addProduct = product => {
-    setItems(current => [...current, { productId: product.id, productName: product.name, quantity: '', unitCost: '' }]);
+  const addProduct = (product, pack) => {
+    setItems(current => [...current, { rowKey: `${product.id}:${pack.id}`, productId: product.id, productName: product.name, packId: pack.id, packLabel: pack.label, quantity: '', unitCost: '' }]);
     setPickerVisible(false);
     setError('');
   };
 
-  const updateItem = (productId, field, value) => {
-    setItems(current => current.map(item => item.productId === productId ? { ...item, [field]: value } : item));
+  const updateItem = (rowKey, field, value) => {
+    setItems(current => current.map(item => item.rowKey === rowKey ? { ...item, [field]: value } : item));
     setError('');
   };
 
@@ -166,16 +169,16 @@ export function SupplierOrdersScreen() {
               <Text style={styles.emptyHint}>Add products from the selected supplier.</Text>
             </View>
           ) : items.map(item => (
-            <View key={item.productId} style={styles.orderItem}>
+            <View key={item.rowKey} style={styles.orderItem}>
               <View style={styles.orderItemHeading}>
                 <View style={styles.itemIcon}>
                   <MaterialIcons name="local-drink" size={19} color={theme.colors.primary} accessible={false} />
                 </View>
                 <View style={styles.itemNameBlock}>
                   <Text style={styles.itemName}>{item.productName}</Text>
-                  <Text style={styles.itemMeta}>Current stock: {products.find(product => product.id === item.productId)?.totalStock ?? 0} cases</Text>
+                  <Text style={styles.itemMeta}>{item.packLabel} · current stock: {stockForCasePack(products.find(product => product.id === item.productId), item.packId).totalStock} cases</Text>
                 </View>
-                <Pressable onPress={() => setItems(current => current.filter(row => row.productId !== item.productId))} accessibilityRole="button" accessibilityLabel={`Remove ${item.productName}`} style={styles.removeButton}>
+                <Pressable onPress={() => setItems(current => current.filter(row => row.rowKey !== item.rowKey))} accessibilityRole="button" accessibilityLabel={`Remove ${item.productName} ${item.packLabel}`} style={styles.removeButton}>
                   <MaterialIcons name="delete-outline" size={21} color={theme.colors.danger} accessible={false} />
                 </Pressable>
               </View>
@@ -184,7 +187,7 @@ export function SupplierOrdersScreen() {
                   <Text style={styles.fieldLabel}>Quantity (cases)</Text>
                   <TextInput
                     value={String(item.quantity)}
-                    onChangeText={value => updateItem(item.productId, 'quantity', value)}
+                    onChangeText={value => updateItem(item.rowKey, 'quantity', value)}
                     keyboardType="decimal-pad"
                     placeholder="0"
                     accessibilityLabel={`${item.productName} quantity in cases`}
@@ -195,7 +198,7 @@ export function SupplierOrdersScreen() {
                   <Text style={styles.fieldLabel}>Cost per case</Text>
                   <TextInput
                     value={String(item.unitCost)}
-                    onChangeText={value => updateItem(item.productId, 'unitCost', value)}
+                    onChangeText={value => updateItem(item.rowKey, 'unitCost', value)}
                     keyboardType="decimal-pad"
                     placeholder="₱0.00"
                     accessibilityLabel={`${item.productName} cost per case in pesos`}
@@ -300,14 +303,14 @@ export function SupplierOrdersScreen() {
               </Pressable>
             </View>
             <ScrollView>
-              {availableProducts.length ? availableProducts.map(product => (
-                <Pressable key={product.id} onPress={() => addProduct(product)} accessibilityRole="button" style={({ pressed }) => [styles.productOption, pressed && styles.pressed]}>
+              {availableProducts.length ? availableProducts.map(({ product, pack }) => (
+                <Pressable key={`${product.id}:${pack.id}`} onPress={() => addProduct(product, pack)} accessibilityRole="button" style={({ pressed }) => [styles.productOption, pressed && styles.pressed]}>
                   <View style={styles.itemIcon}>
                     <MaterialIcons name="local-drink" size={19} color={theme.colors.primary} accessible={false} />
                   </View>
                   <View style={styles.headingCopy}>
-                    <Text style={styles.optionName}>{product.name}</Text>
-                    <Text style={styles.optionMeta}>{product.totalStock} cases in stock</Text>
+                    <Text style={styles.optionName}>{product.name} · {pack.label}</Text>
+                    <Text style={styles.optionMeta}>{stockForCasePack(product, pack.id).totalStock} cases in stock</Text>
                   </View>
                   <MaterialIcons name="add-circle-outline" size={21} color={theme.colors.primary} accessible={false} />
                 </Pressable>
@@ -337,7 +340,7 @@ export function SupplierOrdersScreen() {
                 <View key={`${item.productId}-${index}`} style={styles.detailRow}>
                   <View style={styles.headingCopy}>
                     <Text style={styles.historySupplier}>{item.productName}</Text>
-                    <Text style={styles.historyMeta}>{item.quantity} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
+                    <Text style={styles.historyMeta}>{item.packLabel ? `${item.packLabel} · ` : ''}{item.quantity} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
                   </View>
                   <Text style={styles.detailAmount}>{formatPeso(item.quantity * item.unitCost)}</Text>
                 </View>

@@ -7,7 +7,7 @@ import {
   INITIAL_CUSTOMERS,
   INITIAL_PAYMENT_TRANSACTIONS,
 } from '../data/initialData';
-import { canDeleteProduct, createProductProfile, isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
+import { availableStock, canDeleteProduct, createProductProfile, isValidInventoryUpdate, stockForCasePack } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
@@ -17,23 +17,31 @@ import { allocateAccountPayment } from '../components/balances/customerAccounts'
 
 function finalizeReservedStock(products, order) {
   return products.map((product) => {
-    const reservedQty = order.items.reduce((sum, item) => (
-      item.productId === product.id ? sum + (item.stockQuantity ?? item.quantity) : sum
-    ), 0);
-    return reservedQty ? {
-      ...product,
-      totalStock: product.totalStock - reservedQty,
-      reservedStock: product.reservedStock - reservedQty,
-    } : product;
+    const quantities = {};
+    order.items.filter(item => item.productId === product.id && item.packId).forEach(item => {
+      const packId = item.packId;
+      quantities[packId] = (quantities[packId] || 0) + (item.stockQuantity ?? item.quantity);
+    });
+    const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
+      const stock = stockForCasePack(product, packId);
+      return [packId, { totalStock: stock.totalStock - quantity, reservedStock: stock.reservedStock - quantity }];
+    }));
+    return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
   });
 }
 
 function releaseReservedStock(products, order) {
   return products.map((product) => {
-    const reservedQty = order.items.reduce((sum, item) => (
-      item.productId === product.id ? sum + (item.stockQuantity ?? item.quantity) : sum
-    ), 0);
-    return reservedQty ? { ...product, reservedStock: product.reservedStock - reservedQty } : product;
+    const quantities = {};
+    order.items.filter(item => item.productId === product.id && item.packId).forEach(item => {
+      const packId = item.packId;
+      quantities[packId] = (quantities[packId] || 0) + (item.stockQuantity ?? item.quantity);
+    });
+    const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
+      const stock = stockForCasePack(product, packId);
+      return [packId, { ...stock, reservedStock: stock.reservedStock - quantity }];
+    }));
+    return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
   });
 }
 
@@ -69,12 +77,14 @@ export function AppProvider({ children }) {
   // Order actions
   const createOrder = useCallback((customer, items) => {
     const requestedStock = items.reduce((totals, item) => {
-      totals[item.productId] = (totals[item.productId] || 0) + (item.stockQuantity ?? item.quantity);
+      const key = `${item.productId}:${item.packId}`;
+      totals[key] = (totals[key] || 0) + (item.stockQuantity ?? item.quantity);
       return totals;
     }, {});
-    if (Object.entries(requestedStock).some(([productId, quantity]) => {
+    if (Object.entries(requestedStock).some(([key, quantity]) => {
+      const [productId, packId] = key.split(':');
       const product = products.find((item) => item.id === productId);
-      return !product || quantity > product.totalStock - product.reservedStock;
+      return !product || quantity > availableStock(product, packId);
     })) return false;
 
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
@@ -98,15 +108,16 @@ export function AppProvider({ children }) {
     };
 
     // Reserve stock for pending orders
-    const updatedProducts = products.map((product) => {
-      const reservedQty = items.reduce((sum, item) => {
-        if (item.productId === product.id) return sum + (item.stockQuantity ?? item.quantity);
-        return sum;
-      }, 0);
-      return {
-        ...product,
-        reservedStock: product.reservedStock + reservedQty,
-      };
+    const updatedProducts = products.map(product => {
+      const quantities = {};
+      items.filter(item => item.productId === product.id).forEach(item => {
+        quantities[item.packId] = (quantities[item.packId] || 0) + (item.stockQuantity ?? item.quantity);
+      });
+      const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
+        const stock = stockForCasePack(product, packId);
+        return [packId, { ...stock, reservedStock: stock.reservedStock + quantity }];
+      }));
+      return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
     });
 
     setProducts(updatedProducts);
@@ -243,15 +254,16 @@ export function AppProvider({ children }) {
     };
 
     // Update product stock
-    const updatedProducts = products.map((product) => {
-      const restockedQty = items.reduce((sum, item) => {
-        if (item.productId === product.id) return sum + item.quantity;
-        return sum;
-      }, 0);
-      return {
-        ...product,
-        totalStock: product.totalStock + restockedQty,
-      };
+    const updatedProducts = products.map(product => {
+      const quantities = {};
+      items.filter(item => item.productId === product.id).forEach(item => {
+        quantities[item.packId] = (quantities[item.packId] || 0) + item.quantity;
+      });
+      const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
+        const stock = stockForCasePack(product, packId);
+        return [packId, { ...stock, totalStock: stock.totalStock + quantity }];
+      }));
+      return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
     });
 
     setProducts(updatedProducts);
@@ -262,11 +274,10 @@ export function AppProvider({ children }) {
 
   const updateProductInventory = useCallback((productId, changes) => {
     const product = products.find((item) => item.id === productId);
-    const totalStock = Number(changes.totalStock);
-    if (!product || !isValidInventoryUpdate(product, totalStock, changes.casePackIds, changes.casePrices)) return false;
+    if (!product || !isValidInventoryUpdate(product, changes.stockByCasePack, changes.casePackIds, changes.casePrices)) return false;
 
     setProducts((current) => current.map((item) => item.id === productId
-      ? { ...item, totalStock, casePackIds: changes.casePackIds, casePrices: Object.fromEntries(changes.casePackIds.map(id => [id, Number(changes.casePrices[id])])) }
+      ? { ...item, stockByCasePack: Object.fromEntries(changes.casePackIds.map(id => [id, { ...stockForCasePack(item, id), totalStock: Number(changes.stockByCasePack[id].totalStock) }])), casePackIds: changes.casePackIds, casePrices: Object.fromEntries(changes.casePackIds.map(id => [id, Number(changes.casePrices[id])])) }
       : item
     ));
     return true;
@@ -286,10 +297,10 @@ export function AppProvider({ children }) {
   }, [products]);
 
   // Derived queries
-  const getAvailableStock = useCallback((productId) => {
+  const getAvailableStock = useCallback((productId, packId) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return 0;
-    return product.totalStock - product.reservedStock;
+    return availableStock(product, packId);
   }, [products]);
 
   const getTodaySales = useCallback(() => {
@@ -311,7 +322,7 @@ export function AppProvider({ children }) {
   }, [balances]);
 
   const getLowStockCount = useCallback(() => {
-    return products.filter((p) => getAvailableStock(p.id) < 20).length;
+    return products.filter((p) => p.casePackIds.some(packId => getAvailableStock(p.id, packId) < 20)).length;
   }, [products, getAvailableStock]);
 
   const value = {

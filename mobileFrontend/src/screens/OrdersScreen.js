@@ -231,10 +231,7 @@ export function OrdersScreen({ navigation }) {
           const product = products.find(item => item.id === productId);
           const pack = casePacksForProduct(product).find(option => option.id === packId);
           if (!pack) return current;
-          const otherReserved = casePacksForProduct(product).reduce((sum, option) => (
-            option.id === packId ? sum : sum + (current[`${productId}:${option.id}`] || 0)
-          ), 0);
-          const max = availableCases(Math.max(0, getAvailableStock(productId) - otherReserved), pack);
+          const max = availableCases(getAvailableStock(productId, packId), pack);
           return { ...current, [`${productId}:${packId}`]: Math.min(quantity, max) };
         })}
         onClose={() => setCreatingInvoice(false)}
@@ -273,7 +270,7 @@ export function OrdersScreen({ navigation }) {
               setCreatingInvoice(false);
               setCaseToast(items.map(item => {
                 const product = products.find(entry => entry.id === item.productId);
-                const remaining = Math.max(0, product.totalStock - product.reservedStock - item.quantity);
+                const remaining = Math.max(0, getAvailableStock(product.id, item.packId) - item.quantity);
                 const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
                 return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
               }).join(' · '));
@@ -476,19 +473,16 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
           <Text style={styles.createSectionTitle}>Products</Text>
           {products.map(product => {
             const productPacks = casePacksForProduct(product);
-            const available = getAvailableStock(product.id);
             return (
               <View key={product.id} style={styles.caseProductOption}>
                 <View style={styles.productOptionInfo}>
                   <Text style={styles.infoPrimary}>{product.name}</Text>
-                  <Text style={styles.infoSecondary}>{available} cases available</Text>
+                  <Text style={styles.infoSecondary}>Stock tracked by case type</Text>
                 </View>
                 {productPacks.map(pack => {
                   const quantity = cart[`${product.id}:${pack.id}`] || 0;
-                  const otherReserved = productPacks.reduce((sum, option) => (
-                    option.id === pack.id ? sum : sum + (cart[`${product.id}:${option.id}`] || 0)
-                  ), 0);
-                  const maxCases = availableCases(Math.max(0, available - otherReserved), pack);
+                  const available = getAvailableStock(product.id, pack.id);
+                  const maxCases = availableCases(available, pack);
                   return (
                     <View key={pack.id} style={styles.caseQuantityRow}>
                       <View style={styles.packLabelBlock}>
