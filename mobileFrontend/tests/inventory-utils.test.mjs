@@ -24,34 +24,38 @@ test('inventory filters combine product or supplier search, status, and supplier
 });
 
 test('inventory edits accept half-cases but cannot undercut reservations or accept invalid prices', () => {
-  assert.equal(isValidInventoryUpdate(products[0], 10, 20), true);
-  assert.equal(isValidInventoryUpdate(products[0], 10.5, 20), true);
-  assert.equal(isValidInventoryUpdate(products[0], 9, 20), false);
-  assert.equal(isValidInventoryUpdate(products[0], 10.25, 20), false);
-  assert.equal(isValidInventoryUpdate(products[0], 30, 0), false);
-  assert.equal(isValidInventoryUpdate(products[0], 30, Number.NaN), false);
+  assert.equal(isValidInventoryUpdate(products[0], 10, ['A'], { A: 120 }), true);
+  assert.equal(isValidInventoryUpdate(products[0], 10.5, ['A'], { A: 120 }), true);
+  assert.equal(isValidInventoryUpdate(products[0], 9, ['A'], { A: 120 }), false);
+  assert.equal(isValidInventoryUpdate(products[0], 10.25, ['A'], { A: 120 }), false);
+  assert.equal(isValidInventoryUpdate(products[0], 30, ['A'], { A: 0 }), false);
+  assert.equal(isValidInventoryUpdate(products[0], 30, [], {}), false);
 });
 
-test('new inventory products require unique names, supplier, half-case stock, and a positive price', () => {
+test('new products save selected case types with direct case prices', () => {
   const { product, error } = createProductProfile(products, {
-    name: 'Mucho Red Horse', supplier: 'Local supplier', totalStock: '4.5', unitPrice: '72',
+    name: 'Mucho Red Horse', supplier: 'Local supplier', totalStock: '4.5',
+    casePackIds: ['MUCHO_6', 'MUCHO_12'], casePrices: { MUCHO_6: '430', MUCHO_12: '850' },
   }, () => 'mucho');
   assert.equal(error, null);
   assert.deepEqual(product, {
     id: 'mucho', name: 'Mucho Red Horse', supplier: 'Local supplier',
-    totalStock: 4.5, reservedStock: 0, unitPrice: 72,
+    totalStock: 4.5, reservedStock: 0, casePackIds: ['MUCHO_6', 'MUCHO_12'],
+    casePrices: { MUCHO_6: 430, MUCHO_12: 850 },
   });
 });
 
 test('new inventory products reject duplicate or invalid product details', () => {
   assert.match(createProductProfile(products, {
-    name: ' cola 1.5l ', supplier: 'Coca-Cola', totalStock: 20, unitPrice: 5,
+    name: ' cola 1.5l ', supplier: 'Coca-Cola', totalStock: 20,
+    casePackIds: ['A'], casePrices: { A: 100 },
   }).error, /already exists/);
   for (const profile of [
-    { name: '', supplier: 'Supplier', totalStock: 1, unitPrice: 5 },
-    { name: 'New', supplier: '', totalStock: 1, unitPrice: 5 },
-    { name: 'New', supplier: 'Supplier', totalStock: -1, unitPrice: 5 },
-    { name: 'New', supplier: 'Supplier', totalStock: 1.25, unitPrice: 5 },
-    { name: 'New', supplier: 'Supplier', totalStock: 1, unitPrice: 0 },
+    { name: '', supplier: 'Supplier', totalStock: 1, casePackIds: ['A'], casePrices: { A: 5 } },
+    { name: 'New', supplier: '', totalStock: 1, casePackIds: ['A'], casePrices: { A: 5 } },
+    { name: 'New', supplier: 'Supplier', totalStock: -1, casePackIds: ['A'], casePrices: { A: 5 } },
+    { name: 'New', supplier: 'Supplier', totalStock: 1.25, casePackIds: ['A'], casePrices: { A: 5 } },
+    { name: 'New', supplier: 'Supplier', totalStock: 1, casePackIds: ['A'], casePrices: { A: 0 } },
+    { name: 'New', supplier: 'Supplier', totalStock: 1, casePackIds: [], casePrices: {} },
   ]) assert.ok(createProductProfile(products, profile).error);
 });

@@ -1,16 +1,16 @@
 export const INITIAL_PRODUCTS = [
-  { id: 'p1', name: 'Coca-Cola 1.5L', supplier: 'Coca-Cola', totalStock: 200, reservedStock: 30, unitPrice: 55 },
-  { id: 'p2', name: 'Coca-Cola 330ml Can', supplier: 'Coca-Cola', totalStock: 500, reservedStock: 60, unitPrice: 25 },
-  { id: 'p3', name: 'Sprite 1.5L', supplier: 'Coca-Cola', totalStock: 150, reservedStock: 20, unitPrice: 50 },
-  { id: 'p4', name: 'Royal Tru-Orange 1.5L', supplier: 'Coca-Cola', totalStock: 8, reservedStock: 5, unitPrice: 48 },
-  { id: 'p5', name: 'Magnolia Fresh Milk 1L', supplier: 'Magnolia', totalStock: 80, reservedStock: 10, unitPrice: 78 },
-  { id: 'p6', name: 'Magnolia Choco Milk 250ml', supplier: 'Magnolia', totalStock: 0, reservedStock: 0, unitPrice: 35 },
-  { id: 'p7', name: 'Pepsi 1.5L', supplier: 'Pepsi', totalStock: 180, reservedStock: 40, unitPrice: 52 },
-  { id: 'p8', name: 'Mountain Dew 1.5L', supplier: 'Pepsi', totalStock: 12, reservedStock: 8, unitPrice: 52 },
-  { id: 'p9', name: '7UP 1.5L', supplier: 'Pepsi', totalStock: 130, reservedStock: 15, unitPrice: 50 },
-  { id: 'p10', name: 'Wilkins Water 500ml', supplier: 'Others', totalStock: 400, reservedStock: 0, unitPrice: 12 },
-  { id: 'p11', name: 'C2 Apple Green Tea', supplier: 'Others', totalStock: 250, reservedStock: 20, unitPrice: 18 },
-  { id: 'p12', name: 'Gatorade Lemon-Lime', supplier: 'Others', totalStock: 60, reservedStock: 10, unitPrice: 45 },
+  { id: 'p1', name: 'Coca-Cola 1.5L', supplier: 'Coca-Cola', totalStock: 200, reservedStock: 30, casePackIds: ['A', 'B', 'C'], casePrices: { A: 660, B: 1320, C: 330 } },
+  { id: 'p2', name: 'Coca-Cola 330ml Can', supplier: 'Coca-Cola', totalStock: 500, reservedStock: 60, casePackIds: ['A', 'B', 'C'], casePrices: { A: 300, B: 600, C: 150 } },
+  { id: 'p3', name: 'Sprite 1.5L', supplier: 'Coca-Cola', totalStock: 150, reservedStock: 20, casePackIds: ['A', 'B', 'C'], casePrices: { A: 600, B: 1200, C: 300 } },
+  { id: 'p4', name: 'Royal Tru-Orange 1.5L', supplier: 'Coca-Cola', totalStock: 8, reservedStock: 5, casePackIds: ['A', 'B', 'C'], casePrices: { A: 576, B: 1152, C: 288 } },
+  { id: 'p5', name: 'Magnolia Fresh Milk 1L', supplier: 'Magnolia', totalStock: 80, reservedStock: 10, casePackIds: ['A', 'B', 'C'], casePrices: { A: 936, B: 1872, C: 468 } },
+  { id: 'p6', name: 'Magnolia Choco Milk 250ml', supplier: 'Magnolia', totalStock: 0, reservedStock: 0, casePackIds: ['A', 'B', 'C'], casePrices: { A: 420, B: 840, C: 210 } },
+  { id: 'p7', name: 'Pepsi 1.5L', supplier: 'Pepsi', totalStock: 180, reservedStock: 40, casePackIds: ['A', 'B', 'C'], casePrices: { A: 624, B: 1248, C: 312 } },
+  { id: 'p8', name: 'Mountain Dew 1.5L', supplier: 'Pepsi', totalStock: 12, reservedStock: 8, casePackIds: ['A', 'B', 'C'], casePrices: { A: 624, B: 1248, C: 312 } },
+  { id: 'p9', name: '7UP 1.5L', supplier: 'Pepsi', totalStock: 130, reservedStock: 15, casePackIds: ['A', 'B', 'C'], casePrices: { A: 600, B: 1200, C: 300 } },
+  { id: 'p10', name: 'Wilkins Water 500ml', supplier: 'Others', totalStock: 400, reservedStock: 0, casePackIds: ['A', 'B', 'C'], casePrices: { A: 144, B: 288, C: 72 } },
+  { id: 'p11', name: 'C2 Apple Green Tea', supplier: 'Others', totalStock: 250, reservedStock: 20, casePackIds: ['A', 'B', 'C'], casePrices: { A: 216, B: 432, C: 108 } },
+  { id: 'p12', name: 'Gatorade Lemon-Lime', supplier: 'Others', totalStock: 60, reservedStock: 10, casePackIds: ['A', 'B', 'C'], casePrices: { A: 540, B: 1080, C: 270 } },
 ];
 
 export const INITIAL_CUSTOMERS = [

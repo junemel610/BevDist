@@ -78,7 +78,7 @@ export function AppProvider({ children }) {
     })) return false;
 
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
-    const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const total = items.reduce((sum, item) => sum + item.quantity * (item.casePrice ?? item.unitPrice), 0);
     const totalDue = total;
     const creditKey = customerCreditKey(customer);
     const creditAvailable = Number(customerCredits[creditKey] || 0);
@@ -263,11 +263,10 @@ export function AppProvider({ children }) {
   const updateProductInventory = useCallback((productId, changes) => {
     const product = products.find((item) => item.id === productId);
     const totalStock = Number(changes.totalStock);
-    const unitPrice = Number(changes.unitPrice);
-    if (!product || !isValidInventoryUpdate(product, totalStock, unitPrice)) return false;
+    if (!product || !isValidInventoryUpdate(product, totalStock, changes.casePackIds, changes.casePrices)) return false;
 
     setProducts((current) => current.map((item) => item.id === productId
-      ? { ...item, totalStock, unitPrice }
+      ? { ...item, totalStock, casePackIds: changes.casePackIds, casePrices: Object.fromEntries(changes.casePackIds.map(id => [id, Number(changes.casePrices[id])])) }
       : item
     ));
     return true;

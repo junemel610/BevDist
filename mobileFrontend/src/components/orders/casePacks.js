@@ -1,15 +1,24 @@
 export const CASE_PACKS = [
-  { id: 'A', label: 'A · 12 per case', unitsPerCase: 12 },
-  { id: 'B', label: 'B · 24 per case', unitsPerCase: 24 },
-  { id: 'C', label: 'C · 6 per case', unitsPerCase: 6 },
-  { id: 'MUCHO_6', label: 'Mucho Red Horse · 6 per case', unitsPerCase: 6 },
-  { id: 'MUCHO_12', label: 'Mucho Red Horse · 12 per case', unitsPerCase: 12 },
+  { id: 'A', label: 'A · 12 bottles/case', unitsPerCase: 12, type: 'standard' },
+  { id: 'B', label: 'B · 24 bottles/case', unitsPerCase: 24, type: 'standard' },
+  { id: 'C', label: 'C · 6 bottles/case', unitsPerCase: 6, type: 'standard' },
+  { id: 'MUCHO_6', label: '6 bottles/case', unitsPerCase: 6, type: 'mucho' },
+  { id: 'MUCHO_12', label: '12 bottles/case', unitsPerCase: 12, type: 'mucho' },
 ];
 
-export function casePacksForProduct(product) {
+export function casePackOptionsForProduct(product) {
   return String(product?.name).toLowerCase().includes('mucho')
     ? CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO'))
     : CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO'));
+}
+
+export function casePacksForProduct(product) {
+  const options = casePackOptionsForProduct(product);
+  const selectedIds = product?.casePackIds?.length ? product.casePackIds : options.map(pack => pack.id);
+  return options.filter(pack => selectedIds.includes(pack.id)).map(pack => ({
+    ...pack,
+    casePrice: Number(product?.casePrices?.[pack.id]) || Number(product?.unitPrice) * pack.unitsPerCase,
+  }));
 }
 
 export function isValidCaseQuantity(quantity) {
@@ -20,10 +29,9 @@ export function isValidCaseQuantity(quantity) {
 export function invoiceCaseItem(product, pack, caseQuantity) {
   const quantity = Number(caseQuantity);
   if (!product || !pack || !isValidCaseQuantity(quantity)) return null;
-  const unitPrice = Number(product.unitPrice);
-  if (!Number.isFinite(unitPrice) || unitPrice <= 0) return null;
+  const casePrice = Number(pack.casePrice ?? product.casePrices?.[pack.id] ?? Number(product.unitPrice) * pack.unitsPerCase);
+  if (!Number.isFinite(casePrice) || casePrice <= 0) return null;
   const stockQuantity = quantity;
-  const casePrice = unitPrice * pack.unitsPerCase;
   return {
     productId: product.id,
     productName: product.name,
@@ -32,8 +40,7 @@ export function invoiceCaseItem(product, pack, caseQuantity) {
     unitsPerCase: pack.unitsPerCase,
     quantity,
     stockQuantity,
-    unitPrice: casePrice,
-    baseUnitPrice: unitPrice,
+    casePrice,
   };
 }
 

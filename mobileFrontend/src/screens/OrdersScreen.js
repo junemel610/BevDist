@@ -250,7 +250,7 @@ export function OrdersScreen({ navigation }) {
             Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
             return;
           }
-          const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+          const total = items.reduce((sum, item) => sum + item.quantity * (item.casePrice ?? item.unitPrice), 0);
           confirmAction({
             title: 'Create this invoice?',
             message: `${customerName} · ${items.length} product lines · ${formatPeso(total)}${isNewCustomer ? '. A new customer profile will also be saved.' : ''}`,
@@ -398,7 +398,7 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
     return sum + casePacksForProduct(product).reduce((productTotal, pack) => {
       const quantity = cart[`${product.id}:${pack.id}`] || 0;
       const item = quantity > 0 ? invoiceCaseItem(product, pack, quantity) : null;
-      return productTotal + (item ? item.quantity * item.unitPrice : 0);
+      return productTotal + (item ? item.quantity * (item.casePrice ?? item.unitPrice) : 0);
     }, 0);
   }, 0);
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + (quantity || 0), 0);
@@ -492,7 +492,7 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
                   return (
                     <View key={pack.id} style={styles.caseQuantityRow}>
                       <View style={styles.packLabelBlock}>
-                        <Text style={styles.packLabel}>{pack.label} · {formatPeso(product.unitPrice * pack.unitsPerCase)} per case</Text>
+                        <Text style={styles.packLabel}>{pack.label} · {formatPeso(pack.casePrice)} per case</Text>
                         <Text style={styles.infoSecondary}>{maxCases} cases available</Text>
                       </View>
                       <View style={styles.quantityControls}>
@@ -585,9 +585,9 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
             <View key={`${item.productId}-${index}`} style={styles.itemRow}>
               <View style={styles.itemDescription}>
                 <Text style={styles.itemName}>{item.productName}</Text>
-                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.unitPrice)} per case` : 'Historical invoice line'}</Text>
+                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
               </View>
-              <Text style={styles.itemAmount}>{formatPeso(item.quantity * item.unitPrice)}</Text>
+              <Text style={styles.itemAmount}>{formatPeso(item.quantity * (item.casePrice ?? item.unitPrice))}</Text>
             </View>
           ))}
         </View>
@@ -651,9 +651,9 @@ function InvoiceModal({ order, balance, onClose, width }) {
           <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
             <View style={styles.itemDescription}>
               <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.unitPrice)} per case` : 'Historical invoice line'}</Text>
+              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
             </View>
-            <Text style={styles.itemAmount}>{formatPeso(item.quantity * item.unitPrice)}</Text>
+            <Text style={styles.itemAmount}>{formatPeso(item.quantity * (item.casePrice ?? item.unitPrice))}</Text>
           </View>
         ))}
 

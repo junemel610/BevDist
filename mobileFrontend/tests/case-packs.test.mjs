@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { availableCases, caseAvailabilityLabel, CASE_PACKS, invoiceCaseItem, isValidCaseQuantity } from '../src/components/orders/casePacks.js';
+import { availableCases, caseAvailabilityLabel, CASE_PACKS, casePacksForProduct, invoiceCaseItem, isValidCaseQuantity } from '../src/components/orders/casePacks.js';
 
 test('case quantities support half-case steps only', () => {
   assert.equal(isValidCaseQuantity(0.5), true);
@@ -9,12 +9,26 @@ test('case quantities support half-case steps only', () => {
   assert.equal(isValidCaseQuantity(0), false);
 });
 
-test('invoice case line reserves case quantities and calculates the case price', () => {
+test('invoice case line reserves cases and uses the selected direct case price', () => {
   const item = invoiceCaseItem({ id: 'p1', name: 'Drink', unitPrice: 20 }, CASE_PACKS[0], 0.5);
   assert.equal(item.quantity, 0.5);
   assert.equal(item.stockQuantity, 0.5);
-  assert.equal(item.unitPrice, 240);
-  assert.equal(item.baseUnitPrice, 20);
+  assert.equal(item.casePrice, 240);
+});
+
+test('invoice pricing uses the product price saved for the selected case type', () => {
+  const item = invoiceCaseItem({ id: 'p1', name: 'Drink' }, { ...CASE_PACKS[0], casePrice: 315 }, 1.5);
+  assert.equal(item.casePrice, 315);
+  assert.equal(item.quantity * item.casePrice, 472.5);
+});
+
+test('products expose only configured case types and their direct prices', () => {
+  assert.deepEqual(casePacksForProduct({
+    name: 'Cola', casePackIds: ['A', 'C'], casePrices: { A: 120, C: 60 },
+  }).map(pack => [pack.id, pack.casePrice]), [['A', 120], ['C', 60]]);
+  assert.deepEqual(casePacksForProduct({
+    name: 'Mucho Red Horse', casePackIds: ['MUCHO_6'], casePrices: { MUCHO_6: 450 },
+  }).map(pack => [pack.id, pack.casePrice]), [['MUCHO_6', 450]]);
 });
 
 test('available case stock uses half-case increments regardless of case pack size', () => {
