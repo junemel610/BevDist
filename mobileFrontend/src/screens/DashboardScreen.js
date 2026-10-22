@@ -7,6 +7,7 @@ import { DAILY_SALES, MONTHLY_SALES } from '../data/initialData';
 import { DashboardActivity } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
+import { salesSummary } from '../components/dashboard/salesSummary';
 import theme from '../styles/theme';
 
 const daily = DAILY_SALES.map(item => ({ label: item.day, value: item.sales }));
@@ -15,19 +16,19 @@ const monthly = MONTHLY_SALES.map(item => ({ label: item.month, value: item.reve
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { orders, getPendingOrdersCount, getCompletedOrdersCount, getOutstandingBalance, getLowStockCount } = useApp();
+  const { orders, balances, getPendingOrdersCount, getLowStockCount } = useApp();
   const gap = theme.spacing.md;
-  const columns = Math.max(1, Math.min(5, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
+  const columns = Math.max(1, Math.min(4, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
-  // Match the Prototype's demo-day sales; no live/backend reporting is implied.
-  const sampleSales = DAILY_SALES[DAILY_SALES.length - 1]?.sales ?? 0;
+  const sales = salesSummary(orders, balances);
   const summary = [
-    { label: "Today's Sales", value: formatPeso(sampleSales), icon: 'payments' },
+    { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
+    { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Payments applied · excludes excess' },
     { label: 'Pending Orders', value: getPendingOrdersCount(), icon: 'assignment' },
-    { label: 'Completed Orders', value: getCompletedOrdersCount(), icon: 'check-circle-outline' },
-    { label: 'Outstanding Balances', value: formatPeso(getOutstandingBalance()), icon: 'account-balance-wallet' },
+    { label: 'Completed Orders', value: sales.fullyPaid, icon: 'check-circle-outline', hint: 'Fully paid invoices' },
+    { label: 'Outstanding Balances', value: formatPeso(sales.outstanding), icon: 'account-balance-wallet' },
     { label: 'Low Stock Products', value: getLowStockCount(), icon: 'inventory-2' },
   ];
 
@@ -41,7 +42,7 @@ export function DashboardScreen({ navigation }) {
             <Text style={styles.subtitle}>Business overview for today</Text>
             <View style={styles.demoNotice}>
               <MaterialIcons name="info-outline" size={18} color={theme.colors.primary} accessible={false} />
-              <Text style={styles.demoText}>Demo data · Illustrative sales and revenue.</Text>
+              <Text style={styles.demoText}>Sales totals use invoices and payments. Charts show sample data.</Text>
             </View>
           </View>
 
@@ -53,6 +54,7 @@ export function DashboardScreen({ navigation }) {
                 </View>
                 <Text style={styles.cardLabel}>{card.label}</Text>
                 <Text style={styles.cardValue}>{card.value}</Text>
+                {!!card.hint && <Text style={styles.cardHint}>{card.hint}</Text>}
               </View>
             ))}
           </View>
@@ -85,4 +87,5 @@ const styles = StyleSheet.create({
   icon: { width: 40, height: 40, borderRadius: 10, backgroundColor: theme.colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   cardLabel: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginBottom: 8 },
   cardValue: { fontSize: theme.fontSize['2xl'], fontWeight: '700', color: theme.colors.primary },
+  cardHint: { fontSize: theme.fontSize.xs, color: theme.colors.textLight, marginTop: 6 },
 });
