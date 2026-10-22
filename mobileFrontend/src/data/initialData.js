@@ -195,22 +195,3 @@ export const INITIAL_RESTOCK_RECORDS = [
     date: '2026-10-16',
   },
 ];
-
-export const DAILY_SALES = [
-  { day: 'Mon', sales: 4500 },
-  { day: 'Tue', sales: 5200 },
-  { day: 'Wed', sales: 4800 },
-  { day: 'Thu', sales: 5500 },
-  { day: 'Fri', sales: 6200 },
-  { day: 'Sat', sales: 7100 },
-  { day: 'Sun', sales: 6800 },
-];
-
-export const MONTHLY_SALES = [
-  { month: 'Jan', revenue: 125000 },
-  { month: 'Feb', revenue: 118000 },
-  { month: 'Mar', revenue: 145000 },
-  { month: 'Apr', revenue: 152000 },
-  { month: 'May', revenue: 168000 },
-  { month: 'Jun', revenue: 175000 },
-];

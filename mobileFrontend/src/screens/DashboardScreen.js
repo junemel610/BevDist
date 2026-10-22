@@ -3,15 +3,11 @@ import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { DAILY_SALES, MONTHLY_SALES } from '../data/initialData';
 import { DashboardActivity } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
-import { salesSummary } from '../components/dashboard/salesSummary';
+import { salesSummary, salesTrends } from '../components/dashboard/salesSummary';
 import theme from '../styles/theme';
-
-const daily = DAILY_SALES.map(item => ({ label: item.day, value: item.sales }));
-const monthly = MONTHLY_SALES.map(item => ({ label: item.month, value: item.revenue }));
 
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
@@ -23,13 +19,14 @@ export function DashboardScreen({ navigation }) {
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
   const sales = salesSummary(orders, balances, paymentTransactions);
+  const trends = salesTrends(orders, paymentTransactions);
   const summary = [
     { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
     { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Cash applied · excludes excess' },
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices, icon: 'assignment' },
     { label: 'Completed Orders', value: sales.completedOrders, icon: 'check-circle-outline', hint: 'Delivered and fully paid' },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding), icon: 'account-balance-wallet' },
-    { label: 'Low Stock Products', value: getLowStockCount(), icon: 'inventory-2' },
+    { label: 'Case Types to Restock', value: getLowStockCount(), icon: 'inventory-2' },
   ];
 
   return (
@@ -42,7 +39,7 @@ export function DashboardScreen({ navigation }) {
             <Text style={styles.subtitle}>Business overview</Text>
             <View style={styles.demoNotice}>
               <MaterialIcons name="info-outline" size={18} color={theme.colors.primary} accessible={false} />
-              <Text style={styles.demoText}>Sales totals use invoices and payments. Charts show sample data.</Text>
+              <Text style={styles.demoText}>Sales totals and charts use invoice and payment records. Cash applied is shown; cancelled invoices and excess payments are excluded.</Text>
             </View>
           </View>
 
@@ -61,10 +58,10 @@ export function DashboardScreen({ navigation }) {
 
           <View style={styles.grid}>
             <View style={{ width: chartWidth }}>
-              <SalesChart title="Daily Sales Trend" subtitle="Sales across the sample week" data={daily} />
+              <SalesChart title="Daily Cash Sales" subtitle="Cash applied · last 7 days" data={trends.daily} />
             </View>
             <View style={{ width: chartWidth }}>
-              <SalesChart title="Monthly Revenue Overview" subtitle="January – June · Sample revenue" data={monthly} variant="bar" />
+              <SalesChart title="Monthly Cash Sales" subtitle="Cash applied · last 6 months" data={trends.monthly} variant="bar" />
             </View>
           </View>
           <DashboardActivity orders={orders} balances={balances} wide={wide} onNavigate={route => navigation.getParent().navigate(route)} />
