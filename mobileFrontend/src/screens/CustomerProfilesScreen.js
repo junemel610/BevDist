@@ -83,7 +83,7 @@ export function CustomerProfilesScreen() {
               </Pressable>
             </View>
             <View style={styles.accountSummary}>
-              <Text style={styles.detail}>{item.invoiceCount} invoices</Text>
+              <Text style={styles.detail}>{item.invoiceCount} {item.invoiceCount === 1 ? 'invoice' : 'invoices'}</Text>
               <Text style={styles.balance}>{formatPeso(item.outstanding)} outstanding</Text>
             </View>
           </View>
