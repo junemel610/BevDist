@@ -19,6 +19,7 @@ import { availableCases, casePacksForProduct, invoiceCaseItem } from '../compone
 import { groupOpenCustomerBalances } from '../components/balances/customerAccounts';
 import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
+import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoiceExport';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -42,6 +43,7 @@ export function OrdersScreen({ navigation, route }) {
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
+  const [exporting, setExporting] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(customers[0]);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
@@ -58,6 +60,19 @@ export function OrdersScreen({ navigation, route }) {
   }, [caseToast]);
 
   const invoiceFor = order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
+  const exportInvoice = async format => {
+    if (!invoiceOrder) return;
+    setExporting(format);
+    try {
+      const balance = balances.find(item => item.orderId === invoiceOrder.id);
+      if (format === 'pdf') await exportInvoicePdf(invoiceOrder, balance);
+      else await exportInvoiceExcel(invoiceOrder, balance);
+    } catch {
+      Alert.alert('Export failed', 'Could not create this invoice file. Please try again.');
+    } finally {
+      setExporting('');
+    }
+  };
   const counts = useMemo(() => {
     const result = { all: orders.length, outstanding: 0, paid: 0, cancelled: 0 };
     orders.forEach(order => {
@@ -288,6 +303,9 @@ export function OrdersScreen({ navigation, route }) {
       <InvoiceModal
         order={invoiceOrder}
         balance={balances.find(balance => balance.orderId === invoiceOrder?.id)}
+        exporting={exporting}
+        onExportPdf={() => exportInvoice('pdf')}
+        onExportExcel={() => exportInvoice('excel')}
         onClose={() => {
           setInvoiceOrder(null);
         }}
@@ -615,7 +633,7 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
   );
 }
 
-function InvoiceModal({ order, balance, onClose, width }) {
+function InvoiceModal({ order, balance, onClose, onExportPdf, onExportExcel, exporting, width }) {
   if (!order) return null;
   const invoice = invoiceSummary(order, balance);
   const invoiceNumber = invoice.invoiceNumber;
@@ -670,8 +688,30 @@ function InvoiceModal({ order, balance, onClose, width }) {
           <Text style={[styles.invoiceStatusText, { color: status.color }]}>Payment status: {status.label}</Text>
         </View>
       </ScrollView>
-      <View style={styles.modalFooter}>
-        <Pressable onPress={onClose} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
+      <View style={styles.invoiceModalFooter}>
+        <View style={styles.invoiceExportActions}>
+          <Pressable
+            onPress={onExportPdf}
+            disabled={Boolean(exporting)}
+            accessibilityRole="button"
+            accessibilityLabel={`Export ${invoiceNumber} as PDF`}
+            style={({ pressed }) => [styles.invoiceExportButton, pressed && styles.pressed, exporting && styles.exportDisabled]}
+          >
+            <MaterialIcons name="picture-as-pdf" size={19} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.invoiceExportLabel}>{exporting === 'pdf' ? 'Preparing…' : 'Export PDF'}</Text>
+          </Pressable>
+          <Pressable
+            onPress={onExportExcel}
+            disabled={Boolean(exporting)}
+            accessibilityRole="button"
+            accessibilityLabel={`Export ${invoiceNumber} as Excel`}
+            style={({ pressed }) => [styles.invoiceExportButton, pressed && styles.pressed, exporting && styles.exportDisabled]}
+          >
+            <MaterialIcons name="table-chart" size={19} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.invoiceExportLabel}>{exporting === 'excel' ? 'Preparing…' : 'Export Excel'}</Text>
+          </Pressable>
+        </View>
+        <Pressable onPress={onClose} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, styles.invoiceCloseButton, pressed && styles.pressed]}>
           <Text style={styles.footerOutlineText}>Close preview</Text>
         </Pressable>
       </View>
@@ -796,6 +836,12 @@ const styles = StyleSheet.create({
   grandTotalLabel: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   grandTotalValue: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.primary },
   modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  invoiceModalFooter: { gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  invoiceExportActions: { flexDirection: 'row', gap: theme.spacing.sm },
+  invoiceExportButton: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.primarySoft },
+  invoiceExportLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  invoiceCloseButton: { alignSelf: 'flex-end' },
+  exportDisabled: { opacity: 0.6 },
   footerButton: { minHeight: 46, minWidth: 112, alignItems: 'center', justifyContent: 'center', borderRadius: 9, paddingHorizontal: theme.spacing.lg },
   footerButtonOutline: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   footerOutlineText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
