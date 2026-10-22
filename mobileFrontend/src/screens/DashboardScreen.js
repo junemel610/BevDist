@@ -1,15 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  useWindowDimensions,
 } from 'react-native';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 
 export function DashboardScreen() {
+  const [gridWidth, setGridWidth] = useState(0);
+  const { fontScale } = useWindowDimensions();
+  const gap = theme.spacing.md;
+  const columns = Math.max(1, Math.min(3, Math.floor((gridWidth + gap) / (180 * fontScale + gap))));
+  const cardWidth = gridWidth > 0 ? (gridWidth - gap * (columns - 1)) / columns : undefined;
   const {
     getTodaySales,
     getPendingOrdersCount,
@@ -24,28 +30,28 @@ export function DashboardScreen() {
         <Text style={styles.title}>Dashboard</Text>
 
         {/* KPI Cards */}
-        <View style={styles.kpiGrid}>
-          <View style={styles.card}>
+        <View style={styles.kpiGrid} onLayout={({ nativeEvent }) => setGridWidth(nativeEvent.layout.width)}>
+          <View style={[styles.card, { width: cardWidth ?? '100%' }]}>
             <Text style={styles.cardLabel}>Today's Sales</Text>
             <Text style={styles.cardValue}>₱{getTodaySales().toLocaleString()}</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { width: cardWidth ?? '100%' }]}>
             <Text style={styles.cardLabel}>Pending Orders</Text>
             <Text style={styles.cardValue}>{getPendingOrdersCount()}</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { width: cardWidth ?? '100%' }]}>
             <Text style={styles.cardLabel}>Completed Orders</Text>
             <Text style={styles.cardValue}>{getCompletedOrdersCount()}</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { width: cardWidth ?? '100%' }]}>
             <Text style={styles.cardLabel}>Outstanding Balance</Text>
             <Text style={styles.cardValue}>₱{getOutstandingBalance().toLocaleString()}</Text>
           </View>
 
-          <View style={styles.card}>
+          <View style={[styles.card, { width: cardWidth ?? '100%' }]}>
             <Text style={styles.cardLabel}>Low Stock Items</Text>
             <Text style={styles.cardValue}>{getLowStockCount()}</Text>
           </View>
@@ -66,6 +72,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   content: {
+    width: '100%',
+    maxWidth: 1040,
+    alignSelf: 'center',
     padding: theme.spacing.lg,
   },
   title: {
@@ -81,8 +90,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   card: {
-    flex: 1,
-    minWidth: '45%',
+
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
