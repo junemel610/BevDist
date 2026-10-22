@@ -114,13 +114,7 @@ export async function exportInvoicePdf(order, balance) {
   const invoice = invoiceSummary(order, balance);
   const html = invoiceHtml(order, invoice);
   if (Platform.OS === 'web') {
-    const printWindow = globalThis.window?.open('', '_blank');
-    if (!printWindow) throw new Error('The browser blocked the print window.');
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    await Print.printAsync({ html });
     return;
   }
   const result = await Print.printToFileAsync({ html });
