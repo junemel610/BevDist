@@ -1,17 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
 import theme from '../styles/theme';
-
-export function OrdersScreen() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Orders</Text>
-        <Text style={styles.placeholder}>Orders screen coming soon...</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
+export { OrdersScreen } from './OrdersScreen';
 
 export function InventoryScreen() {
   return (
