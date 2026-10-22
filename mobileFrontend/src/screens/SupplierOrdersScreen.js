@@ -267,7 +267,7 @@ export function SupplierOrdersScreen() {
             <Text style={styles.historyCount}>{restockRecords.length}</Text>
           </View>
           {restockRecords.length ? restockRecords.slice(0, 5).map(record => (
-            <Pressable key={record.id} onPress={() => setSelectedRecord(record)} accessibilityRole="button" accessibilityLabel={`View ${record.supplier} supplier order from ${record.date}`} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+            <Pressable key={record.id} onPress={() => setSelectedRecord(record)} accessibilityRole="button" accessibilityLabel={`View ${record.supplier} supplier order from ${record.date}`} accessibilityHint="Opens supplier order details" style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
               <View style={styles.historyIcon}>
                 <MaterialIcons name="local-shipping" size={18} color={theme.colors.primary} accessible={false} />
               </View>
@@ -279,6 +279,7 @@ export function SupplierOrdersScreen() {
                 <Text style={styles.historyAmount}>{formatPeso(record.netCost)}</Text>
                 <Text style={styles.historyCaption}>Net cost</Text>
               </View>
+              <MaterialIcons name="chevron-right" size={22} color={theme.colors.textLight} accessible={false} />
             </Pressable>
           )) : (
             <Text style={styles.historyEmpty}>Saved supplier orders will appear here.</Text>
