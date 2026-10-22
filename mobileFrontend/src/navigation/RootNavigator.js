@@ -29,7 +29,7 @@ function createStackScreen(title, component) {
   return function AppStackScreen() {
     return (
       <Stack.Navigator screenOptions={stackScreenOptions}>
-        <Stack.Screen name={`${title}Main`} component={component} options={{ title }} />
+        <Stack.Screen name={`${title}Main`} component={component} options={{ title, headerShown: false }} />
       </Stack.Navigator>
     );
   };
@@ -39,7 +39,7 @@ const DashboardStackScreen = createStackScreen('Dashboard', DashboardScreen);
 function OrdersStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="InvoicesMain" component={OrdersScreen} options={{ title: 'Invoices' }} />
+      <Stack.Screen name="InvoicesMain" component={OrdersScreen} options={{ title: 'Invoices', headerShown: false }} />
       <Stack.Screen name="CustomerProfiles" component={CustomerProfilesScreen} options={{ title: 'Customers' }} />
     </Stack.Navigator>
   );
@@ -49,7 +49,7 @@ const SupplierOrdersStackScreen = createStackScreen('Orders', SupplierOrdersScre
 function BalancesStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="BalancesMain" component={BalancesScreen} options={{ title: 'Balances' }} />
+      <Stack.Screen name="BalancesMain" component={BalancesScreen} options={{ title: 'Balances', headerShown: false }} />
       <Stack.Screen name="GCashTransactions" component={GCashTransactionsScreen} options={{ title: 'GCash' }} />
     </Stack.Navigator>
   );

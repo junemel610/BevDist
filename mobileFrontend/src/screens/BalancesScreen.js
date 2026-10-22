@@ -128,7 +128,7 @@ export function BalancesScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <FlatList
         data={visibleBalances}
         keyExtractor={item => item.kind === 'account' ? item.key : item.id}

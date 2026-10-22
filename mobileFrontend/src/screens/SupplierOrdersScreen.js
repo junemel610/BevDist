@@ -112,7 +112,7 @@ export function SupplierOrdersScreen() {
   };
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.pageHeading}>
           <View style={styles.headingCopy}>

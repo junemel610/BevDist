@@ -28,8 +28,7 @@ export function DashboardScreen({ navigation }) {
   ];
 
   return (
-    // The navigator already handles the top header and bottom tab safe areas.
-    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.sections} onLayout={({ nativeEvent }) => setContentWidth(nativeEvent.layout.width)}>
           <View>

@@ -155,7 +155,7 @@ export function InventoryScreen() {
   });
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <FlatList
         data={visibleProducts}
         keyExtractor={item => item.id}

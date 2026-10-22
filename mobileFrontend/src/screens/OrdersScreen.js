@@ -83,7 +83,7 @@ export function OrdersScreen({ navigation }) {
     .sort((a, b) => b.date.localeCompare(a.date)), [orders, balances, activeFilter, search]);
 
   return (
-    <SafeAreaView edges={['left', 'right']} style={styles.container}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <FlatList
         data={visibleOrders}
         keyExtractor={order => order.id}
