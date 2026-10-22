@@ -64,6 +64,14 @@ const tabIcons = {
   Balances: 'account-balance',
   Profile: 'account-circle',
 };
+const tabLabels = {
+  Dashboard: 'Home',
+  Invoices: 'Invoice',
+  Inventory: 'Stock',
+  Orders: 'Orders',
+  Balances: 'Balance',
+  Profile: 'Profile',
+};
 
 function HomeTabsScreen() {
   return (
@@ -72,9 +80,10 @@ function HomeTabsScreen() {
         tabBarIcon: ({ color, size }) => (
           <MaterialIcons name={tabIcons[route.name]} size={size} color={color} />
         ),
+        tabBarLabel: tabLabels[route.name],
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textLight,
-        tabBarLabelStyle: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: theme.fontWeight.medium },
         tabBarItemStyle: { paddingVertical: 4 },
         tabBarStyle: {
           minHeight: 64,
