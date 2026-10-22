@@ -7,6 +7,7 @@ export { InventoryScreen } from './InventoryScreen';
 export { SupplierOrdersScreen } from './SupplierOrdersScreen';
 export { BalancesScreen } from './BalancesScreen';
 export { CustomerProfilesScreen } from './CustomerProfilesScreen';
+export { GCashTransactionsScreen } from './GCashTransactionsScreen';
 
 function PlaceholderScreen({ title }) {
   return (

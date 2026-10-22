@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { balanceStatus, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
+import { PAYMENT_METHOD } from '../types';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -29,12 +30,13 @@ const STATUS = {
 };
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
 
-export function BalancesScreen() {
-  const { balances, customerCredits = {}, recordPayment } = useApp();
+export function BalancesScreen({ navigation }) {
+  const { balances, customers, orders, customerCredits = {}, recordPayment } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [selectedBalance, setSelectedBalance] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHOD.CASH);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const { width } = useWindowDimensions();
@@ -74,13 +76,19 @@ export function BalancesScreen() {
   const openPayment = balance => {
     setSelectedBalance(balance);
     setPaymentAmount(String(balance.remainingBalance));
+    setPaymentMethod(PAYMENT_METHOD.CASH);
     setError('');
     setNotice('');
   };
 
   const breakdown = selectedBalance ? paymentBreakdown(selectedBalance, paymentAmount) : { valid: false, applied: 0, excess: 0 };
+  const selectedCustomer = selectedBalance
+    ? customers.find(customer => customer.id === selectedBalance.customerId)
+      || orders.find(order => order.id === selectedBalance.orderId)?.customer
+      || customers.find(customer => customer.name === selectedBalance.customerName)
+    : null;
   const existingCredit = selectedBalance
-    ? Number(customerCredits[customerCreditKey(selectedBalance.customerName)] || 0)
+    ? Number(customerCredits[customerCreditKey(selectedCustomer || selectedBalance.customerName)] || 0)
     : 0;
 
   const savePayment = () => {
@@ -88,7 +96,7 @@ export function BalancesScreen() {
       setError('Enter a payment amount greater than ₱0.');
       return;
     }
-    const result = recordPayment(selectedBalance.id, Number(paymentAmount));
+    const result = recordPayment(selectedBalance.id, Number(paymentAmount), paymentMethod);
     if (!result) {
       setError('This balance could not be updated. Reopen it and try again.');
       return;
@@ -119,6 +127,10 @@ export function BalancesScreen() {
                 <Text style={styles.totalValue}>{formatPeso(outstanding)}</Text>
               </View>
             </View>
+            <Pressable onPress={() => navigation.navigate('GCashTransactions')} accessibilityRole="button" style={({ pressed }) => [styles.gcashLink, pressed && styles.pressed]}>
+              <MaterialIcons name="account-balance-wallet" size={18} color={theme.colors.primary} accessible={false} />
+              <Text style={styles.gcashLinkText}>Open GCash transactions</Text>
+            </Pressable>
 
             {totalCredit > 0 ? (
               <View style={styles.creditNotice}>
@@ -199,6 +211,20 @@ export function BalancesScreen() {
             <View style={styles.paymentCustomer}>
               <Text style={styles.paymentCustomerName}>{selectedBalance?.customerName}</Text>
               <Text style={styles.paymentDue}>Outstanding {formatPeso(selectedBalance?.remainingBalance)}</Text>
+            </View>
+            <Text style={styles.amountLabel}>Payment method</Text>
+            <View style={styles.paymentMethods}>
+              {Object.values(PAYMENT_METHOD).map(method => (
+                <Pressable
+                  key={method}
+                  onPress={() => setPaymentMethod(method)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: paymentMethod === method }}
+                  style={[styles.methodChip, paymentMethod === method && styles.methodChipSelected]}
+                >
+                  <Text style={[styles.methodText, paymentMethod === method && styles.methodTextSelected]}>{method}</Text>
+                </Pressable>
+              ))}
             </View>
             <Text style={styles.amountLabel}>Payment received</Text>
             <View style={styles.amountInputWrap}>
@@ -355,9 +381,16 @@ const styles = StyleSheet.create({
   modalSubtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 3 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   paymentCustomer: { padding: theme.spacing.md, borderRadius: 11, backgroundColor: theme.colors.surfaceMuted },
+  gcashLink: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: theme.spacing.sm },
+  gcashLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   paymentCustomerName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   paymentDue: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 4 },
   amountLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: theme.spacing.md, marginBottom: theme.spacing.xs },
+  paymentMethods: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs },
+  methodChip: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  methodChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
+  methodText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
+  methodTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
   amountInputWrap: { minHeight: 54, flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 11 },
   currencyPrefix: { color: theme.colors.textLight, fontSize: theme.fontSize.lg, marginRight: theme.spacing.sm },
   amountInput: { flex: 1, minHeight: 52, color: theme.colors.text, fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, paddingVertical: 0 },

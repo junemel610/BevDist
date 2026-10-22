@@ -5,11 +5,14 @@ import {
   INITIAL_BALANCES,
   INITIAL_RESTOCK_RECORDS,
   INITIAL_CUSTOMERS,
+  INITIAL_PAYMENT_TRANSACTIONS,
 } from '../data/initialData';
 import { isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
+import { createPaymentTransaction } from '../components/balances/paymentLedger';
+import { PAYMENT_METHOD } from '../types';
 
 function finalizeReservedStock(products, order) {
   return products.map((product) => {
@@ -43,6 +46,7 @@ export function AppProvider({ children }) {
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [restockRecords, setRestockRecords] = useState(INITIAL_RESTOCK_RECORDS);
   const [balances, setBalances] = useState(INITIAL_BALANCES);
+  const [paymentTransactions, setPaymentTransactions] = useState(INITIAL_PAYMENT_TRANSACTIONS);
   const [customerCredits, setCustomerCredits] = useState({});
   // Auth actions
   const login = useCallback((username, password) => {
@@ -155,11 +159,14 @@ export function AppProvider({ children }) {
     return true;
   }, [orders, products, balances]);
 
-  const recordPayment = useCallback((balanceId, amountPaid) => {
+  const recordPayment = useCallback((balanceId, amountPaid, method = PAYMENT_METHOD.CASH) => {
     const balance = balances.find((item) => item.id === balanceId);
     if (!balance) return false;
     const payment = paymentBreakdown(balance, amountPaid);
     if (!payment.valid) return false;
+    const order = orders.find((item) => item.id === balance.orderId);
+    const transaction = createPaymentTransaction(balance, order, amountPaid, method);
+    if (!transaction) return false;
     const nextRemaining = Math.max(0, balance.remainingBalance - payment.applied);
     const today = new Date().toISOString().slice(0, 10);
     const updatedBalances = balances.map((item) => item.id === balanceId ? {
@@ -169,13 +176,13 @@ export function AppProvider({ children }) {
       status: balanceStatus({ ...item, remainingBalance: nextRemaining }, today),
     } : item);
     setBalances(updatedBalances);
+    setPaymentTransactions((current) => [...current, transaction]);
     const paidOrder = orders.find((item) => item.id === balance.orderId);
     if (paidOrder && paidOrder.deliveryStatus === 'delivered' && nextRemaining === 0 && paidOrder.status !== 'completed') {
       setProducts((current) => finalizeReservedStock(current, paidOrder));
       setOrders((current) => current.map((item) => item.id === paidOrder.id ? { ...item, status: 'completed' } : item));
     }
     if (payment.excess > 0) {
-      const order = orders.find((item) => item.id === balance.orderId);
       const creditKey = customerCreditKey(order?.customer || balance.customerName);
       setCustomerCredits((current) => ({ ...current, [creditKey]: (Number(current[creditKey]) || 0) + payment.excess }));
     }
@@ -268,6 +275,7 @@ export function AppProvider({ children }) {
     orders,
     restockRecords,
     balances,
+    paymentTransactions,
     customerCredits,
     login,
     logout,

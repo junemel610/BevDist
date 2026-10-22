@@ -11,6 +11,7 @@ import {
   SupplierOrdersScreen,
   BalancesScreen,
   CustomerProfilesScreen,
+  GCashTransactionsScreen,
 } from '../screens/index';
 import theme from '../styles/theme';
 
@@ -44,7 +45,14 @@ function OrdersStackScreen() {
 }
 const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
 const SupplierOrdersStackScreen = createStackScreen('Orders', SupplierOrdersScreen);
-const BalancesStackScreen = createStackScreen('Balances', BalancesScreen);
+function BalancesStackScreen() {
+  return (
+    <Stack.Navigator screenOptions={stackScreenOptions}>
+      <Stack.Screen name="BalancesMain" component={BalancesScreen} options={{ title: 'Balances' }} />
+      <Stack.Screen name="GCashTransactions" component={GCashTransactionsScreen} options={{ title: 'GCash' }} />
+    </Stack.Navigator>
+  );
+}
 
 const tabIcons = {
   Dashboard: 'dashboard',

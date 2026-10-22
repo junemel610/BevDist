@@ -16,16 +16,16 @@ const monthly = MONTHLY_SALES.map(item => ({ label: item.month, value: item.reve
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { orders, balances, getLowStockCount } = useApp();
+  const { orders, balances, paymentTransactions, getLowStockCount } = useApp();
   const gap = theme.spacing.md;
   const columns = Math.max(1, Math.min(4, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
-  const sales = salesSummary(orders, balances);
+  const sales = salesSummary(orders, balances, paymentTransactions);
   const summary = [
     { label: 'Total Expected Sales', value: formatPeso(sales.expected), icon: 'receipt-long', hint: 'Invoice totals · excludes cancelled' },
-    { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Payments applied · excludes excess' },
+    { label: 'Actual Sales', value: formatPeso(sales.actual), icon: 'payments', hint: 'Cash applied · excludes excess' },
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices, icon: 'assignment' },
     { label: 'Completed Orders', value: sales.completedOrders, icon: 'check-circle-outline', hint: 'Delivered and fully paid' },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding), icon: 'account-balance-wallet' },

@@ -142,6 +142,13 @@ export const INITIAL_BALANCES = [
   },
 ];
 
+export const INITIAL_PAYMENT_TRANSACTIONS = [
+  { id: 'pay-seed-b1', balanceId: 'b1', orderId: 'o1', customerId: 'c1', customerName: 'Maria Santos', invoiceNumber: 'INV-2026-001', method: 'Cash', amountReceived: 500, amountApplied: 500, excess: 0, date: '2026-06-17' },
+  { id: 'pay-seed-b2', balanceId: 'b2', orderId: 'o2', customerId: 'c2', customerName: 'Juan Dela Cruz', invoiceNumber: 'INV-2026-002', method: 'Cash', amountReceived: 1540, amountApplied: 1540, excess: 0, date: '2026-06-16' },
+  { id: 'pay-seed-b3', balanceId: 'b3', orderId: 'o3', customerId: 'c3', customerName: 'Ana Reyes', invoiceNumber: 'INV-2026-003', method: 'Cash', amountReceived: 300, amountApplied: 300, excess: 0, date: '2026-06-18' },
+  { id: 'pay-seed-b4', balanceId: 'b4', orderId: 'o5', customerId: 'c5', customerName: 'Lilia Cruz', invoiceNumber: 'INV-2026-005', method: 'Cash', amountReceived: 500, amountApplied: 500, excess: 0, date: '2026-06-14' },
+];
+
 export const INITIAL_RESTOCK_RECORDS = [
   {
     id: 'r1',

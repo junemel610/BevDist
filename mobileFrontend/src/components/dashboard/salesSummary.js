@@ -18,7 +18,7 @@ export function invoiceSummary(order, balance) {
   };
 }
 
-export function salesSummary(orders, balances) {
+export function salesSummary(orders, balances, paymentTransactions) {
   const balancesByOrder = new Map();
   balances.forEach(balance => {
     const previous = balancesByOrder.get(balance.orderId);
@@ -28,16 +28,27 @@ export function salesSummary(orders, balances) {
     });
   });
 
-  return orders.reduce((summary, order) => {
+  const summary = orders.reduce((summary, order) => {
     const total = Math.max(0, Number(order.grandTotal || 0));
     const { amountPaid, status } = invoiceSummary(order, balancesByOrder.get(order.id));
     if (status === 'cancelled') return summary;
     summary.expected += total;
-    summary.actual += amountPaid;
     summary.outstanding += total - amountPaid;
     if (status === 'paid') summary.fullyPaid += 1;
     else if (status === 'partial' || status === 'unpaid') summary.outstandingInvoices += 1;
     if (orderLifecycleStatus(order, status) === 'completed') summary.completedOrders += 1;
     return summary;
   }, { expected: 0, actual: 0, outstanding: 0, outstandingInvoices: 0, fullyPaid: 0, completedOrders: 0 });
+  if (Array.isArray(paymentTransactions)) {
+    summary.actual = paymentTransactions.reduce((sum, payment) => (
+      payment.method === 'Cash' ? sum + Math.max(0, Number(payment.amountApplied) || 0) : sum
+    ), 0);
+  } else {
+    summary.actual = orders.reduce((sum, order) => {
+      if (order.status === 'cancelled') return sum;
+      const balance = balancesByOrder.get(order.id);
+      return sum + Math.min(Math.max(0, Number(order.grandTotal) || 0), Math.max(0, Number(balance?.amountPaid) || 0));
+    }, 0);
+  }
+  return summary;
 }

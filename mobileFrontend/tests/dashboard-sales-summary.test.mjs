@@ -30,6 +30,19 @@ test('partial payments count toward actual sales and leave a balance due', () =>
   ), { expected: 1000, actual: 300, outstanding: 700, outstandingInvoices: 1, fullyPaid: 0, completedOrders: 0 });
 });
 
+test('cash is included in actual sales while GCash stays in its separate total', () => {
+  const summary = salesSummary(
+    [{ id: 'cash-order', status: 'pending', grandTotal: 1000 }, { id: 'gcash-order', status: 'pending', grandTotal: 800 }],
+    [{ orderId: 'cash-order', amountPaid: 500 }, { orderId: 'gcash-order', amountPaid: 400 }],
+    [
+      { orderId: 'cash-order', method: 'Cash', amountApplied: 500, excess: 30 },
+      { orderId: 'gcash-order', method: 'GCash', amountApplied: 400, excess: 0 },
+    ],
+  );
+  assert.equal(summary.actual, 500);
+  assert.equal(summary.expected, 1800);
+});
+
 test('invoice status distinguishes unpaid, partial, paid, and cancelled', async () => {
   const order = { id: 'order', orderNumber: 'ORD-2026-007', grandTotal: 1000, deposit: 0, status: 'pending' };
   assert.equal(invoiceSummary(order, null).status, 'unpaid');
