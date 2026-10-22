@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../src/components/inventory/inventoryUtils.js';
+import { canDeleteProduct, createProductProfile, filterInventoryProducts, isValidInventoryUpdate, stockState } from '../src/components/inventory/inventoryUtils.js';
 
 const products = [
   { id: 'a', name: 'Cola 1.5L', supplier: 'Coca-Cola', totalStock: 30, reservedStock: 10 },
@@ -14,6 +14,11 @@ test('inventory stock status uses available cases and the 15-case threshold', ()
   assert.equal(stockState(1), 'low');
   assert.equal(stockState(0), 'out');
   assert.equal(stockState(-1), 'out');
+});
+
+test('products with active stock reservations cannot be deleted', () => {
+  assert.equal(canDeleteProduct({ reservedStock: 0 }), true);
+  assert.equal(canDeleteProduct({ reservedStock: 0.5 }), false);
 });
 
 test('inventory filters combine product or supplier search, status, and supplier', () => {

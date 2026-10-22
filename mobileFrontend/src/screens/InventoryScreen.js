@@ -34,7 +34,7 @@ const STATUS = {
 };
 
 export function InventoryScreen() {
-  const { products, addProduct, updateProductInventory } = useApp();
+  const { products, addProduct, updateProductInventory, deleteProduct } = useApp();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [supplierFilter, setSupplierFilter] = useState('All');
@@ -143,6 +143,21 @@ export function InventoryScreen() {
       },
     });
   };
+
+  const confirmDeleteProduct = () => confirmAction({
+    title: 'Delete this product?',
+    message: `${editingProduct.name} and its remaining stock will be removed from inventory. Past invoices and supplier order history will remain.`,
+    confirmLabel: 'Delete product',
+    destructive: true,
+    onConfirm: () => {
+      if (!deleteProduct(editingProduct.id)) {
+        setError('This product has stock reserved for an active invoice and cannot be deleted.');
+        return;
+      }
+      setEditingProduct(null);
+      setToast(`${editingProduct.name} deleted from inventory.`);
+    },
+  });
 
   return (
     <SafeAreaView edges={['left', 'right']} style={styles.container}>
@@ -310,6 +325,12 @@ export function InventoryScreen() {
               {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
             </ScrollView>
             <View style={styles.modalActions}>
+              {!addingProduct ? (
+                <Pressable onPress={confirmDeleteProduct} accessibilityRole="button" style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}>
+                  <MaterialIcons name="delete-outline" size={18} color={theme.colors.danger} accessible={false} />
+                  <Text style={styles.deleteLabel}>Delete</Text>
+                </Pressable>
+              ) : null}
               <Pressable onPress={() => setEditingProduct(null)} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
                 <Text style={styles.cancelLabel}>Cancel</Text>
               </Pressable>
@@ -477,6 +498,8 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.lg },
   cancelButton: { minHeight: 46, justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
   cancelLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  deleteButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 'auto', paddingHorizontal: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.dangerSoft },
+  deleteLabel: { color: theme.colors.danger, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   saveButton: { minHeight: 46, justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.primary },
   saveLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   toast: { position: 'absolute', left: theme.spacing.lg, right: theme.spacing.lg, bottom: theme.spacing.md, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: 12, backgroundColor: theme.colors.primary, elevation: 5 },

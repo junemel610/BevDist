@@ -7,7 +7,7 @@ import {
   INITIAL_CUSTOMERS,
   INITIAL_PAYMENT_TRANSACTIONS,
 } from '../data/initialData';
-import { createProductProfile, isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
+import { canDeleteProduct, createProductProfile, isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
@@ -278,6 +278,13 @@ export function AppProvider({ children }) {
     return result.product;
   }, [products]);
 
+  const deleteProduct = useCallback((productId) => {
+    const product = products.find(item => item.id === productId);
+    if (!product || !canDeleteProduct(product)) return false;
+    setProducts(current => current.filter(item => item.id !== productId));
+    return true;
+  }, [products]);
+
   // Derived queries
   const getAvailableStock = useCallback((productId) => {
     const product = products.find((p) => p.id === productId);
@@ -326,6 +333,7 @@ export function AppProvider({ children }) {
     addRestockRecord,
     updateProductInventory,
     addProduct,
+    deleteProduct,
     getAvailableStock,
     getTodaySales,
     getPendingOrdersCount,

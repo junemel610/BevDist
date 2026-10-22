@@ -1,6 +1,7 @@
 import { casePackOptionsForProduct } from '../orders/casePacks.js';
 
 export const availableStock = product => product.totalStock - product.reservedStock;
+export const canDeleteProduct = product => product.reservedStock === 0;
 
 export const stockState = amount => amount <= 0 ? 'out' : amount <= 15 ? 'low' : 'healthy';
 
