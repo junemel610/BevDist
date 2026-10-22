@@ -8,7 +8,7 @@ const products = [
   { id: 'c', name: 'Water', supplier: 'Others', totalStock: 4, reservedStock: 4 },
 ];
 
-test('inventory stock status uses available stock and the 15-unit threshold', () => {
+test('inventory stock status uses available cases and the 15-case threshold', () => {
   assert.equal(stockState(16), 'healthy');
   assert.equal(stockState(15), 'low');
   assert.equal(stockState(1), 'low');
@@ -23,22 +23,23 @@ test('inventory filters combine product or supplier search, status, and supplier
   assert.deepEqual(filterInventoryProducts(products, { search: 'missing' }), []);
 });
 
-test('inventory edits cannot lower stock below reservations or accept invalid prices', () => {
+test('inventory edits accept half-cases but cannot undercut reservations or accept invalid prices', () => {
   assert.equal(isValidInventoryUpdate(products[0], 10, 20), true);
+  assert.equal(isValidInventoryUpdate(products[0], 10.5, 20), true);
   assert.equal(isValidInventoryUpdate(products[0], 9, 20), false);
-  assert.equal(isValidInventoryUpdate(products[0], 10.5, 20), false);
+  assert.equal(isValidInventoryUpdate(products[0], 10.25, 20), false);
   assert.equal(isValidInventoryUpdate(products[0], 30, 0), false);
   assert.equal(isValidInventoryUpdate(products[0], 30, Number.NaN), false);
 });
 
-test('new inventory products require unique names, supplier, whole stock, and a positive price', () => {
+test('new inventory products require unique names, supplier, half-case stock, and a positive price', () => {
   const { product, error } = createProductProfile(products, {
-    name: 'Mucho Red Horse', supplier: 'Local supplier', totalStock: '48', unitPrice: '72',
+    name: 'Mucho Red Horse', supplier: 'Local supplier', totalStock: '4.5', unitPrice: '72',
   }, () => 'mucho');
   assert.equal(error, null);
   assert.deepEqual(product, {
     id: 'mucho', name: 'Mucho Red Horse', supplier: 'Local supplier',
-    totalStock: 48, reservedStock: 0, unitPrice: 72,
+    totalStock: 4.5, reservedStock: 0, unitPrice: 72,
   });
 });
 
@@ -50,7 +51,7 @@ test('new inventory products reject duplicate or invalid product details', () =>
     { name: '', supplier: 'Supplier', totalStock: 1, unitPrice: 5 },
     { name: 'New', supplier: '', totalStock: 1, unitPrice: 5 },
     { name: 'New', supplier: 'Supplier', totalStock: -1, unitPrice: 5 },
-    { name: 'New', supplier: 'Supplier', totalStock: 1.5, unitPrice: 5 },
+    { name: 'New', supplier: 'Supplier', totalStock: 1.25, unitPrice: 5 },
     { name: 'New', supplier: 'Supplier', totalStock: 1, unitPrice: 0 },
   ]) assert.ok(createProductProfile(products, profile).error);
 });

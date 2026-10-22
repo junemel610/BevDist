@@ -13,9 +13,10 @@ test('supplier order totals subtract returned-case credits and never go below ze
   ), { productCost: 10, returnCredit: 30, netCost: 0 });
 });
 
-test('supplier orders need at least one whole-unit product line with a positive cost', () => {
+test('supplier orders accept half-case steps and require a positive case cost', () => {
   assert.equal(hasValidSupplierOrderItems([{ quantity: 2, unitCost: 10 }]), true);
+  assert.equal(hasValidSupplierOrderItems([{ quantity: 1.5, unitCost: 10 }]), true);
   assert.equal(hasValidSupplierOrderItems([{ quantity: 0, unitCost: 10 }]), false);
-  assert.equal(hasValidSupplierOrderItems([{ quantity: 1.5, unitCost: 10 }]), false);
+  assert.equal(hasValidSupplierOrderItems([{ quantity: 1.25, unitCost: 10 }]), false);
   assert.equal(hasValidSupplierOrderItems([{ quantity: 2, unitCost: 0 }]), false);
 });

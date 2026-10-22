@@ -18,5 +18,6 @@ export function supplierOrderTotals(items, returnedCases) {
 }
 
 export const hasValidSupplierOrderItems = items => items.some(item => (
-  Number.isInteger(item.quantity) && item.quantity > 0 && Number.isFinite(item.unitCost) && item.unitCost > 0
+  Number.isFinite(item.quantity) && Number.isInteger(item.quantity * 2) && item.quantity > 0
+    && Number.isFinite(item.unitCost) && item.unitCost > 0
 ));

@@ -114,7 +114,7 @@ export function SupplierOrdersScreen() {
         <View style={styles.pageHeading}>
           <View style={styles.headingCopy}>
             <Text accessibilityRole="header" style={styles.title}>Supplier order</Text>
-            <Text style={styles.subtitle}>Record deliveries and returned-case credits.</Text>
+            <Text style={styles.subtitle}>Record deliveries in cases and returned-case credits.</Text>
           </View>
           <View style={styles.headingIcon}>
             <MaterialIcons name="local-shipping" size={23} color={theme.colors.primary} accessible={false} />
@@ -173,7 +173,7 @@ export function SupplierOrdersScreen() {
                 </View>
                 <View style={styles.itemNameBlock}>
                   <Text style={styles.itemName}>{item.productName}</Text>
-                  <Text style={styles.itemMeta}>Current stock: {products.find(product => product.id === item.productId)?.totalStock ?? 0} units</Text>
+                  <Text style={styles.itemMeta}>Current stock: {products.find(product => product.id === item.productId)?.totalStock ?? 0} cases</Text>
                 </View>
                 <Pressable onPress={() => setItems(current => current.filter(row => row.productId !== item.productId))} accessibilityRole="button" accessibilityLabel={`Remove ${item.productName}`} style={styles.removeButton}>
                   <MaterialIcons name="delete-outline" size={21} color={theme.colors.danger} accessible={false} />
@@ -181,24 +181,24 @@ export function SupplierOrdersScreen() {
               </View>
               <View style={styles.fieldsRow}>
                 <View style={styles.itemField}>
-                  <Text style={styles.fieldLabel}>Quantity (units)</Text>
+                  <Text style={styles.fieldLabel}>Quantity (cases)</Text>
                   <TextInput
                     value={String(item.quantity)}
                     onChangeText={value => updateItem(item.productId, 'quantity', value)}
-                    keyboardType="number-pad"
+                    keyboardType="decimal-pad"
                     placeholder="0"
-                    accessibilityLabel={`${item.productName} quantity in units`}
+                    accessibilityLabel={`${item.productName} quantity in cases`}
                     style={styles.input}
                   />
                 </View>
                 <View style={styles.itemField}>
-                  <Text style={styles.fieldLabel}>Unit cost</Text>
+                  <Text style={styles.fieldLabel}>Cost per case</Text>
                   <TextInput
                     value={String(item.unitCost)}
                     onChangeText={value => updateItem(item.productId, 'unitCost', value)}
                     keyboardType="decimal-pad"
                     placeholder="₱0.00"
-                    accessibilityLabel={`${item.productName} unit cost in pesos`}
+                    accessibilityLabel={`${item.productName} cost per case in pesos`}
                     style={styles.input}
                   />
                 </View>
@@ -307,7 +307,7 @@ export function SupplierOrdersScreen() {
                   </View>
                   <View style={styles.headingCopy}>
                     <Text style={styles.optionName}>{product.name}</Text>
-                    <Text style={styles.optionMeta}>{product.totalStock} units in stock</Text>
+                    <Text style={styles.optionMeta}>{product.totalStock} cases in stock</Text>
                   </View>
                   <MaterialIcons name="add-circle-outline" size={21} color={theme.colors.primary} accessible={false} />
                 </Pressable>
@@ -337,7 +337,7 @@ export function SupplierOrdersScreen() {
                 <View key={`${item.productId}-${index}`} style={styles.detailRow}>
                   <View style={styles.headingCopy}>
                     <Text style={styles.historySupplier}>{item.productName}</Text>
-                    <Text style={styles.historyMeta}>{item.quantity} units × {formatPeso(item.unitCost)}</Text>
+                    <Text style={styles.historyMeta}>{item.quantity} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
                   </View>
                   <Text style={styles.detailAmount}>{formatPeso(item.quantity * item.unitCost)}</Text>
                 </View>

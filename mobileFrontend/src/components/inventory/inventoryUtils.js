@@ -14,7 +14,7 @@ export function filterInventoryProducts(products, { search = '', supplier = 'All
 }
 
 export function isValidInventoryUpdate(product, totalStock, unitPrice) {
-  return Number.isInteger(totalStock) && totalStock >= product.reservedStock
+  return Number.isFinite(totalStock) && Number.isInteger(totalStock * 2) && totalStock >= product.reservedStock
     && Number.isFinite(unitPrice) && unitPrice > 0;
 }
 
@@ -27,8 +27,8 @@ export function createProductProfile(products, profile, makeId = () => `p${Date.
   if (products.some(product => product.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
     return { product: null, error: 'A product with this name already exists.' };
   }
-  if (!Number.isInteger(totalStock) || totalStock < 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
-    return { product: null, error: 'Enter a whole stock count and a price greater than ₱0.' };
+  if (!Number.isFinite(totalStock) || !Number.isInteger(totalStock * 2) || totalStock < 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+    return { product: null, error: 'Enter stock in half-case steps and a price greater than ₱0.' };
   }
   return {
     product: { id: makeId(), name, supplier, totalStock, reservedStock: 0, unitPrice },

@@ -98,7 +98,7 @@ export function InventoryScreen() {
       }
       confirmAction({
         title: 'Add product to inventory?',
-        message: `${productName.trim()} will be added with ${totalStock} units at ${formatPeso(unitPrice)} per unit.`,
+        message: `${productName.trim()} will be added with ${totalStock} cases.`,
         confirmLabel: 'Add product',
         onConfirm: () => {
           const product = addProduct({ name: productName, supplier: supplierName, totalStock, unitPrice });
@@ -108,14 +108,14 @@ export function InventoryScreen() {
           }
           setEditingProduct(null);
           setAddingProduct(false);
-          setToast(`${product.name}: ${totalStock} ${totalStock === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(product.name, totalStock)}`);
+          setToast(`${product.name}: ${caseAvailabilityLabel(totalStock)}`);
         },
       });
       return;
     }
     if (!isValidInventoryUpdate(editingProduct, totalStock, Number(priceInput))) {
-      if (!Number.isInteger(totalStock) || totalStock < editingProduct.reservedStock) {
-        setError(`Enter a whole number at least ${editingProduct.reservedStock}; reserved stock cannot be reduced.`);
+      if (!Number.isFinite(totalStock) || !Number.isInteger(totalStock * 2) || totalStock < editingProduct.reservedStock) {
+        setError(`Enter a half-case increment at least ${editingProduct.reservedStock}; reserved stock cannot be reduced.`);
         return;
       }
       setError('Enter a price greater than ₱0.');
@@ -123,7 +123,7 @@ export function InventoryScreen() {
     }
     confirmAction({
       title: 'Save inventory changes?',
-      message: `${editingProduct.name}: set total stock to ${totalStock} units and unit price to ${formatPeso(unitPrice)}.`,
+      message: `${editingProduct.name}: set total stock to ${totalStock} cases and base unit price to ${formatPeso(unitPrice)}.`,
       confirmLabel: 'Save changes',
       onConfirm: () => {
         if (!updateProductInventory(editingProduct.id, { totalStock, unitPrice })) {
@@ -132,7 +132,7 @@ export function InventoryScreen() {
         }
         const available = totalStock - editingProduct.reservedStock;
         setEditingProduct(null);
-        setToast(`${editingProduct.name}: ${available} ${available === 1 ? 'unit' : 'units'} left · ${caseAvailabilityLabel(editingProduct.name, available)}`);
+        setToast(`${editingProduct.name}: ${caseAvailabilityLabel(available)}`);
       },
     });
   };
@@ -254,23 +254,24 @@ export function InventoryScreen() {
                 <TextInput value={supplierName} onChangeText={value => { setSupplierName(value); setError(''); }} placeholder="Supplier name" placeholderTextColor={theme.colors.textLight} accessibilityLabel="Supplier name" style={styles.fieldInput} />
               </>
             ) : null}
-            <Text style={styles.fieldLabel}>Total stock (units)</Text>
+            <Text style={styles.fieldLabel}>Total stock (cases)</Text>
             <TextInput
               value={stockInput}
               onChangeText={value => { setStockInput(value); setError(''); }}
-              keyboardType="number-pad"
-              accessibilityLabel="Total stock in units"
+              keyboardType="decimal-pad"
+              accessibilityLabel="Total stock in cases"
               style={styles.fieldInput}
             />
-            <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock in the smallest unit used for this product.' : `Reserved stock: ${editingProduct?.reservedStock ?? 0} units. Total must cover reserved stock.`}</Text>
-            <Text style={[styles.fieldLabel, styles.priceLabel]}>Unit price</Text>
+            <Text style={styles.helperText}>{addingProduct ? 'Cases can be entered in half-case steps.' : `Reserved stock: ${editingProduct?.reservedStock ?? 0} cases. Total must cover reserved stock.`}</Text>
+            <Text style={[styles.fieldLabel, styles.priceLabel]}>Base price reference</Text>
             <TextInput
               value={priceInput}
               onChangeText={value => { setPriceInput(value); setError(''); }}
               keyboardType="decimal-pad"
-              accessibilityLabel="Product unit price in pesos"
+              accessibilityLabel="Product base price reference in pesos"
               style={styles.fieldInput}
             />
+            <Text style={styles.helperText}>Invoice case prices use this reference and the selected case pack.</Text>
             {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
             <View style={styles.modalActions}>
               <Pressable onPress={() => setEditingProduct(null)} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
@@ -323,26 +324,26 @@ function InventoryCard({ product, compact, onEdit }) {
       <View style={styles.stockNumbers}>
         <View style={styles.stockMetric}>
           <Text style={styles.stockValue}>{available}</Text>
-          <Text style={styles.stockLabel}>Available</Text>
+          <Text style={styles.stockLabel}>Available cases</Text>
         </View>
         <View style={styles.metricDivider} />
         <View style={styles.stockMetric}>
           <Text style={styles.stockValue}>{product.reservedStock}</Text>
-          <Text style={styles.stockLabel}>Reserved</Text>
+          <Text style={styles.stockLabel}>Reserved cases</Text>
         </View>
         <View style={styles.metricDivider} />
         <View style={styles.stockMetric}>
           <Text style={styles.stockValue}>{product.totalStock}</Text>
-          <Text style={styles.stockLabel}>Total</Text>
+          <Text style={styles.stockLabel}>Total cases</Text>
         </View>
       </View>
-      <Text style={styles.caseAvailability}>Case equivalents · {caseAvailabilityLabel(product.name, available)}</Text>
-      <View accessibilityLabel={`Available stock ${available} of ${product.totalStock} units`} style={styles.stockTrack}>
+      <Text style={styles.caseAvailability}>{caseAvailabilityLabel(available)}</Text>
+      <View accessibilityLabel={`Available stock ${available} of ${product.totalStock} cases`} style={styles.stockTrack}>
         <View style={[styles.stockFill, { width: `${Math.min(Math.max((available / total) * 100, 0), 100)}%`, backgroundColor: state.color }]} />
       </View>
 
       <View style={styles.productFooter}>
-        <Text style={styles.price}>{formatPeso(product.unitPrice)} <Text style={styles.perUnit}>/ unit</Text></Text>
+        <Text style={styles.price}>{formatPeso(product.unitPrice)} <Text style={styles.perUnit}>base price</Text></Text>
         <Pressable
           onPress={onEdit}
           accessibilityRole="button"

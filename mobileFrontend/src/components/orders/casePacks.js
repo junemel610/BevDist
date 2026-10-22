@@ -1,9 +1,9 @@
 export const CASE_PACKS = [
-  { id: 'A', label: 'A · 12 bottles', unitsPerCase: 12 },
-  { id: 'B', label: 'B · 24 bottles', unitsPerCase: 24 },
-  { id: 'C', label: 'C · 6 bottles', unitsPerCase: 6 },
-  { id: 'MUCHO_6', label: 'Mucho Red Horse · 6', unitsPerCase: 6 },
-  { id: 'MUCHO_12', label: 'Mucho Red Horse · 12', unitsPerCase: 12 },
+  { id: 'A', label: 'A · 12 per case', unitsPerCase: 12 },
+  { id: 'B', label: 'B · 24 per case', unitsPerCase: 24 },
+  { id: 'C', label: 'C · 6 per case', unitsPerCase: 6 },
+  { id: 'MUCHO_6', label: 'Mucho Red Horse · 6 per case', unitsPerCase: 6 },
+  { id: 'MUCHO_12', label: 'Mucho Red Horse · 12 per case', unitsPerCase: 12 },
 ];
 
 export function casePacksForProduct(product) {
@@ -22,7 +22,7 @@ export function invoiceCaseItem(product, pack, caseQuantity) {
   if (!product || !pack || !isValidCaseQuantity(quantity)) return null;
   const unitPrice = Number(product.unitPrice);
   if (!Number.isFinite(unitPrice) || unitPrice <= 0) return null;
-  const stockQuantity = quantity * pack.unitsPerCase;
+  const stockQuantity = quantity;
   const casePrice = unitPrice * pack.unitsPerCase;
   return {
     productId: product.id,
@@ -33,18 +33,15 @@ export function invoiceCaseItem(product, pack, caseQuantity) {
     quantity,
     stockQuantity,
     unitPrice: casePrice,
-    bottleUnitPrice: unitPrice,
+    baseUnitPrice: unitPrice,
   };
 }
 
-export function availableCases(availableUnits, pack) {
-  if (!pack?.unitsPerCase || availableUnits <= 0) return 0;
-  return Math.floor((availableUnits / pack.unitsPerCase) * 2) / 2;
+export function availableCases(availableStock, pack) {
+  if (!pack?.unitsPerCase || availableStock <= 0) return 0;
+  return Math.floor(availableStock * 2) / 2;
 }
 
-export function caseAvailabilityLabel(productName, availableUnits) {
-  const packs = String(productName).toLowerCase().includes('mucho')
-    ? CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO'))
-    : CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO'));
-  return packs.map(pack => `${pack.id}: ${availableCases(availableUnits, pack)} cases`).join(' · ');
+export function caseAvailabilityLabel(availableStock) {
+  return `${Math.floor(Math.max(0, availableStock) * 2) / 2} cases available`;
 }

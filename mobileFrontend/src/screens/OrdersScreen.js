@@ -232,7 +232,7 @@ export function OrdersScreen({ navigation }) {
           const pack = casePacksForProduct(product).find(option => option.id === packId);
           if (!pack) return current;
           const otherReserved = casePacksForProduct(product).reduce((sum, option) => (
-            option.id === packId ? sum : sum + (current[`${productId}:${option.id}`] || 0) * option.unitsPerCase
+            option.id === packId ? sum : sum + (current[`${productId}:${option.id}`] || 0)
           ), 0);
           const max = availableCases(Math.max(0, getAvailableStock(productId) - otherReserved), pack);
           return { ...current, [`${productId}:${packId}`]: Math.min(quantity, max) };
@@ -273,7 +273,7 @@ export function OrdersScreen({ navigation }) {
               setCreatingInvoice(false);
               setCaseToast(items.map(item => {
                 const product = products.find(entry => entry.id === item.productId);
-                const remaining = Math.max(0, product.totalStock - product.reservedStock - item.stockQuantity);
+                const remaining = Math.max(0, product.totalStock - product.reservedStock - item.quantity);
                 const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
                 return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
               }).join(' · '));
@@ -481,18 +481,18 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
               <View key={product.id} style={styles.caseProductOption}>
                 <View style={styles.productOptionInfo}>
                   <Text style={styles.infoPrimary}>{product.name}</Text>
-                  <Text style={styles.infoSecondary}>{formatPeso(product.unitPrice)} per bottle · {available} bottles available</Text>
+                  <Text style={styles.infoSecondary}>{available} cases available</Text>
                 </View>
                 {productPacks.map(pack => {
                   const quantity = cart[`${product.id}:${pack.id}`] || 0;
                   const otherReserved = productPacks.reduce((sum, option) => (
-                    option.id === pack.id ? sum : sum + (cart[`${product.id}:${option.id}`] || 0) * option.unitsPerCase
+                    option.id === pack.id ? sum : sum + (cart[`${product.id}:${option.id}`] || 0)
                   ), 0);
                   const maxCases = availableCases(Math.max(0, available - otherReserved), pack);
                   return (
                     <View key={pack.id} style={styles.caseQuantityRow}>
                       <View style={styles.packLabelBlock}>
-                        <Text style={styles.packLabel}>{pack.label}</Text>
+                        <Text style={styles.packLabel}>{pack.label} · {formatPeso(product.unitPrice * pack.unitsPerCase)} per case</Text>
                         <Text style={styles.infoSecondary}>{maxCases} cases available</Text>
                       </View>
                       <View style={styles.quantityControls}>
@@ -585,7 +585,7 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
             <View key={`${item.productId}-${index}`} style={styles.itemRow}>
               <View style={styles.itemDescription}>
                 <Text style={styles.itemName}>{item.productName}</Text>
-                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} case × ${item.unitsPerCase} bottles · ${formatPeso(item.unitPrice)} per case` : `${item.quantity} units × ${formatPeso(item.unitPrice)}`}</Text>
+                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.unitPrice)} per case` : 'Historical invoice line'}</Text>
               </View>
               <Text style={styles.itemAmount}>{formatPeso(item.quantity * item.unitPrice)}</Text>
             </View>
@@ -651,7 +651,7 @@ function InvoiceModal({ order, balance, onClose, width }) {
           <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
             <View style={styles.itemDescription}>
               <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} case × ${item.unitsPerCase} bottles · ${formatPeso(item.unitPrice)} per case` : `${item.quantity} units × ${formatPeso(item.unitPrice)}`}</Text>
+              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.unitPrice)} per case` : 'Historical invoice line'}</Text>
             </View>
             <Text style={styles.itemAmount}>{formatPeso(item.quantity * item.unitPrice)}</Text>
           </View>
