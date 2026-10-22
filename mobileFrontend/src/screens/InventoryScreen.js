@@ -172,11 +172,11 @@ export function InventoryScreen() {
                 <MaterialIcons name="add" size={19} color={theme.colors.onPrimary} accessible={false} />
                 <Text style={styles.addButtonLabel}>Add product</Text>
               </Pressable>
-              <View style={styles.summary}>
-                <SummaryCount count={counts.healthy} label="In stock" color={theme.colors.success} />
-                <SummaryCount count={counts.low} label="Low" color={theme.colors.warning} />
-                <SummaryCount count={counts.out} label="Out" color={theme.colors.danger} />
-              </View>
+            </View>
+            <View style={styles.summary}>
+              <SummaryCount count={counts.healthy} label="In stock" color={theme.colors.success} />
+              <SummaryCount count={counts.low} label="Low stock" color={theme.colors.warning} />
+              <SummaryCount count={counts.out} label="Out of stock" color={theme.colors.danger} />
             </View>
 
             <View style={styles.searchBox}>
@@ -413,33 +413,33 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   listContent: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl },
   headerContent: { marginBottom: theme.spacing.md },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.md },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.md },
   heading: { flex: 1 },
-  addButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primary },
-  addButtonLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
+  addButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.primary },
+  addButtonLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   title: { color: theme.colors.text, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
   subtitle: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, marginTop: 3 },
-  summary: { flexDirection: 'row', gap: theme.spacing.md, marginLeft: theme.spacing.sm },
-  summaryItem: { alignItems: 'center', minWidth: 36 },
+  summary: { flexDirection: 'row', marginBottom: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
+  summaryItem: { flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 2 },
   summaryCount: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
-  summaryLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs },
+  summaryLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, textAlign: 'center' },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   searchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: theme.fontSize.base, paddingVertical: 0 },
-  clearSearch: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
+  clearSearch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   filterRow: { gap: theme.spacing.sm, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm },
-  filterChip: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 22, backgroundColor: theme.colors.surface },
+  filterChip: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 22, backgroundColor: theme.colors.surface },
   filterChipSelected: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
   filterLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium },
   filterLabelSelected: { color: theme.colors.onPrimary, fontWeight: theme.fontWeight.semibold },
   filterCount: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
   filterCountSelected: { color: theme.colors.onPrimary },
   supplierRow: { gap: theme.spacing.sm, paddingBottom: theme.spacing.md },
-  supplierChip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
+  supplierChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
   supplierChipSelected: { backgroundColor: theme.colors.primarySoft },
   supplierLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium },
   supplierLabelSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
   resultCount: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginBottom: theme.spacing.sm },
-  productCard: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
+  productCard: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   productTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: theme.spacing.sm },
   productInfo: { flex: 1 },
   productName: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, lineHeight: 22 },
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   fieldInput: { minHeight: 48, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
   helperText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: theme.spacing.xs },
   caseTypeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs, marginVertical: theme.spacing.sm },
-  caseTypeChip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
+  caseTypeChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   caseTypeChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   caseTypeText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
   caseTypeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
