@@ -22,6 +22,7 @@ import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
   { key: 'all', label: 'All products' },
+  { key: 'healthy', label: 'In stock' },
   { key: 'low', label: 'Low stock' },
   { key: 'out', label: 'Out of stock' },
 ];
