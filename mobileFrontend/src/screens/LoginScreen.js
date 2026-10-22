@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   View,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -41,7 +42,8 @@ export function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.formContainer}>
         {/* Logo/Header */}
         <View style={styles.header}>
           <Text style={styles.logo}>BevDist</Text>
@@ -88,7 +90,8 @@ export function LoginScreen() {
         <View style={styles.demoInfo}>
           <Text style={styles.demoText}>Demo Mode: Any username and password accepted</Text>
         </View>
-      </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -99,9 +102,15 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
+    paddingVertical: theme.spacing.xl,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.lg,
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
   },
   header: {
     alignItems: 'center',
