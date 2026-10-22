@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -7,12 +7,13 @@ import { DashboardActivity } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
 import { salesSummary, salesTrends } from '../components/dashboard/salesSummary';
+import { confirmAction } from '../utils/confirmAction';
 import theme from '../styles/theme';
 
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { orders, balances, paymentTransactions, getLowStockCount } = useApp();
+  const { orders, balances, paymentTransactions, getLowStockCount, logout } = useApp();
   const gap = theme.spacing.md;
   const columns = Math.max(1, Math.min(4, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
@@ -31,9 +32,26 @@ export function DashboardScreen({ navigation }) {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.sections} onLayout={({ nativeEvent }) => setContentWidth(nativeEvent.layout.width)}>
+          <View style={styles.pageHeading}>
+            <View style={styles.headingCopy}>
+              <Text accessibilityRole="header" style={styles.title}>Dashboard</Text>
+              <Text style={styles.subtitle}>Business overview</Text>
+            </View>
+            <Pressable
+              onPress={() => confirmAction({
+                title: 'Sign out?',
+                message: 'You can sign back in to continue.',
+                confirmLabel: 'Sign out',
+                onConfirm: logout,
+              })}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}
+            >
+              <MaterialIcons name="logout" size={19} color={theme.colors.primary} accessible={false} />
+              <Text style={styles.logoutLabel}>Sign out</Text>
+            </Pressable>
+          </View>
           <View>
-            <Text accessibilityRole="header" style={styles.title}>Dashboard</Text>
-            <Text style={styles.subtitle}>Business overview</Text>
             <View style={styles.demoNotice}>
               <Text style={styles.demoText}>Cancelled invoices and extra payments are excluded from sales.</Text>
             </View>
@@ -90,8 +108,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { width: '100%', maxWidth: 1120, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'] },
   sections: { gap: theme.spacing.xl },
+  pageHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  headingCopy: { flex: 1 },
   title: { fontSize: theme.fontSize['2xl'], fontWeight: '700', color: theme.colors.text },
   subtitle: { fontSize: theme.fontSize.base, color: theme.colors.textLight, marginTop: 4 },
+  logoutButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
+  logoutLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  pressed: { opacity: 0.75 },
   demoNotice: { marginTop: theme.spacing.md },
   demoText: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, lineHeight: 21 },
   salesCard: { padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
