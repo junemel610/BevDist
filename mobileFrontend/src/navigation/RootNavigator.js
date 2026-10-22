@@ -39,12 +39,12 @@ function OrdersStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="InvoicesMain" component={OrdersScreen} options={{ title: 'Invoices' }} />
-      <Stack.Screen name="CustomerProfiles" component={CustomerProfilesScreen} options={{ title: 'Customers' }} />
     </Stack.Navigator>
   );
 }
 const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
 const SupplierOrdersStackScreen = createStackScreen('Orders', SupplierOrdersScreen);
+const CustomerProfilesStackScreen = createStackScreen('Customers', CustomerProfilesScreen);
 function BalancesStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
@@ -57,6 +57,7 @@ function BalancesStackScreen() {
 const tabIcons = {
   Dashboard: 'dashboard',
   Invoices: 'receipt-long',
+  Customers: 'groups',
   Inventory: 'inventory',
   Orders: 'local-shipping',
   Balances: 'account-balance',
@@ -81,6 +82,7 @@ function HomeTabsScreen() {
     >
       <Tab.Screen name="Dashboard" component={DashboardStackScreen} />
       <Tab.Screen name="Invoices" component={OrdersStackScreen} />
+      <Tab.Screen name="Customers" component={CustomerProfilesStackScreen} />
       <Tab.Screen name="Inventory" component={InventoryStackScreen} />
       <Tab.Screen name="Orders" component={SupplierOrdersStackScreen} />
       <Tab.Screen name="Balances" component={BalancesStackScreen} />

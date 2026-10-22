@@ -109,7 +109,7 @@ export function OrdersScreen({ navigation }) {
                 </Pressable>
               </View>
             </View>
-            <Pressable onPress={() => navigation.navigate('CustomerProfiles')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
+            <Pressable onPress={() => navigation.navigate('Customers')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
               <MaterialIcons name="groups" size={18} color={theme.colors.primary} accessible={false} />
               <Text style={styles.customerProfilesLinkText}>Manage customer profiles</Text>
             </Pressable>
