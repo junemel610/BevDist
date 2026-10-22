@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { hasValidSupplierOrderItems, RETURNED_CASE_TYPES, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
+import { confirmAction } from '../utils/confirmAction';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
@@ -27,6 +28,7 @@ export function SupplierOrdersScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [selectedRecord, setSelectedRecord] = useState(null);
   const { width } = useWindowDimensions();
   const compact = width < 380;
 
@@ -90,11 +92,20 @@ export function SupplierOrdersScreen() {
     }
 
     const recordedReturns = numericReturns.filter(item => item.quantity > 0);
-    addRestockRecord(supplier, orderItems, recordedReturns);
-    setItems([]);
-    setReturnedCases(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: '' })));
-    setError('');
-    setNotice('Supplier order saved. Inventory updated.');
+    const productCost = orderItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
+    const returnCredit = recordedReturns.reduce((sum, item) => sum + item.quantity * item.creditPerUnit, 0);
+    confirmAction({
+      title: 'Save supplier order?',
+      message: `${supplier}: ${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} · Net cost ${formatPeso(Math.max(0, productCost - returnCredit))}. Inventory stock will be updated.`,
+      confirmLabel: 'Save order',
+      onConfirm: () => {
+        addRestockRecord(supplier, orderItems, recordedReturns);
+        setItems([]);
+        setReturnedCases(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: '' })));
+        setError('');
+        setNotice('Supplier order saved. Inventory updated.');
+      },
+    });
   };
 
   return (
@@ -256,7 +267,7 @@ export function SupplierOrdersScreen() {
             <Text style={styles.historyCount}>{restockRecords.length}</Text>
           </View>
           {restockRecords.length ? restockRecords.slice(0, 5).map(record => (
-            <View key={record.id} style={styles.historyRow}>
+            <Pressable key={record.id} onPress={() => setSelectedRecord(record)} accessibilityRole="button" accessibilityLabel={`View ${record.supplier} supplier order from ${record.date}`} style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
               <View style={styles.historyIcon}>
                 <MaterialIcons name="local-shipping" size={18} color={theme.colors.primary} accessible={false} />
               </View>
@@ -268,7 +279,7 @@ export function SupplierOrdersScreen() {
                 <Text style={styles.historyAmount}>{formatPeso(record.netCost)}</Text>
                 <Text style={styles.historyCaption}>Net cost</Text>
               </View>
-            </View>
+            </Pressable>
           )) : (
             <Text style={styles.historyEmpty}>Saved supplier orders will appear here.</Text>
           )}
@@ -302,6 +313,49 @@ export function SupplierOrdersScreen() {
               )) : (
                 <Text style={styles.historyEmpty}>All {supplierProducts.length ? 'supplier products are already added.' : 'products are already included.'}</Text>
               )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={Boolean(selectedRecord)} transparent animationType="fade" onRequestClose={() => setSelectedRecord(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.detailSheet}>
+            <View style={styles.pickerHeading}>
+              <View style={styles.headingCopy}>
+                <Text style={styles.pickerTitle}>Supplier order details</Text>
+                <Text style={styles.sectionHint}>{selectedRecord?.supplier} · {selectedRecord?.date}</Text>
+              </View>
+              <Pressable onPress={() => setSelectedRecord(null)} accessibilityRole="button" accessibilityLabel="Close supplier order details" style={styles.closeButton}>
+                <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.detailContent}>
+              <Text style={styles.detailSectionTitle}>Products received</Text>
+              {selectedRecord?.items.map((item, index) => (
+                <View key={`${item.productId}-${index}`} style={styles.detailRow}>
+                  <View style={styles.headingCopy}>
+                    <Text style={styles.historySupplier}>{item.productName}</Text>
+                    <Text style={styles.historyMeta}>{item.quantity} units × {formatPeso(item.unitCost)}</Text>
+                  </View>
+                  <Text style={styles.detailAmount}>{formatPeso(item.quantity * item.unitCost)}</Text>
+                </View>
+              ))}
+              <Text style={styles.detailSectionTitle}>Returned cases</Text>
+              {selectedRecord?.returnedCases?.length ? selectedRecord.returnedCases.map((item, index) => (
+                <View key={`${item.type}-${index}`} style={styles.detailRow}>
+                  <Text style={styles.historySupplier}>{item.type} · {item.quantity} cases</Text>
+                  <Text style={styles.creditValue}>−{formatPeso(item.quantity * item.creditPerUnit)}</Text>
+                </View>
+              )) : <Text style={styles.historyMeta}>No returned cases recorded.</Text>}
+              <View style={styles.detailSummary}>
+                <SummaryLine label="Product cost" amount={selectedRecord?.totalProductCost ?? selectedRecord?.totalCost ?? 0} />
+                <SummaryLine label="Return credits" amount={selectedRecord?.totalReturnedCredit ?? 0} negative />
+                <View style={styles.netRow}>
+                  <Text style={styles.netLabel}>Net cost</Text>
+                  <Text style={styles.netValue}>{formatPeso(selectedRecord?.netCost)}</Text>
+                </View>
+              </View>
             </ScrollView>
           </View>
         </View>
@@ -396,6 +450,13 @@ const styles = StyleSheet.create({
   historyEmpty: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, paddingVertical: theme.spacing.lg },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: theme.colors.overlay },
   pickerSheet: { maxHeight: '78%', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
+  detailSheet: { maxHeight: '85%', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
+  detailContent: { gap: theme.spacing.sm, paddingBottom: theme.spacing.md },
+  detailSectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold, marginTop: theme.spacing.sm },
+  detailRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: theme.spacing.xs },
+  detailAmount: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  creditValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  detailSummary: { gap: theme.spacing.xs, marginTop: theme.spacing.sm, padding: theme.spacing.md, borderRadius: 11, backgroundColor: theme.colors.background },
   pickerHeading: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md },
   pickerTitle: { color: theme.colors.text, fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
