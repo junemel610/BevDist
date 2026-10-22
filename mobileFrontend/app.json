@@ -4,7 +4,7 @@
     "slug": "bevdist-pos",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/bevdist-icon.png",
     "scheme": "bevdist",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -12,12 +12,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/bevdist-icon.png",
         "backgroundColor": "#1e3a8a"
       }
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/bevdist-icon.png"
     },
     "plugins": []
   }
