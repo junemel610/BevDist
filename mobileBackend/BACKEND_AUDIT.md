@@ -35,7 +35,9 @@ These meeting notes are newer than the original BRD where the two conflict. Keep
 - Keep delivery and payment status as separate facts. An invoice is `COMPLETED` only when it is fully delivered and fully paid.
 - A `CANCELLED` invoice releases its reservation and is excluded from sales. Preserve it in history.
 - A pending invoice can be edited; its live invoice totals and stock reservation must update together.
-- Carry a customer's unpaid amount into their next invoice. Mark the old balance as transferred and link it to the new invoice so it cannot be counted twice. If the new invoice is cancelled before payment or delivery, restore the transferred balances.
+- Keep each customer invoice and its outstanding balance as a separate record. When a returning customer orders again, show all their open invoices together in the customer account view; do not merge or transfer an older balance into the new invoice.
+- Apply a payment made from the combined customer account to the oldest open invoice first, then continue through newer invoices. Record the amount applied to each invoice separately. Any amount left after all invoices are paid becomes customer credit.
+- Cancelling a new invoice changes only that invoice and its stock reservation; older invoices and balances remain unchanged.
 
 ### Case quantities and inventory
 
@@ -51,13 +53,13 @@ These meeting notes are newer than the original BRD where the two conflict. Keep
 - Methods include Cash, GCash, and Bank Transfer. Keep a dedicated GCash report.
 - Apply no more than the outstanding amount to an invoice. Record excess separately as customer credit and carry it forward; never count excess as sales.
 - For the dashboard, expected sales include all non-cancelled invoices, including partial or unpaid invoices. Actual Sales includes cash applied to invoices only; report GCash separately.
-- Apply payments to transferred older balances before the current invoice portion. Expose the allocation in payment history while counting the original sale once.
+- For a payment made against a customer account, allocate oldest invoice first across its distinct open invoices. Expose each invoice allocation in payment history and count every invoice's sale once.
 
 ### Customer and audit records
 
 - Persist customer profiles with stable IDs. Link invoices, balances, credits, and payment transactions by `customer_id`, never by display name alone.
-- Preserve permanent histories for invoices (including pending and cancelled), supplier orders/restocks, balance transfers, and financial transactions.
-- Use database transactions for invoice creation/edit, stock reservations/releases/deduction, balance transfer/cancellation restoration, and payments/credits.
+- Preserve permanent histories for invoices (including pending and cancelled), supplier orders/restocks, customer account payments and their invoice allocations, and financial transactions.
+- Use database transactions for invoice creation/edit, stock reservations/releases/deduction, customer account payments and their allocations, and customer credits.
 
 ## Proposed schema and API planning checklist
 
@@ -68,18 +70,20 @@ Add these to the design before implementing backend routes:
 - `product_case_packs`: product/pack label, units per case, active flag; seed the meeting's A/B/C and Mucho pack sizes only after product associations are confirmed.
 - `invoices` and `invoice_items`: customer, delivery status, invoice status, totals, pack ID, case quantity, unit conversion, and price snapshots.
 - `inventory_reservations`: invoice/item reference and reserved smallest-unit quantity, with one-time release/finalize state.
-- `balances` and `balance_transfers`: current invoice amount, carried-forward amount, remaining amount, source balance, and destination invoice.
-- `payment_transactions`: method, received/applied/excess amounts and allocation to current versus carried balances.
+- `invoice_balances`: one independent receivable balance per invoice, including original amount, amount paid, and remaining amount.
+- `payment_transactions` and `payment_allocations`: method, received/applied/excess amounts, customer account, and each invoice amount settled oldest-first.
 - `supplier_orders`, `supplier_order_items`, and returned-case credits, keeping the supplier return-case catalog separate from sales packs.
 
-Plan the route contracts around these operations: customer profile CRUD; invoice create/read/update/cancel/deliver; invoice payment; balance transfer/history; product/inventory read/update; supplier restock create/read; cash dashboard summary; and GCash transaction summary/history. Validate inputs and use parameterized SQL. Do not use the current placeholder API responses as persisted success.
+Plan the route contracts around these operations: customer profile CRUD; invoice create/read/update/cancel/deliver; customer account receivables and account payment allocation/history; product/inventory read/update; supplier restock create/read; cash dashboard summary; and GCash transaction summary/history. Validate inputs and use parameterized SQL. Do not use the current placeholder API responses as persisted success.
 
 ### Backend acceptance criteria for later implementation
 
 - Duplicate completion, cancellation, payment, or stock release cannot apply twice.
 - Concurrent pending invoices cannot reserve more stock than is available.
 - A 0.5 case reserves half of the pack's unit count; invoice totals use saved price snapshots.
-- Carrying a balance does not duplicate expected sales or outstanding debt; cancelling the receiving invoice restores the source balance.
+- Creating a second invoice leaves the first invoice's balance intact and shows both invoices in the customer's account total.
+- A customer account payment settles the oldest open invoice first, creates a separate allocation for each invoice paid, and never changes either invoice's original sale total.
+- Cancelling a new invoice leaves all older invoice balances unchanged.
 - For a 5,248 invoice paid with 5,500, record 5,248 applied and 252 as customer credit; only the applied cash is counted in Actual Sales.
 - Cash and GCash reports reconcile to payment records, and cancelled invoices stay out of sales totals while remaining in history.
 - PostgreSQL and API health checks, authentication for single-user access, validation, error handling, and integration tests pass before the app connects to live routes.
