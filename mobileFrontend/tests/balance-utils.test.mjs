@@ -6,7 +6,7 @@ test('balance status follows remaining amount and due date', () => {
   assert.equal(balanceStatus({ remainingBalance: 0, dueDate: '2026-01-01' }, '2026-02-01'), 'paid');
   assert.equal(balanceStatus({ remainingBalance: 20, dueDate: '2026-02-02' }, '2026-02-01'), 'unpaid');
   assert.equal(balanceStatus({ remainingBalance: 20, dueDate: '2026-01-31' }, '2026-02-01'), 'overdue');
-  assert.equal(balanceStatus({ status: 'carried_forward', remainingBalance: 0 }), 'carried_forward');
+  assert.equal(balanceStatus({ status: 'cancelled', remainingBalance: 50 }), 'cancelled');
 });
 
 test('payments apply only what is due and carry excess forward', () => {

@@ -8,12 +8,12 @@ import {
   INITIAL_PAYMENT_TRANSACTIONS,
 } from '../data/initialData';
 import { createProductProfile, isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
-import { balanceStatus, creditAppliedToInvoice, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
+import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
 import { createPaymentTransaction } from '../components/balances/paymentLedger';
 import { PAYMENT_METHOD } from '../types';
-import { allocatePayment, carryForwardBalances, forwardBalanceRecords } from '../components/balances/carryForward';
+import { allocateAccountPayment } from '../components/balances/customerAccounts';
 
 function finalizeReservedStock(products, order) {
   return products.map((product) => {
@@ -79,12 +79,10 @@ export function AppProvider({ children }) {
 
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const carryForward = carryForwardBalances(balances, customer);
-    const totalDue = total + carryForward.amount;
+    const totalDue = total;
     const creditKey = customerCreditKey(customer);
     const creditAvailable = Number(customerCredits[creditKey] || 0);
     const appliedCredit = creditAppliedToInvoice(creditAvailable, totalDue);
-    const creditAppliedToCarry = Math.min(carryForward.amount, appliedCredit);
     const newOrder = {
       id: `o${Date.now()}`,
       orderNumber: `ORD-2026-${String(orders.length + 1).padStart(3, '0')}`,
@@ -123,16 +121,13 @@ export function AppProvider({ children }) {
       invoiceNumber,
       totalAmount: totalDue,
       currentInvoiceTotal: total,
-      currentInvoicePaid: Math.max(0, appliedCredit - creditAppliedToCarry),
-      carriedForwardAmount: carryForward.amount,
-      carriedForwardPaid: creditAppliedToCarry,
-      carriedForwardItems: carryForward.items,
+      currentInvoicePaid: appliedCredit,
       amountPaid: appliedCredit,
       remainingBalance: totalDue - appliedCredit,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       status: appliedCredit >= totalDue ? 'paid' : appliedCredit > 0 ? 'partial' : 'unpaid',
     };
-    setBalances([...forwardBalanceRecords(balances, carryForward.items, newOrder.id), newBalance]);
+    setBalances([...balances, newBalance]);
     if (appliedCredit > 0) {
       const remainingCredit = creditAvailable - appliedCredit;
       setCustomerCredits((current) => {
@@ -150,20 +145,15 @@ export function AppProvider({ children }) {
     const order = orders.find((o) => o.id === orderId);
     if (!order || order.status === 'cancelled' || order.status === 'completed') return false;
     const orderBalance = balances.find((item) => item.orderId === orderId);
-    if (orderBalance?.carriedForwardToOrderId) return false;
     if (newStatus === 'cancelled') {
       if (order.deliveryStatus === 'delivered') return false;
       const balance = orderBalance;
       if (balance && balance.amountPaid > 0) return false;
       setProducts(releaseReservedStock(products, order));
       setOrders(orders.map((item) => item.id === orderId ? { ...item, status: 'cancelled' } : item));
-      const carriedItems = balance?.carriedForwardItems || [];
-      const restoreById = new Map(carriedItems.map(item => [item.balanceId, item.amount]));
       setBalances(balances.map((item) => {
         if (item.orderId === orderId) return { ...item, status: 'cancelled', remainingBalance: 0 };
-        if (!restoreById.has(item.id)) return item;
-        const restored = { ...item, carriedForwardToOrderId: null, remainingBalance: item.remainingBalance + restoreById.get(item.id) };
-        return { ...restored, status: balanceStatus(restored) };
+        return item;
       }));
       return true;
     }
@@ -178,37 +168,60 @@ export function AppProvider({ children }) {
     return true;
   }, [orders, products, balances]);
 
-  const recordPayment = useCallback((balanceId, amountPaid, method = PAYMENT_METHOD.CASH) => {
-    const balance = balances.find((item) => item.id === balanceId);
-    if (!balance) return false;
-    const payment = paymentBreakdown(balance, amountPaid);
-    if (!payment.valid) return false;
-    const order = orders.find((item) => item.id === balance.orderId);
-    const transaction = createPaymentTransaction(balance, order, amountPaid, method);
-    if (!transaction) return false;
-    const nextRemaining = Math.max(0, balance.remainingBalance - payment.applied);
-    const allocation = allocatePayment(balance, payment.applied);
+  const recordCustomerPayment = useCallback((customer, amountPaid, method = PAYMENT_METHOD.CASH) => {
+    const identity = customer && typeof customer === 'object' ? customer : { name: customer };
+    const accountBalances = balances.filter(balance => {
+      const sameId = identity.id && balance.customerId && identity.id === balance.customerId;
+      const sameName = String(identity.name || identity.customerName || '').trim().toLocaleLowerCase()
+        === String(balance.customerName || '').trim().toLocaleLowerCase();
+      return (sameId || (!identity.id || !balance.customerId) && sameName)
+        && balance.status !== 'cancelled'
+        && Number(balance.remainingBalance) > 0;
+    });
+    const plan = allocateAccountPayment(accountBalances, orders, amountPaid);
+    if (!plan.valid) return false;
+    const allocations = new Map(plan.allocations.map(allocation => [allocation.balanceId, allocation.amount]));
+    const lastBalanceId = plan.allocations.at(-1)?.balanceId;
+    const receivedByBalance = new Map(plan.allocations.map(allocation => [
+      allocation.balanceId,
+      allocation.amount + (allocation.balanceId === lastBalanceId ? plan.excess : 0),
+    ]));
+    const transactions = plan.allocations.map((allocation, index) => {
+      const balance = accountBalances.find(item => item.id === allocation.balanceId);
+      const order = orders.find(item => item.id === balance.orderId);
+      return createPaymentTransaction(balance, order, receivedByBalance.get(balance.id), method, `pay${Date.now()}-${index}`);
+    });
+    if (transactions.some(transaction => !transaction)) return false;
     const today = new Date().toISOString().slice(0, 10);
-    const updatedBalances = balances.map((item) => item.id === balanceId ? {
-      ...item,
-      amountPaid: item.amountPaid + payment.applied,
-      currentInvoicePaid: allocation.currentInvoicePaid,
-      carriedForwardPaid: allocation.carriedForwardPaid,
-      remainingBalance: nextRemaining,
-      status: balanceStatus({ ...item, remainingBalance: nextRemaining }, today),
-    } : item);
+    const completedOrderIds = new Set();
+    const updatedBalances = balances.map(item => {
+      const applied = allocations.get(item.id);
+      if (!applied) return item;
+      const remainingBalance = Math.max(0, Number(item.remainingBalance) - applied);
+      if (remainingBalance === 0) {
+        const paidOrder = orders.find(order => order.id === item.orderId);
+        if (paidOrder?.deliveryStatus === 'delivered' && paidOrder.status !== 'completed') completedOrderIds.add(paidOrder.id);
+      }
+      return {
+        ...item,
+        amountPaid: (Number(item.amountPaid) || 0) + applied,
+        currentInvoicePaid: (Number(item.currentInvoicePaid ?? item.amountPaid) || 0) + applied,
+        remainingBalance,
+        status: balanceStatus({ ...item, remainingBalance }, today),
+      };
+    });
     setBalances(updatedBalances);
-    setPaymentTransactions((current) => [...current, transaction]);
-    const paidOrder = orders.find((item) => item.id === balance.orderId);
-    if (paidOrder && paidOrder.deliveryStatus === 'delivered' && nextRemaining === 0 && paidOrder.status !== 'completed') {
-      setProducts((current) => finalizeReservedStock(current, paidOrder));
-      setOrders((current) => current.map((item) => item.id === paidOrder.id ? { ...item, status: 'completed' } : item));
+    setPaymentTransactions(current => [...current, ...transactions]);
+    if (completedOrderIds.size) {
+      const completedOrders = orders.filter(order => completedOrderIds.has(order.id));
+      setProducts(current => completedOrders.reduce((next, order) => finalizeReservedStock(next, order), current));
+      setOrders(current => current.map(order => completedOrderIds.has(order.id) ? { ...order, status: 'completed' } : order));
     }
-    if (payment.excess > 0) {
-      const creditKey = customerCreditKey(order?.customer || balance.customerName);
-      setCustomerCredits((current) => ({ ...current, [creditKey]: (Number(current[creditKey]) || 0) + payment.excess }));
+    if (plan.excess > 0) {
+      const creditKey = customerCreditKey(identity);
+      setCustomerCredits(current => ({ ...current, [creditKey]: (Number(current[creditKey]) || 0) + plan.excess }));
     }
-    return payment;
+    return { applied: plan.applied, excess: plan.excess, allocations: plan.allocations };
   }, [balances, orders]);
 
   const addRestockRecord = useCallback((supplier, items, returnedCases) => {
@@ -310,7 +323,7 @@ export function AppProvider({ children }) {
     createOrder,
     saveCustomer,
     updateOrderStatus,
-    recordPayment,
+    recordCustomerPayment,
     addRestockRecord,
     updateProductInventory,
     addProduct,

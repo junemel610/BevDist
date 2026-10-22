@@ -8,13 +8,13 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
-import { balanceStatus, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
+import { balanceStatus, customerCreditKey } from '../components/balances/balanceUtils';
+import { allocateAccountPayment, groupOpenCustomerBalances } from '../components/balances/customerAccounts';
 import { PAYMENT_METHOD } from '../types';
 import { confirmAction } from '../utils/confirmAction';
 
@@ -23,29 +23,25 @@ const FILTERS = [
   { key: 'unpaid', label: 'Unpaid' },
   { key: 'overdue', label: 'Overdue' },
   { key: 'paid', label: 'Paid' },
-  { key: 'carried_forward', label: 'Moved to new invoice' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 const STATUS = {
   paid: { label: 'Paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   unpaid: { label: 'Unpaid', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
   overdue: { label: 'Overdue', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
-  carried_forward: { label: 'Moved to new invoice', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
   cancelled: { label: 'Cancelled', color: theme.colors.textLight, background: theme.colors.surfaceMuted, icon: 'cancel' },
 };
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
 
 export function BalancesScreen({ navigation }) {
-  const { balances, customers, orders, customerCredits = {}, recordPayment } = useApp();
+  const { balances, customers, orders, customerCredits = {}, recordCustomerPayment } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [selectedBalance, setSelectedBalance] = useState(null);
+  const [selectedAccount, setSelectedAccount] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHOD.CASH);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const { width } = useWindowDimensions();
-  const compact = width < 390;
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -58,63 +54,74 @@ export function BalancesScreen({ navigation }) {
     status: balanceStatus(balance),
   })), [balances]);
   const counts = useMemo(() => records.reduce((result, balance) => {
-    result[balance.status] += 1;
+    if (Object.hasOwn(result, balance.status)) result[balance.status] += 1;
     return result;
-  }, { all: records.length, unpaid: 0, overdue: 0, paid: 0, carried_forward: 0, cancelled: 0 }), [records]);
+  }, { all: records.length, unpaid: 0, overdue: 0, paid: 0, cancelled: 0 }), [records]);
   const outstanding = useMemo(() => records.reduce((sum, balance) => (
     balance.status === 'paid' ? sum : sum + Math.max(0, Number(balance.remainingBalance) || 0)
   ), 0), [records]);
   const totalCredit = Object.values(customerCredits).reduce((sum, amount) => sum + (Number(amount) || 0), 0);
+  const customerAccounts = useMemo(() => groupOpenCustomerBalances(balances, orders), [balances, orders]);
   const visibleBalances = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    return records.filter(balance => (activeFilter === 'all' || balance.status === activeFilter)
+    if (['all', 'unpaid', 'overdue'].includes(activeFilter)) {
+      const accountRows = customerAccounts
+        .filter(account => activeFilter === 'all' || account.balances.some(balance => balanceStatus(balance) === activeFilter))
+        .filter(account => !query || account.customerName.toLocaleLowerCase().includes(query)
+          || account.balances.some(balance => balance.invoiceNumber.toLocaleLowerCase().includes(query)))
+        .map(account => ({ ...account, kind: 'account' }));
+      const historyRows = activeFilter === 'all'
+        ? records.filter(balance => ['paid', 'cancelled'].includes(balance.status)
+          && (!query || balance.customerName.toLocaleLowerCase().includes(query)
+            || balance.invoiceNumber.toLocaleLowerCase().includes(query)))
+        : [];
+      return [...accountRows, ...historyRows];
+    }
+    return records.filter(balance => balance.status === activeFilter
       && (!query || balance.customerName.toLocaleLowerCase().includes(query)
         || balance.invoiceNumber.toLocaleLowerCase().includes(query)))
-      .slice()
-      .sort((a, b) => {
-        const statusOrder = { overdue: 0, unpaid: 1, paid: 2, carried_forward: 3, cancelled: 4 };
-        return statusOrder[a.status] - statusOrder[b.status]
-          || a.dueDate.localeCompare(b.dueDate);
-      });
-  }, [records, activeFilter, search]);
+      .slice().sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+  }, [records, customerAccounts, activeFilter, search]);
 
-  const openPayment = balance => {
-    setSelectedBalance(balance);
-    setPaymentAmount(String(balance.remainingBalance));
+  const openPayment = account => {
+    setSelectedAccount(account);
+    setPaymentAmount(String(account.outstanding));
     setPaymentMethod(PAYMENT_METHOD.CASH);
     setError('');
     setNotice('');
   };
 
-  const breakdown = selectedBalance ? paymentBreakdown(selectedBalance, paymentAmount) : { valid: false, applied: 0, excess: 0 };
-  const selectedCustomer = selectedBalance
-    ? customers.find(customer => customer.id === selectedBalance.customerId)
-      || orders.find(order => order.id === selectedBalance.orderId)?.customer
-      || customers.find(customer => customer.name === selectedBalance.customerName)
+  const breakdown = selectedAccount
+    ? allocateAccountPayment(selectedAccount.balances, orders, paymentAmount)
+    : { valid: false, applied: 0, excess: 0, allocations: [] };
+  const selectedCustomer = selectedAccount
+    ? customers.find(customer => customer.id === selectedAccount.customerId)
+      || orders.find(order => selectedAccount.balances.some(balance => balance.orderId === order.id))?.customer
+      || customers.find(customer => customer.name === selectedAccount.customerName)
     : null;
-  const existingCredit = selectedBalance
-    ? Number(customerCredits[customerCreditKey(selectedCustomer || selectedBalance.customerName)] || 0)
+  const existingCredit = selectedAccount
+    ? Number(customerCredits[customerCreditKey(selectedCustomer || selectedAccount.customerName)] || 0)
     : 0;
 
   const savePayment = () => {
-    if (!selectedBalance || !breakdown.valid) {
+    if (!selectedAccount || !breakdown.valid) {
       setError('Enter a payment amount greater than ₱0.');
       return;
     }
     confirmAction({
       title: 'Record this payment?',
-      message: `${formatPeso(Number(paymentAmount))} by ${paymentMethod} for ${selectedBalance.customerName}. Any amount above the balance will be saved as credit for the customer’s next invoice.`,
+      message: `${formatPeso(Number(paymentAmount))} by ${paymentMethod} for ${selectedAccount.customerName}. The oldest invoice is paid first; extra payment becomes customer credit.`,
       confirmLabel: 'Record payment',
       onConfirm: () => {
-        const result = recordPayment(selectedBalance.id, Number(paymentAmount), paymentMethod);
+        const result = recordCustomerPayment(selectedAccount, Number(paymentAmount), paymentMethod);
         if (!result) {
           setError('This balance could not be updated. Reopen it and try again.');
           return;
         }
-        setSelectedBalance(null);
+        setSelectedAccount(null);
         setPaymentAmount('');
         setNotice(result.excess > 0
-          ? `${formatPeso(result.applied)} applied. ${formatPeso(result.excess)} saved as customer credit for the next invoice.`
+          ? `${formatPeso(result.applied)} applied oldest invoice first. ${formatPeso(result.excess)} saved as customer credit.`
           : 'Payment recorded.');
       },
     });
@@ -124,7 +131,7 @@ export function BalancesScreen({ navigation }) {
     <SafeAreaView edges={['left', 'right']} style={styles.container}>
       <FlatList
         data={visibleBalances}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.kind === 'account' ? item.key : item.id}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={(
@@ -132,7 +139,7 @@ export function BalancesScreen({ navigation }) {
             <View style={styles.titleRow}>
               <View style={styles.heading}>
                 <Text accessibilityRole="header" style={styles.title}>Balance tracker</Text>
-                <Text style={styles.subtitle}>Customer payments and amounts due</Text>
+                <Text style={styles.subtitle}>Customer accounts and invoice balances</Text>
               </View>
               <View style={styles.totalCard}>
                 <Text style={styles.totalLabel}>Outstanding</Text>
@@ -151,13 +158,6 @@ export function BalancesScreen({ navigation }) {
                   <Text style={styles.creditNoticeTitle}>Customer credit available</Text>
                   <Text style={styles.creditNoticeText}>{formatPeso(totalCredit)} in extra payments will automatically reduce customers’ next invoice totals.</Text>
                 </View>
-              </View>
-            ) : null}
-
-            {counts.carried_forward > 0 ? (
-              <View style={styles.transferNotice}>
-                <Text style={styles.transferNoticeTitle}>About “Moved to new invoice”</Text>
-                <Text style={styles.transferNoticeText}>An unpaid amount from an older invoice was added to the customer’s newer invoice. It is listed there once, so it is not counted twice.</Text>
               </View>
             ) : null}
 
@@ -200,9 +200,9 @@ export function BalancesScreen({ navigation }) {
             </ScrollView>
           </View>
         )}
-        renderItem={({ item }) => (
-          <BalanceCard balance={item} compact={compact} onPay={() => openPayment(item)} />
-        )}
+        renderItem={({ item }) => item.kind === 'account'
+          ? <CustomerAccountCard account={item} onPay={() => openPayment(item)} />
+          : <BalanceCard balance={item} />}
         ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
         ListEmptyComponent={(
           <View style={styles.emptyState}>
@@ -210,27 +210,27 @@ export function BalancesScreen({ navigation }) {
               <MaterialIcons name="account-balance-wallet" size={25} color={theme.colors.primary} accessible={false} />
             </View>
             <Text style={styles.emptyTitle}>No balances found</Text>
-            <Text style={styles.emptyText}>{search ? 'Try another customer or invoice number.' : 'There are no balances in this status.'}</Text>
+            <Text style={styles.emptyText}>{search ? 'Try another customer or invoice number.' : 'There are no invoices in this status.'}</Text>
           </View>
         )}
       />
 
-      <Modal visible={Boolean(selectedBalance)} transparent animationType="fade" onRequestClose={() => setSelectedBalance(null)}>
+      <Modal visible={Boolean(selectedAccount)} transparent animationType="fade" onRequestClose={() => setSelectedAccount(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.paymentDialog}>
             <View style={styles.modalHeading}>
               <View style={styles.heading}>
-                <Text style={styles.modalTitle}>Record payment</Text>
-                <Text style={styles.modalSubtitle}>{selectedBalance?.invoiceNumber}</Text>
+                <Text style={styles.modalTitle}>Record customer payment</Text>
+                <Text style={styles.modalSubtitle}>{selectedAccount?.balances.length} open invoices · oldest first</Text>
               </View>
-              <Pressable onPress={() => setSelectedBalance(null)} accessibilityRole="button" accessibilityLabel="Close payment form" style={styles.closeButton}>
+              <Pressable onPress={() => setSelectedAccount(null)} accessibilityRole="button" accessibilityLabel="Close payment form" style={styles.closeButton}>
                 <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
               </Pressable>
             </View>
 
             <View style={styles.paymentCustomer}>
-              <Text style={styles.paymentCustomerName}>{selectedBalance?.customerName}</Text>
-              <Text style={styles.paymentDue}>Outstanding {formatPeso(selectedBalance?.remainingBalance)}</Text>
+              <Text style={styles.paymentCustomerName}>{selectedAccount?.customerName}</Text>
+              <Text style={styles.paymentDue}>Total open balance {formatPeso(selectedAccount?.outstanding)}</Text>
             </View>
             <Text style={styles.amountLabel}>Payment method</Text>
             <View style={styles.paymentMethods}>
@@ -260,9 +260,12 @@ export function BalancesScreen({ navigation }) {
             </View>
 
             <View style={styles.paymentBreakdown}>
-              <PaymentLine label="Applied to this invoice" value={breakdown.applied} />
+              <Text style={styles.allocationTitle}>Payment allocation · oldest invoice first</Text>
+              {breakdown.allocations.map(allocation => (
+                <PaymentLine key={allocation.balanceId} label={allocation.invoiceNumber} value={allocation.amount} />
+              ))}
               {breakdown.excess > 0 ? (
-                <PaymentLine label="Credit for next invoice" value={breakdown.excess} highlight />
+                <PaymentLine label="Customer credit after invoices" value={breakdown.excess} highlight />
               ) : null}
               {existingCredit > 0 ? (
                 <Text style={styles.existingCredit}>Existing customer credit: {formatPeso(existingCredit)}</Text>
@@ -270,7 +273,7 @@ export function BalancesScreen({ navigation }) {
             </View>
             {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
             <View style={styles.modalActions}>
-              <Pressable onPress={() => setSelectedBalance(null)} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
+              <Pressable onPress={() => setSelectedAccount(null)} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
                 <Text style={styles.cancelLabel}>Cancel</Text>
               </Pressable>
               <Pressable onPress={savePayment} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
@@ -291,7 +294,7 @@ export function BalancesScreen({ navigation }) {
   );
 }
 
-function BalanceCard({ balance, compact, onPay }) {
+function BalanceCard({ balance }) {
   const status = STATUS[balance.status] ?? STATUS.unpaid;
   const total = Math.max(0, Number(balance.totalAmount) || 0);
   const paid = Math.min(total, Math.max(0, Number(balance.amountPaid) || 0));
@@ -323,17 +326,48 @@ function BalanceCard({ balance, compact, onPay }) {
           <Text style={styles.remainingLabel}>Remaining</Text>
           <Text style={[styles.remainingAmount, { color: remaining ? theme.colors.danger : theme.colors.success }]}>{formatPeso(remaining)}</Text>
         </View>
-        {!['paid', 'carried_forward', 'cancelled'].includes(balance.status) && (
-          <Pressable
-            onPress={onPay}
-            accessibilityRole="button"
-            accessibilityLabel={`Record payment for ${balance.customerName}, ${formatPeso(remaining)} outstanding`}
-            style={({ pressed }) => [styles.payButton, compact && styles.payButtonCompact, pressed && styles.pressed]}
-          >
-            <MaterialIcons name="payments" size={18} color={theme.colors.onPrimary} accessible={false} />
-            {!compact && <Text style={styles.payLabel}>Record payment</Text>}
-          </Pressable>
-        )}
+      </View>
+    </View>
+  );
+}
+
+function CustomerAccountCard({ account, onPay }) {
+  return (
+    <View style={styles.accountCard}>
+      <View style={styles.accountHeading}>
+        <View style={styles.accountIcon}>
+          <MaterialIcons name="person" size={19} color={theme.colors.primary} accessible={false} />
+        </View>
+        <View style={styles.customerBlock}>
+          <Text style={styles.customerName}>{account.customerName}</Text>
+          <Text style={styles.invoiceMeta}>{account.balances.length} open {account.balances.length === 1 ? 'invoice' : 'invoices'}</Text>
+        </View>
+      </View>
+      <View style={styles.accountInvoices}>
+        {account.balances.map(balance => (
+          <View key={balance.id} style={styles.accountInvoiceRow}>
+            <View style={styles.customerBlock}>
+              <Text style={styles.accountInvoiceNumber}>{balance.invoiceNumber}</Text>
+              <Text style={styles.accountInvoiceMeta}>Paid {formatPeso(balance.amountPaid)} · Due {balance.dueDate}</Text>
+            </View>
+            <Text style={styles.accountInvoiceDue}>{formatPeso(balance.remainingBalance)}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={styles.accountFooter}>
+        <View>
+          <Text style={styles.remainingLabel}>Total outstanding</Text>
+          <Text style={styles.accountOutstanding}>{formatPeso(account.outstanding)}</Text>
+        </View>
+        <Pressable
+          onPress={onPay}
+          accessibilityRole="button"
+          accessibilityLabel={`Record customer payment for ${account.customerName}, ${formatPeso(account.outstanding)} across ${account.balances.length} invoices`}
+          style={({ pressed }) => [styles.payButton, pressed && styles.pressed]}
+        >
+          <MaterialIcons name="payments" size={18} color={theme.colors.onPrimary} accessible={false} />
+          <Text style={styles.payLabel}>Record payment</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -363,9 +397,16 @@ const styles = StyleSheet.create({
   creditNoticeCopy: { flex: 1 },
   creditNoticeTitle: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   creditNoticeText: { color: theme.colors.primary, fontSize: theme.fontSize.xs, marginTop: 3 },
-  transferNotice: { marginBottom: theme.spacing.md, padding: theme.spacing.md, borderRadius: 12, backgroundColor: theme.colors.surfaceMuted },
-  transferNoticeTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  transferNoticeText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 18, marginTop: 3 },
+  accountCard: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
+  accountHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  accountIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: theme.colors.primarySoft },
+  accountInvoices: { marginTop: theme.spacing.md, paddingLeft: theme.spacing.xs },
+  accountInvoiceRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  accountInvoiceNumber: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  accountInvoiceMeta: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
+  accountInvoiceDue: { color: theme.colors.danger, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  accountFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginTop: theme.spacing.sm, paddingTop: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  accountOutstanding: { color: theme.colors.danger, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, marginTop: 2 },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   searchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: theme.fontSize.base, paddingVertical: 0 },
   clearButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -392,7 +433,6 @@ const styles = StyleSheet.create({
   remainingLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs },
   remainingAmount: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, marginTop: 2 },
   payButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.primary },
-  payButtonCompact: { width: 44, paddingHorizontal: 0 },
   payLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   emptyState: { alignItems: 'center', paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing['2xl'] },
   emptyIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.md, borderRadius: 28, backgroundColor: theme.colors.primarySoft },
@@ -419,6 +459,7 @@ const styles = StyleSheet.create({
   currencyPrefix: { color: theme.colors.textLight, fontSize: theme.fontSize.lg, marginRight: theme.spacing.sm },
   amountInput: { flex: 1, minHeight: 52, color: theme.colors.text, fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, paddingVertical: 0 },
   paymentBreakdown: { gap: theme.spacing.sm, marginTop: theme.spacing.md, padding: theme.spacing.md, borderRadius: 11, backgroundColor: theme.colors.background },
+  allocationTitle: { color: theme.colors.text, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold, marginBottom: theme.spacing.xs },
   breakdownLine: { flexDirection: 'row', justifyContent: 'space-between', gap: theme.spacing.sm },
   breakdownLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, flex: 1 },
   breakdownValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },

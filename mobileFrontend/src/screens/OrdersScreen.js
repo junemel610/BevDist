@@ -16,6 +16,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
 import { availableCases, casePacksForProduct, invoiceCaseItem } from '../components/orders/casePacks';
+import { groupOpenCustomerBalances } from '../components/balances/customerAccounts';
 import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
 
@@ -23,7 +24,6 @@ const FILTERS = [
   { key: 'all', label: 'All invoices' },
   { key: 'outstanding', label: 'Outstanding' },
   { key: 'paid', label: 'Fully paid' },
-  { key: 'carried_forward', label: 'Moved to new invoice' },
   { key: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -31,7 +31,6 @@ const STATUS = {
   unpaid: { label: 'Unpaid', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
   partial: { label: 'Partial', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'schedule' },
   paid: { label: 'Fully paid', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
-  carried_forward: { label: 'Moved to new invoice', color: theme.colors.primary, background: theme.colors.primarySoft, icon: 'forward' },
   cancelled: { label: 'Cancelled', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'cancel' },
 };
 
@@ -60,13 +59,12 @@ export function OrdersScreen({ navigation }) {
 
   const invoiceFor = order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
   const counts = useMemo(() => {
-    const result = { all: orders.length, outstanding: 0, paid: 0, carried_forward: 0, cancelled: 0 };
+    const result = { all: orders.length, outstanding: 0, paid: 0, cancelled: 0 };
     orders.forEach(order => {
       const status = invoiceFor(order).status;
       if (status === 'unpaid' || status === 'partial') result.outstanding += 1;
       else if (status === 'paid') result.paid += 1;
-      else if (status === 'carried_forward') result.carried_forward += 1;
-      else result.cancelled += 1;
+      else if (status === 'cancelled') result.cancelled += 1;
     });
     return result;
   }, [orders, balances]);
@@ -219,6 +217,8 @@ export function OrdersScreen({ navigation }) {
         width={width}
         products={products}
         customers={customers}
+        balances={balances}
+        orders={orders}
         cart={cart}
         customer={selectedCustomer}
         isNewCustomer={isNewCustomer}
@@ -389,7 +389,7 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateInvoiceModal({ visible, width, products, customers, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
+function CreateInvoiceModal({ visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
   const total = products.reduce((sum, product) => {
     return sum + casePacksForProduct(product).reduce((productTotal, pack) => {
       const quantity = cart[`${product.id}:${pack.id}`] || 0;
@@ -399,6 +399,15 @@ function CreateInvoiceModal({ visible, width, products, customers, cart, custome
   }, 0);
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + (quantity || 0), 0);
   const canCreate = itemCount > 0 && (!isNewCustomer || !!newCustomer.name.trim());
+  const customerIdentity = isNewCustomer
+    ? customers.find(item => item.name.trim().toLocaleLowerCase() === newCustomer.name.trim().toLocaleLowerCase()) || { name: newCustomer.name }
+    : customer;
+  const openAccount = customerIdentity
+    ? groupOpenCustomerBalances(balances, orders).find(account => (
+      customerIdentity.id ? account.customerId === customerIdentity.id
+        : account.customerName.toLocaleLowerCase() === customerIdentity.name.trim().toLocaleLowerCase()
+    ))
+    : null;
 
   return (
     <OverlayModal visible={visible} onClose={onClose} width={width}>
@@ -446,6 +455,18 @@ function CreateInvoiceModal({ visible, width, products, customers, cart, custome
               </Pressable>
             );
           })}
+          {openAccount ? (
+            <View style={styles.openInvoiceNotice}>
+              <Text style={styles.openInvoiceTitle}>Existing open invoices · {formatPeso(openAccount.outstanding)}</Text>
+              {openAccount.balances.map(balance => (
+                <View key={balance.id} style={styles.openInvoiceRow}>
+                  <Text style={styles.openInvoiceNumber}>{balance.invoiceNumber}</Text>
+                  <Text style={styles.openInvoiceAmount}>{formatPeso(balance.remainingBalance)} due</Text>
+                </View>
+              ))}
+              <Text style={styles.openInvoiceHelp}>This sale creates a separate invoice. Payments apply to the oldest invoice first.</Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.createSection}>
           <Text style={styles.createSectionTitle}>Products</Text>
@@ -572,7 +593,7 @@ function OrderDetailModal({ order, onClose, onMarkDelivered, onCancel }) {
         </View>
       </ScrollView>
       <View style={styles.modalFooter}>
-          {order.lifecycleStatus === 'pending' && order.status !== 'carried_forward' && order.deliveryStatus !== 'delivered' ? (
+          {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
           <>
             {order.amountPaid === 0 ? (
               <Pressable onPress={onCancel} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
@@ -634,7 +655,6 @@ function InvoiceModal({ order, balance, onClose, width }) {
 
         <View style={styles.invoiceSummary}>
           <SummaryLine label="Subtotal" value={formatPeso(order.subtotal)} />
-          {Number(balance?.carriedForwardAmount) > 0 ? <SummaryLine label="Previous unpaid balance" value={formatPeso(balance.carriedForwardAmount)} /> : null}
           <SummaryLine label="Payments received" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
           <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
           <View style={styles.invoiceGrandTotal}>
@@ -736,6 +756,12 @@ const styles = StyleSheet.create({
   customerOption: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   customerOptionSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   customerOptionText: { gap: 2 },
+  openInvoiceNotice: { gap: theme.spacing.xs, padding: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
+  openInvoiceTitle: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold, marginBottom: 2 },
+  openInvoiceRow: { flexDirection: 'row', justifyContent: 'space-between', gap: theme.spacing.sm },
+  openInvoiceNumber: { color: theme.colors.text, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  openInvoiceAmount: { color: theme.colors.text, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
+  openInvoiceHelp: { color: theme.colors.primary, fontSize: theme.fontSize.xs, marginTop: theme.spacing.xs },
   productOption: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   caseProductOption: { gap: theme.spacing.sm, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   packLabelBlock: { flex: 1, gap: 2 },

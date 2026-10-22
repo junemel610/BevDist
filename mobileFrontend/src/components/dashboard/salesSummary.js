@@ -9,8 +9,7 @@ export function invoiceSummary(order, balance) {
     ? Math.max(0, Number(balance.remainingBalance))
     : order.status === 'cancelled' ? 0 : totalDue - amountPaid;
   const status = order.status === 'cancelled' ? 'cancelled'
-    : balance?.carriedForwardToOrderId ? 'carried_forward'
-      : remainingBalance === 0 ? 'paid' : received > 0 ? 'partial' : 'unpaid';
+    : remainingBalance === 0 ? 'paid' : received > 0 ? 'partial' : 'unpaid';
   const currentInvoicePaid = Math.min(total, Math.max(0, Number(balance?.currentInvoicePaid ?? amountPaid)));
 
   return {
