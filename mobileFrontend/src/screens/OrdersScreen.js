@@ -36,7 +36,7 @@ const STATUS = {
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
-export function OrdersScreen({ navigation }) {
+export function OrdersScreen({ navigation, route }) {
   const { orders, balances, products, customers, saveCustomer, createOrder, updateOrderStatus, getAvailableStock } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -213,7 +213,7 @@ export function OrdersScreen({ navigation }) {
         }}
       />
       <CreateInvoiceModal
-        visible={creatingInvoice}
+        visible={creatingInvoice || Boolean(route.params?.openCreateInvoiceToken)}
         width={width}
         products={products}
         customers={customers}
@@ -234,7 +234,10 @@ export function OrdersScreen({ navigation }) {
           const max = availableCases(getAvailableStock(productId, packId), pack);
           return { ...current, [`${productId}:${packId}`]: Math.min(quantity, max) };
         })}
-        onClose={() => setCreatingInvoice(false)}
+        onClose={() => {
+          setCreatingInvoice(false);
+          navigation.setParams({ openCreateInvoiceToken: undefined });
+        }}
         onCreate={() => {
           const items = products.flatMap(product => casePacksForProduct(product).flatMap(pack => {
             const quantity = cart[`${product.id}:${pack.id}`] || 0;
@@ -268,6 +271,7 @@ export function OrdersScreen({ navigation }) {
               setNewCustomer({ name: '', contact: '', address: '' });
               setIsNewCustomer(false);
               setCreatingInvoice(false);
+              navigation.setParams({ openCreateInvoiceToken: undefined });
               setCaseToast(items.map(item => {
                 const product = products.find(entry => entry.id === item.productId);
                 const remaining = Math.max(0, getAvailableStock(product.id, item.packId) - item.quantity);

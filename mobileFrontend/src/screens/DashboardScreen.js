@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { DashboardActivity } from '../components/dashboard/DashboardActivity';
+import { DashboardActivity, QuickActions } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
 import { salesSummary, salesTrends } from '../components/dashboard/salesSummary';
@@ -13,6 +13,11 @@ export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
   const { orders, balances, paymentTransactions, getLowStockCount } = useApp();
+  const navigateTo = useCallback(route => navigation.getParent()?.navigate(route), [navigation]);
+  const openCreateInvoice = useCallback(() => navigation.getParent()?.navigate('Invoices', {
+    screen: 'InvoicesMain',
+    params: { openCreateInvoiceToken: Date.now() },
+  }), [navigation]);
   const gap = theme.spacing.md;
   const columns = Math.max(1, Math.min(4, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
@@ -34,6 +39,11 @@ export function DashboardScreen({ navigation }) {
           <View>
             <Text accessibilityRole="header" style={styles.title}>Dashboard</Text>
             <Text style={styles.subtitle}>Business overview</Text>
+          </View>
+
+          <QuickActions onNavigate={navigateTo} onCreateInvoice={openCreateInvoice} wide={wide} />
+
+          <View>
             <View style={styles.demoNotice}>
               <Text style={styles.demoText}>Cancelled invoices and extra payments are excluded from sales.</Text>
             </View>
@@ -79,7 +89,7 @@ export function DashboardScreen({ navigation }) {
               <SalesChart title="Monthly Cash Sales" subtitle="Cash applied · last 6 months" data={trends.monthly} variant="bar" />
             </View>
           </View>
-          <DashboardActivity orders={orders} balances={balances} wide={wide} onNavigate={route => navigation.getParent().navigate(route)} />
+          <DashboardActivity orders={orders} balances={balances} wide={wide} onNavigate={navigateTo} />
         </View>
       </ScrollView>
     </SafeAreaView>

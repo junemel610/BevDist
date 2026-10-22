@@ -18,25 +18,29 @@ const statuses = {
   cancelled: { label: 'Cancelled', color: theme.colors.danger, icon: 'cancel' },
 };
 
+export function QuickActions({ onNavigate, onCreateInvoice, wide }) {
+  return (
+    <View style={styles.section}>
+      <Text accessibilityRole="header" style={styles.title}>Quick Actions</Text>
+      <View style={[styles.actions, wide && styles.horizontal]}>
+        {actions.map(action => (
+          <Pressable key={action.route} accessibilityRole="button" onPress={action.primary ? onCreateInvoice : () => onNavigate(action.route)} style={({ pressed }) => [styles.action, action.primary && styles.actionPrimary, wide && styles.grow, pressed && styles.pressed]}>
+            <View style={[styles.actionIcon, action.primary && styles.actionIconPrimary]}>
+              <MaterialIcons name={action.icon} size={21} color={action.primary ? theme.colors.onPrimary : theme.colors.primary} accessible={false} />
+            </View>
+            <Text style={[styles.actionText, action.primary && styles.actionTextPrimary]}>{action.label}</Text>
+            <MaterialIcons name="chevron-right" size={21} color={action.primary ? theme.colors.onPrimary : theme.colors.textLight} accessible={false} />
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function DashboardActivity({ orders, balances, onNavigate, wide }) {
   const recent = recentOrders(orders);
   return (
     <View style={styles.sections}>
-      <View style={styles.section}>
-        <Text accessibilityRole="header" style={styles.title}>Quick Actions</Text>
-        <View style={[styles.actions, wide && styles.horizontal]}>
-          {actions.map(action => (
-            <Pressable key={action.route} accessibilityRole="button" onPress={() => onNavigate(action.route)} style={({ pressed }) => [styles.action, action.primary && styles.actionPrimary, wide && styles.grow, pressed && styles.pressed]}>
-              <View style={[styles.actionIcon, action.primary && styles.actionIconPrimary]}>
-                <MaterialIcons name={action.icon} size={21} color={action.primary ? theme.colors.onPrimary : theme.colors.primary} accessible={false} />
-              </View>
-              <Text style={[styles.actionText, action.primary && styles.actionTextPrimary]}>{action.label}</Text>
-              <MaterialIcons name="chevron-right" size={21} color={action.primary ? theme.colors.onPrimary : theme.colors.textLight} accessible={false} />
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
       <View style={styles.section}>
         <View style={styles.headingRow}>
           <View style={styles.heading}>
