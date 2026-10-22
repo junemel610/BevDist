@@ -15,8 +15,10 @@ export function paymentBreakdown(balance, amount) {
   };
 }
 
-export function customerCreditKey(customerName) {
-  return String(customerName ?? '').trim().toLocaleLowerCase();
+export function customerCreditKey(customer) {
+  if (customer && typeof customer === 'object' && customer.id) return `customer:${customer.id}`;
+  const name = customer && typeof customer === 'object' ? customer.name : customer;
+  return String(name ?? '').trim().toLocaleLowerCase();
 }
 
 export function creditAppliedToInvoice(credit, invoiceTotal) {

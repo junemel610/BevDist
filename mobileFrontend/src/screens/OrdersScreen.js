@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
-import { INITIAL_CUSTOMERS } from '../data/initialData';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
 import { availableCases, CASE_PACKS, invoiceCaseItem } from '../components/orders/casePacks';
 import theme from '../styles/theme';
@@ -35,14 +34,14 @@ const STATUS = {
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
-export function OrdersScreen() {
-  const { orders, balances, products, createOrder, updateOrderStatus, getAvailableStock } = useApp();
+export function OrdersScreen({ navigation }) {
+  const { orders, balances, products, customers, saveCustomer, createOrder, updateOrderStatus, getAvailableStock } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(INITIAL_CUSTOMERS[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState(customers[0]);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [cart, setCart] = useState({});
@@ -107,6 +106,10 @@ export function OrdersScreen() {
                 </Pressable>
               </View>
             </View>
+            <Pressable onPress={() => navigation.navigate('CustomerProfiles')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
+              <MaterialIcons name="groups" size={18} color={theme.colors.primary} accessible={false} />
+              <Text style={styles.customerProfilesLinkText}>Manage customer profiles</Text>
+            </Pressable>
 
             <View style={styles.searchBox}>
               <MaterialIcons name="search" size={22} color={theme.colors.textLight} accessible={false} />
@@ -199,6 +202,7 @@ export function OrdersScreen() {
         visible={creatingInvoice}
         width={width}
         products={products}
+        customers={customers}
         cart={cart}
         customer={selectedCustomer}
         isNewCustomer={isNewCustomer}
@@ -221,9 +225,11 @@ export function OrdersScreen() {
             return item ? [item] : [];
           });
           if (!items.length) return;
-          const customer = isNewCustomer
-            ? { id: `new_${Date.now()}`, name: newCustomer.name.trim(), contact: newCustomer.contact.trim(), address: newCustomer.address.trim() }
-            : selectedCustomer;
+          const customer = isNewCustomer ? saveCustomer(newCustomer) : selectedCustomer;
+          if (!customer) {
+            Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
+            return;
+          }
           const order = createOrder(customer, items);
           if (!order) {
             Alert.alert('Not enough stock', 'Available stock changed. Review the case quantities and try again.');
@@ -350,7 +356,7 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
+function CreateInvoiceModal({ visible, width, products, customers, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
   const total = products.reduce((sum, product) => {
     const selection = cart[product.id];
     const pack = CASE_PACKS.find(option => option.id === selection?.packId);
@@ -387,7 +393,7 @@ function CreateInvoiceModal({ visible, width, products, cart, customer, isNewCus
               <TextInput value={newCustomer.contact} onChangeText={value => onChangeNewCustomer('contact', value)} placeholder="Contact number (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer contact number, optional" keyboardType="phone-pad" style={styles.customerInput} />
               <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
             </View>
-          ) : INITIAL_CUSTOMERS.map(option => {
+          ) : customers.map(option => {
             const selected = option.id === customer.id;
             return (
               <Pressable
@@ -642,6 +648,8 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
   createButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 9, paddingHorizontal: theme.spacing.md, backgroundColor: theme.colors.primary },
   createButtonText: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  customerProfilesLink: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: theme.spacing.sm },
+  customerProfilesLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   title: { fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   subtitle: { fontSize: theme.fontSize.sm, color: theme.colors.textLight, marginTop: 4 },
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: theme.spacing.md },

@@ -10,6 +10,7 @@ import {
   InventoryScreen,
   SupplierOrdersScreen,
   BalancesScreen,
+  CustomerProfilesScreen,
 } from '../screens/index';
 import theme from '../styles/theme';
 
@@ -33,7 +34,14 @@ function createStackScreen(title, component) {
 }
 
 const DashboardStackScreen = createStackScreen('Dashboard', DashboardScreen);
-const OrdersStackScreen = createStackScreen('Invoices', OrdersScreen);
+function OrdersStackScreen() {
+  return (
+    <Stack.Navigator screenOptions={stackScreenOptions}>
+      <Stack.Screen name="InvoicesMain" component={OrdersScreen} options={{ title: 'Invoices' }} />
+      <Stack.Screen name="CustomerProfiles" component={CustomerProfilesScreen} options={{ title: 'Customers' }} />
+    </Stack.Navigator>
+  );
+}
 const InventoryStackScreen = createStackScreen('Inventory', InventoryScreen);
 const SupplierOrdersStackScreen = createStackScreen('Orders', SupplierOrdersScreen);
 const BalancesStackScreen = createStackScreen('Balances', BalancesScreen);

@@ -4,10 +4,12 @@ import {
   INITIAL_ORDERS,
   INITIAL_BALANCES,
   INITIAL_RESTOCK_RECORDS,
+  INITIAL_CUSTOMERS,
 } from '../data/initialData';
 import { isValidInventoryUpdate } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey, paymentBreakdown } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
+import { saveCustomerProfile } from '../components/customers/customerProfiles';
 
 function finalizeReservedStock(products, order) {
   return products.map((product) => {
@@ -37,6 +39,7 @@ export function AppProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [customers, setCustomers] = useState(INITIAL_CUSTOMERS);
   const [orders, setOrders] = useState(INITIAL_ORDERS);
   const [restockRecords, setRestockRecords] = useState(INITIAL_RESTOCK_RECORDS);
   const [balances, setBalances] = useState(INITIAL_BALANCES);
@@ -52,6 +55,12 @@ export function AppProvider({ children }) {
     setIsLoggedIn(false);
   }, []);
 
+  const saveCustomer = useCallback((profile) => {
+    const result = saveCustomerProfile(customers, profile);
+    if (!result.error) setCustomers(result.customers);
+    return result.customer;
+  }, [customers]);
+
   // Order actions
   const createOrder = useCallback((customer, items) => {
     const requestedStock = items.reduce((totals, item) => {
@@ -65,7 +74,7 @@ export function AppProvider({ children }) {
 
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const creditKey = customerCreditKey(customer.name);
+    const creditKey = customerCreditKey(customer);
     const creditAvailable = Number(customerCredits[creditKey] || 0);
     const appliedCredit = creditAppliedToInvoice(creditAvailable, total);
     const newOrder = {
@@ -102,6 +111,7 @@ export function AppProvider({ children }) {
       id: `b${Date.now()}`,
       orderId: newOrder.id,
       customerName: customer.name,
+      customerId: customer.id,
       invoiceNumber,
       totalAmount: newOrder.grandTotal,
       amountPaid: appliedCredit,
@@ -166,7 +176,7 @@ export function AppProvider({ children }) {
     }
     if (payment.excess > 0) {
       const order = orders.find((item) => item.id === balance.orderId);
-      const creditKey = customerCreditKey(order?.customer?.name || balance.customerName);
+      const creditKey = customerCreditKey(order?.customer || balance.customerName);
       setCustomerCredits((current) => ({ ...current, [creditKey]: (Number(current[creditKey]) || 0) + payment.excess }));
     }
     return payment;
@@ -254,6 +264,7 @@ export function AppProvider({ children }) {
     isLoggedIn,
     currentUser,
     products,
+    customers,
     orders,
     restockRecords,
     balances,
@@ -261,6 +272,7 @@ export function AppProvider({ children }) {
     login,
     logout,
     createOrder,
+    saveCustomer,
     updateOrderStatus,
     recordPayment,
     addRestockRecord,
