@@ -6,8 +6,9 @@ import {
   INITIAL_RESTOCK_RECORDS,
   INITIAL_CUSTOMERS,
   INITIAL_PAYMENT_TRANSACTIONS,
+  INITIAL_CUSTOMER_CREDITS,
 } from '../data/initialData';
-import { availableStock, canDeleteProduct, createProductProfile, isValidInventoryUpdate, stockForCasePack } from '../components/inventory/inventoryUtils';
+import { availableStock, canDeleteProduct, createProductProfile, isValidInventoryUpdate, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
@@ -56,7 +57,7 @@ export function AppProvider({ children }) {
   const [restockRecords, setRestockRecords] = useState(INITIAL_RESTOCK_RECORDS);
   const [balances, setBalances] = useState(INITIAL_BALANCES);
   const [paymentTransactions, setPaymentTransactions] = useState(INITIAL_PAYMENT_TRANSACTIONS);
-  const [customerCredits, setCustomerCredits] = useState({});
+  const [customerCredits, setCustomerCredits] = useState(INITIAL_CUSTOMER_CREDITS);
   // Auth actions
   const login = useCallback((username, password) => {
     setCurrentUser(username);
@@ -97,6 +98,7 @@ export function AppProvider({ children }) {
       id: `o${Date.now()}`,
       orderNumber: `ORD-2026-${String(orders.length + 1).padStart(3, '0')}`,
       invoiceNumber,
+      customerId: customer.id,
       customer,
       items,
       subtotal: total,
@@ -131,8 +133,6 @@ export function AppProvider({ children }) {
       customerId: customer.id,
       invoiceNumber,
       totalAmount: totalDue,
-      currentInvoiceTotal: total,
-      currentInvoicePaid: appliedCredit,
       amountPaid: appliedCredit,
       remainingBalance: totalDue - appliedCredit,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -216,7 +216,6 @@ export function AppProvider({ children }) {
       return {
         ...item,
         amountPaid: (Number(item.amountPaid) || 0) + applied,
-        currentInvoicePaid: (Number(item.currentInvoicePaid ?? item.amountPaid) || 0) + applied,
         remainingBalance,
         status: balanceStatus({ ...item, remainingBalance }, today),
       };
@@ -304,10 +303,15 @@ export function AppProvider({ children }) {
   }, [products]);
 
   const getTodaySales = useCallback(() => {
-    return orders
-      .filter((o) => o.status === 'completed' && o.date === new Date().toISOString().split('T')[0])
-      .reduce((sum, order) => sum + order.grandTotal, 0);
-  }, [orders]);
+    const orderById = new Map(orders.map(order => [order.id, order]));
+    const today = new Date().toISOString().slice(0, 10);
+    return paymentTransactions.reduce((sum, payment) => {
+      const order = orderById.get(payment.orderId);
+      const amount = Number(payment.amountApplied);
+      return payment.method === PAYMENT_METHOD.CASH && payment.date === today && order && order.status !== 'cancelled'
+        && Number.isFinite(amount) ? sum + Math.max(0, amount) : sum;
+    }, 0);
+  }, [orders, paymentTransactions]);
 
   const getPendingOrdersCount = useCallback(() => {
     return orders.filter((o) => o.status === 'pending').length;
@@ -318,11 +322,14 @@ export function AppProvider({ children }) {
   }, [orders]);
 
   const getOutstandingBalance = useCallback(() => {
-    return balances.reduce((sum, b) => sum + b.remainingBalance, 0);
+    return balances.reduce((sum, balance) => balance.status === 'cancelled'
+      ? sum : sum + Math.max(0, Number(balance.remainingBalance) || 0), 0);
   }, [balances]);
 
   const getLowStockCount = useCallback(() => {
-    return products.filter((p) => p.casePackIds.some(packId => getAvailableStock(p.id, packId) < 20)).length;
+    return products.reduce((count, product) => count + product.casePackIds.filter(packId => (
+      stockState(getAvailableStock(product.id, packId)) !== 'healthy'
+    )).length, 0);
   }, [products, getAvailableStock]);
 
   const value = {
