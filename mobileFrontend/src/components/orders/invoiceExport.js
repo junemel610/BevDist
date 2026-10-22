@@ -117,8 +117,13 @@ export async function exportInvoicePdf(order, balance) {
     await Print.printToFileAsync({ html });
     return;
   }
-  const result = await Print.printToFileAsync({ html });
-  await Sharing.shareAsync(result.uri, {
+  const result = await Print.printToFileAsync({ html, base64: true });
+  const directory = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+  if (!directory || !result.base64) throw new Error('Could not save the generated PDF on this device.');
+  const uri = `${directory}invoice-${safeInvoiceName(order)}.pdf`;
+  await FileSystem.writeAsStringAsync(uri, result.base64, { encoding: 'base64' });
+  if (!(await Sharing.isAvailableAsync())) throw new Error('File sharing is unavailable on this device.');
+  await Sharing.shareAsync(uri, {
     mimeType: 'application/pdf',
     UTI: '.pdf',
     dialogTitle: `Invoice ${invoice.invoiceNumber}`,
