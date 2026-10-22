@@ -28,7 +28,7 @@ const FILTERS = [
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 const STATUS = {
-  healthy: { label: 'Healthy', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
+  healthy: { label: 'In stock', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   low: { label: 'Low stock', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'warning-amber' },
   out: { label: 'Out of stock', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
 };
@@ -173,7 +173,7 @@ export function InventoryScreen() {
                 <Text style={styles.addButtonLabel}>Add product</Text>
               </Pressable>
               <View style={styles.summary}>
-                <SummaryCount count={counts.healthy} label="Healthy" color={theme.colors.success} />
+                <SummaryCount count={counts.healthy} label="In stock" color={theme.colors.success} />
                 <SummaryCount count={counts.low} label="Low" color={theme.colors.warning} />
                 <SummaryCount count={counts.out} label="Out" color={theme.colors.danger} />
               </View>
