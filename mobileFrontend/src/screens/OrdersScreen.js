@@ -218,7 +218,7 @@ export function OrdersScreen({ navigation, route }) {
           if (!detailOrder) return;
           confirmAction({
             title: 'Mark invoice as delivered?',
-            message: `${detailOrder.orderNumber} for ${detailOrder.customer.name}. It will be completed once it is fully paid.`,
+            message: `${detailOrder.invoiceNumber} for ${detailOrder.customer.name}. It will be completed once it is fully paid.`,
             confirmLabel: 'Mark delivered',
             onConfirm: () => {
               if (updateOrderStatus(detailOrder.id, 'completed')) setDetailOrder(null);
