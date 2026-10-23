@@ -19,17 +19,17 @@ export function DashboardScreen({ navigation }) {
     params: { openCreateInvoiceToken: Date.now() },
   }), [navigation]);
   const gap = theme.spacing.md;
-  const columns = Math.max(1, Math.min(4, Math.floor((contentWidth + gap) / (150 * fontScale + gap))));
+  const fittingColumns = Math.floor((contentWidth + gap) / (150 * fontScale + gap));
+  const columns = fittingColumns >= 4 ? 4 : fittingColumns >= 2 ? 2 : 1;
   const cardWidth = contentWidth ? (contentWidth - gap * (columns - 1)) / columns : undefined;
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
   const sales = salesSummary(orders, balances, paymentTransactions);
   const trends = salesTrends(orders, balances, paymentTransactions);
   const summary = [
-    { label: 'Cash sales today', value: formatPeso(getTodaySales()), hint: 'Cash applied to invoices today' },
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices },
-    { label: 'Completed Orders', value: sales.completedOrders },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding) },
+    { label: 'Completed Orders', value: sales.completedOrders },
     { label: 'Case Types to Restock', value: getLowStockCount() },
   ];
 
@@ -72,14 +72,22 @@ export function DashboardScreen({ navigation }) {
             <Text style={styles.salesHint}>Actual sales counts cash payments applied to invoices.</Text>
           </View>
 
-          <View style={styles.grid}>
-            {summary.map(card => (
-              <View key={card.label} style={[styles.card, { width: cardWidth ?? '100%' }]}>
-                <Text style={styles.cardLabel}>{card.label}</Text>
-                <Text style={styles.cardValue}>{card.value}</Text>
-                {!!card.hint && <Text style={styles.cardHint}>{card.hint}</Text>}
+          <View style={styles.metrics}>
+            <View style={[styles.card, styles.cashCard]}>
+              <View style={styles.cashCopy}>
+                <Text style={styles.cardLabel}>Cash sales today</Text>
+                <Text style={styles.cardHint}>Cash applied to invoices today</Text>
               </View>
-            ))}
+              <Text style={styles.cashValue}>{formatPeso(getTodaySales())}</Text>
+            </View>
+            <View style={styles.grid}>
+              {summary.map(card => (
+                <View key={card.label} style={[styles.card, { width: cardWidth ?? '100%' }]}>
+                  <Text style={styles.cardLabel}>{card.label}</Text>
+                  <Text style={styles.cardValue}>{card.value}</Text>
+                </View>
+              ))}
+            </View>
           </View>
 
           <View style={styles.grid}>
@@ -117,6 +125,10 @@ const styles = StyleSheet.create({
   expectedValue: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
   actualValue: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: theme.colors.primary },
   salesHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 20, marginTop: theme.spacing.md },
+  metrics: { gap: theme.spacing.md },
+  cashCard: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, padding: theme.spacing.lg },
+  cashCopy: { flexBasis: 180, flexGrow: 1, flexShrink: 1 },
+  cashValue: { maxWidth: '100%', color: theme.colors.primary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md },
   card: { minHeight: 104, justifyContent: 'center', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: theme.spacing.md },
   cardValue: { fontSize: theme.fontSize.xl, fontWeight: '700', color: theme.colors.text },
