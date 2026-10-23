@@ -2,7 +2,9 @@
 
 ## Current integration boundary
 
-The schema, backend transaction services, authenticated routes, and frontend API helpers are implemented. Login/logout now use backend authentication. Business screens still use `AppContext` demo state. Do not mix database records with demo IDs such as `p1` or `c1`: live records use UUIDs. Switching screens to database persistence requires replacing all related read/write actions together, plus the container-return editor. Catalog creation/editing is now exposed through authenticated HTTP endpoints.
+The schema, backend services, authenticated routes, and mobile business screens now use PostgreSQL. Login loads `GET /app-data` before showing business screens. Every save awaits its server transaction, then replaces the snapshot. No demo records are loaded or optimistically changed in `AppContext`. New databases display empty lists until products/customers are entered.
+
+A blocking progress view prevents overlapping saves. If a save result is uncertain or the following refresh fails, a recovery screen requires reloading records before further writes. A successful write is never automatically resubmitted after a failed refresh. Check records after an ambiguous catalog create before entering another; pending UUID keys are retained only in memory for invoices/payments/supplier orders. Restarting the app does not preserve pending keys. Profile includes a manual Refresh records action.
 
 `GET /app-data` returns a consistent read snapshot mapped by `models/app-data.js`. It is a bootstrap endpoint for the current small dataset. Add paginated history endpoints before loading a large production history into memory.
 
@@ -39,7 +41,7 @@ All business endpoints require `Authorization: Bearer <token>`. Login and health
 | POST | `/products/:id/stock-adjustments` | `{ packId, quantityDelta, reason, requestKey }`; returns movement `{ id }` |
 | POST | `/supplier-orders` | `{ requestKey, supplierId, items, returnedCases? }`; posts one stock receipt |
 
-Catalog reads use `GET /app-data`, which now includes `suppliers`. Product packs use `{ packId, casePrice, lowStockThreshold? }`. Prices must be positive; thresholds are nonnegative half-case quantities and default to 15. PUT replaces the full pack selection. Case types with physical stock or reservations cannot be removed. Unknown or duplicate case types are rejected. Products begin at zero stock; use supplier receipts or an explained stock adjustment to establish inventory.
+Catalog reads use `GET /app-data`, which now includes `suppliers`. Product packs use `{ packId, casePrice, lowStockThreshold? }`. Prices must be positive; thresholds are nonnegative half-case quantities and default to 15. PUT replaces the full pack selection. Case types with physical stock or reservations cannot be removed. Unknown or duplicate case types are rejected. Product creation accepts either `supplierId` or `supplierName`; a new named supplier is saved within the product transaction. Optional pack fields `totalStock` and (on edit) `expectedStock` let the inventory form save counts and prices atomically. These require a `stockReason`; the authenticated actor is recorded in opening/adjustment ledger entries. Stale expected counts, unavailable stock, or invalid packs roll back the entire save, including any new supplier. Removing case types with stock is still rejected. Without stock fields, products begin at zero stock. Supplier orders remain the normal way to record incoming deliveries.
 
 Stock adjustments use signed half-case deltas, not replacement totals. Each adjustment requires a reason and a UUID request key, reused unchanged on retry. Negative adjustments cannot consume reserved stock. The authenticated user is recorded as the actor. Product removal archives rows; historical invoice and supplier item snapshots remain intact. Catalog profile/product creation does not yet have idempotency keys: after an ambiguous network error, refresh the catalog before retrying to avoid duplicates.
 
@@ -77,10 +79,10 @@ The obsolete frontend `deposit` payment field is removed. Container deductions u
 
 ## Remaining screen work before live mode
 
-- [x] Connect login/logout to `authAPI`, handle failed requests, and return to login when the current token expires. Tokens live in memory; sign-in is required after reload. Business sample data is reset on sign-out/session expiry.
-- Load the database snapshot after login and after successful mutations. Do not optimistically mutate stock or money in both layers.
-- Connect catalog/customer/supplier screens to the implemented endpoints. Convert synchronous save handlers to awaited actions with loading/error states and retain the existing confirmation dialogs.
+- [x] Connect login/logout to `authAPI`, handle failed requests, and return to login when the current token expires. Tokens live in memory; sign-in is required after reload. Business records are cleared from memory on sign-out/session expiry.
+- [x] Load the database snapshot after login and successful mutations; reset to empty data on sign-out.
+- [x] Connect customer, inventory, invoice, payment and supplier-order saves to HTTP, awaiting operations and preserving confirmation dialogs. Inventory adjustments record a reason and reject stale stock counts.
 - Add editable customer container-return lines to create/edit invoice forms and display them in PDF/XLSX exports.
-- Send UUID request keys for retriable operations. Use an accessible confirmation dialog before each mutation.
+- [x] Generate native UUID request keys for invoice/payment/supplier-order creates using Expo Crypto. Keep the same key for an ambiguous retry in the current session; always review recovered records first.
 - Use the Mac's network IP as `EXPO_PUBLIC_API_URL` for a physical phone; `localhost` on a phone refers to the phone. The server defaults to loopback until `HOST` is explicitly configured.
-- Test the entire live flow on Expo Go before removing demo mode.
+- Test the entire persisted flow on Expo Go before client use.

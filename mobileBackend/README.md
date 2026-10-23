@@ -1,6 +1,6 @@
 # BevDist backend
 
-Node.js + Express + PostgreSQL 15 for BevDist. The schema, transaction services, and authenticated catalog/invoice/payment/supplier endpoints are implemented. Mobile screens still use demo state; see [API_CONTRACT.md](API_CONTRACT.md) before connecting live reads and writes.
+Node.js + Express + PostgreSQL 15 for BevDist. The schema, transaction services, and authenticated catalog/invoice/payment/supplier endpoints are implemented. Mobile business screens now read and save PostgreSQL records; see [API_CONTRACT.md](API_CONTRACT.md) before connecting live reads and writes.
 
 ## Local setup
 
@@ -73,4 +73,6 @@ Login now requires a real active account created with `npm run user:create -- <u
 
 Copy `mobileFrontend/.env.example` to `mobileFrontend/.env.local` and set `EXPO_PUBLIC_API_URL`. For a physical phone, use the Mac's LAN IP and set backend `HOST=0.0.0.0`; both devices must reach the same network. Restart Expo after changing the URL. Expo's Metro tunnel does not expose the separate backend server.
 
-Login and profile screens identify the remaining sample-data mode. In this incremental stage, authentication is live but business operations still use memory and reset on sign-out. Do not enter real transactions until live business data integration is complete. Session tokens are held only in memory; app reload requires another sign-in. Failed network sign-out keeps the session available for retry; successful sign-out revokes the server session.
+The app loads persisted records after login and refreshes them after saves. A new database starts with empty business lists. Add a product in Inventory (including its supplier and opening stock), save a customer, then create an invoice. Confirmations precede writes. Inventory count changes require a reason; stale counts and changes below reserved stock are rejected. If the save result or refresh is uncertain, the app requires a refresh and review before further saves. Session tokens are held only in memory; app reload requires another sign-in. Failed network sign-out keeps the session available for retry; successful sign-out revokes the server session.
+
+Current verification covers a real HTTP/database flow through the mobile API helpers and a web bundle export. Manual Expo Go device checks and customer container-return editing/export presentation remain pending. Demo fixtures remain available for pure unit tests but are not loaded into the running app. No business data was inserted into the local app database during this implementation.

@@ -1,6 +1,6 @@
 # BevDist database schema and implementation status
 
-**Status:** PostgreSQL schema and backend workflows implemented. The user authorized database implementation after the planning stage. Versioned SQL in `db/migrations/` is the source of truth. Screens still use frontend demo state; see `API_CONTRACT.md` for the live integration boundary.
+**Status:** PostgreSQL schema and backend workflows implemented. The user authorized database implementation after the planning stage. Versioned SQL in `db/migrations/` is the source of truth. Screens now load and save database records; see `API_CONTRACT.md` for the live integration boundary.
 
 ## Confirmed business rules
 
@@ -119,7 +119,7 @@ Frontend changes in this implementation:
 - Preserve container deductions when updating pending invoice amounts.
 - API helpers use actual invoice, account-payment and supplier-order routes. Authentication tokens are held in memory rather than browser-only storage.
 
-The app is not yet switched to live persistence. Customer/catalog HTTP editing is implemented. Complete AppContext read/write integration and editable customer return UI/export presentation remain follow-up work. No production customers, products, invoice history or test passwords are seeded by migrations.
+The app now uses live persistence through AppContext and the HTTP API. Customer/catalog, invoice, payment, inventory and supplier-order workflows are connected. Editable customer return UI/export presentation and device validation remain follow-up work. No production customers, products, invoice history or test passwords are seeded by migrations.
 
 ## Validation and remaining decisions
 
@@ -133,7 +133,7 @@ Still confirm with the client:
 - Refund/reversal behavior and excess container/supplier-return credit.
 - Whether product purchasing needs more than one default supplier.
 
-Further implementation: frontend live persistence, container-return forms and exports, then device validation. Test SQL migrations and deployment backups before client installation.
+Further implementation: container-return forms and exports, report reconciliation on device, then client validation. Test SQL migrations and deployment backups before client installation.
 
 ## Technical references
 
