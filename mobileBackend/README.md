@@ -30,7 +30,7 @@ npm run dev
 
 The user-creation command asks for a hidden password and stores only its hash. Migrations do not create a default login or load demo business data. The database connection and JWT secret belong only in the ignored backend `.env`, never in `EXPO_PUBLIC_*` variables or Git.
 
-The server listens on `127.0.0.1:5000` by default. `GET /health` verifies database connectivity. Configure `HOST=0.0.0.0` only when intentionally testing over your local network. A physical phone must use the Mac's network address for `EXPO_PUBLIC_API_URL`.
+The server listens on `127.0.0.1:5000` by default. For web testing on this Mac, use `EXPO_PUBLIC_API_URL=http://127.0.0.1:5000`. Avoid `localhost:5000`: macOS AirPlay may answer its IPv6 address instead of this IPv4 backend. `GET /health` verifies database connectivity. Configure `HOST=0.0.0.0` only when intentionally testing over your local network. A physical phone must use the Mac's network address for `EXPO_PUBLIC_API_URL`.
 
 ## Structure
 
