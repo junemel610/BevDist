@@ -1,3 +1,4 @@
+const { randomUUID } = require('node:crypto');
 const { transaction } = require('../db/connection');
 const { HttpError } = require('../middleware/errors');
 
@@ -19,10 +20,17 @@ async function lockProduct(client, id) {
   await client.query('SELECT pack_code FROM product_case_packs WHERE product_id=$1 ORDER BY pack_code FOR UPDATE', [id]);
 }
 
-async function saveProduct(pool, id, { name, supplierId, packs }) {
+async function saveProduct(pool, id, { name, supplierId, supplierName, packs, stockReason }, actorId) {
   return transaction(pool, async client => {
+    if (!supplierId) {
+      const supplier = await client.query(`INSERT INTO suppliers(name) VALUES ($1)
+        ON CONFLICT (name) DO UPDATE SET name=EXCLUDED.name RETURNING id,is_active`, [supplierName.trim()]);
+      if (!supplier.rows[0].is_active) throw new HttpError(409, 'Supplier is archived');
+      supplierId = supplier.rows[0].id;
+    }
     const supplier = await client.query('SELECT id FROM suppliers WHERE id=$1 AND is_active FOR SHARE', [supplierId]);
     if (!supplier.rowCount) throw new HttpError(404, 'Supplier not found');
+    const creating = !id;
     if (id) {
       await lockProduct(client, id);
       const removed = await client.query(`SELECT pack_code FROM inventory_stock WHERE product_id=$1
@@ -40,6 +48,16 @@ async function saveProduct(pool, id, { name, supplierId, packs }) {
         low_stock_threshold_cases=EXCLUDED.low_stock_threshold_cases,is_active=true`,
       [id, pack.packId, pack.casePrice, pack.lowStockThreshold ?? 15]);
       if (!result.rowCount) throw new HttpError(400, 'Unknown case type');
+    }
+    for (const pack of packs) {
+      if (pack.totalStock == null) continue;
+      const stock = (await client.query('SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code=$2', [id, pack.packId])).rows[0];
+      if (!creating && Number(stock.total_stock_cases) !== Number(pack.expectedStock)) {
+        throw new HttpError(409, 'Stock changed since this editor opened. Refresh and reopen the product.');
+      }
+      const delta = Number(pack.totalStock) - Number(stock.total_stock_cases);
+      if (delta) await client.query(`INSERT INTO inventory_movements(product_id,pack_code,kind,quantity_delta,request_key,reason,created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id, pack.packId, creating ? 'OPENING' : 'ADJUSTMENT', delta, randomUUID(), stockReason.trim(), actorId]);
     }
     return { id };
   });

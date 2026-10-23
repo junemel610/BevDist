@@ -34,9 +34,12 @@ const cancelBody = validate(req => req.body && text(req.body.reason), 'A cancell
 const profile = body => body && text(body.name)
   && [body.contact, body.address].every(value => value == null || (typeof value === 'string' && value.length <= 500));
 const profileBody = validate(req => profile(req.body), 'Provide a name and valid contact details');
-const productBody = validate(req => req.body && text(req.body.name) && uuid(req.body.supplierId)
+const productBody = validate(req => req.body && text(req.body.name) && (uuid(req.body.supplierId) || (!req.body.supplierId && text(req.body.supplierName)))
   && list(req.body.packs, p => p && text(p.packId) && amount(p.casePrice) && Number(p.casePrice) > 0
     && (p.lowStockThreshold == null || (amount(p.lowStockThreshold) && Number(p.lowStockThreshold) <= 99999999.5 && Number.isInteger(Number(p.lowStockThreshold) * 2))), true)
+  && req.body.packs.every(p => p.totalStock == null || (amount(p.totalStock) && Number(p.totalStock) <= 99999999.5
+    && Number.isInteger(Number(p.totalStock) * 2) && text(req.body.stockReason)
+    && (!req.params.id || (amount(p.expectedStock) && Number.isInteger(Number(p.expectedStock) * 2)))))
   && new Set(req.body.packs.map(p => p.packId)).size === req.body.packs.length, 'Provide a supplier and unique case types with valid prices and thresholds');
 const stockBody = validate(req => req.body && uuid(req.body.requestKey) && text(req.body.packId) && text(req.body.reason)
   && ['string', 'number'].includes(typeof req.body.quantityDelta) && /^-?\d+(\.\d{1,2})?$/.test(String(req.body.quantityDelta))

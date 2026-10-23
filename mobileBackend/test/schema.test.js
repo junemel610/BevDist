@@ -327,3 +327,67 @@ test('catalog HTTP writes preserve history and enforce per-case stock rules', as
     assert.equal(snapshot.suppliers.some(s => s.id === supplier.id), true);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('inventory form saves stock and prices atomically and rejects stale counts', async () => {
+  const { saveProduct } = require('../services/catalogService');
+  const f = await fixture(5);
+  const payload = { name: 'Counted beverage', supplierId: f.supplier, stockReason: 'Physical count', packs: [
+    { packId: 'A', casePrice: 125, totalStock: 4, expectedStock: 5 },
+    { packId: 'B', casePrice: 200 }, { packId: 'C', casePrice: 50 },
+  ] };
+  await saveProduct(pool, f.product, payload, actor);
+  assert.equal(Number((await one("SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code='A'", [f.product])).total_stock_cases), 4);
+  await assert.rejects(saveProduct(pool, f.product, { ...payload, name: 'Stale name' }, actor), /Stock changed/);
+  assert.equal((await one('SELECT name FROM products WHERE id=$1', [f.product])).name, 'Counted beverage');
+  await invoice(f, 2);
+  await assert.rejects(saveProduct(pool, f.product, { ...payload, packs: [{ packId: 'A', casePrice: 999, totalStock: 1, expectedStock: 4 }, ...payload.packs.slice(1)] }, actor), /Insufficient/);
+  assert.equal(Number((await one("SELECT case_price FROM product_case_packs WHERE product_id=$1 AND pack_code='A'", [f.product])).case_price), 125);
+  const created = await saveProduct(pool, null, { name: 'New stock', supplierName: `New supplier ${randomUUID()}`, stockReason: 'Opening count', packs: [{ packId: 'C', casePrice: 55, totalStock: 0.5 }] }, actor);
+  const snapshot = await loadAppData(pool);
+  assert.equal(snapshot.products.find(p => p.id === created.id).stockByCasePack.C.totalStock, 0.5);
+  const count = Number((await one('SELECT count(*) FROM suppliers')).count);
+  await assert.rejects(saveProduct(pool, null, { name: 'Broken', supplierName: `Rollback supplier ${randomUUID()}`, stockReason: 'Count', packs: [{ packId: 'INVALID', casePrice: 10 }] }, actor));
+  assert.equal(Number((await one('SELECT count(*) FROM suppliers')).count), count);
+});
+
+test('mobile API helpers complete a persisted business flow without demo IDs', async () => {
+  const mobile = async file => import(pathToFileURL(path.resolve(__dirname, '../../mobileFrontend/src/api', file)));
+  const api = await mobile('index.js');
+  const { default: client, setAuthToken } = await mobile('client.js');
+  const { createLiveData } = await mobile('liveData.js');
+  const username = `mobile-${randomUUID()}`, password = 'test-password-with-enough-length';
+  await one('INSERT INTO app_users(username,password_hash) VALUES ($1,$2) RETURNING id', [username, await bcrypt.hash(password, 4)]);
+  const server = await new Promise(resolve => { const s = createApp(pool, 'test-only-secret-longer-than-thirty-two-characters').listen(0, '127.0.0.1', () => resolve(s)); });
+  const baseURL = client.defaults.baseURL;
+  client.defaults.baseURL = `http://127.0.0.1:${server.address().port}`;
+  const live = createLiveData(api, randomUUID);
+  try {
+    await api.authAPI.login(username, password);
+    const customer = await live.saveCustomer({ name: 'Mobile customer', contact: '', address: '' });
+    const created = await live.saveProduct(null, { name: 'Mobile beverage', supplier: `Mobile supplier ${randomUUID()}`, stockReason: 'Opening count', casePackIds: ['A','B','C'], casePrices: { A: 100, B: 200, C: 50 }, stockByCasePack: { A: { totalStock: 5 }, B: { totalStock: 3 }, C: { totalStock: 1 } } });
+    let snapshot = await live.load();
+    const product = snapshot.products.find(p => p.id === created.data.id);
+    const inv = await live.createOrder(customer, [{ productId: product.id, packId: 'A', quantity: 1.5, casePrice: 1 }]);
+    await live.payment(customer, 50, 'Cash');
+    await live.transition(inv.data.id, 'completed');
+    snapshot = await live.load();
+    assert.equal(snapshot.orders.find(o => o.id === inv.data.id).status, 'pending');
+    assert.equal(snapshot.products.find(p => p.id === product.id).stockByCasePack.A.totalStock, 3.5);
+    await live.payment(customer, 120, 'GCash');
+    snapshot = await live.load();
+    assert.equal(snapshot.orders.find(o => o.id === inv.data.id).status, 'completed');
+    assert.equal(snapshot.customerCredits[`customer:${customer.id}`], 20);
+    const next = await live.createOrder(customer, [{ productId: product.id, packId: 'B', quantity: 0.5 }]);
+    await live.editInvoice(next.data.id, [{ productId: product.id, packId: 'B', quantity: 1 }]);
+    snapshot = await live.load();
+    assert.equal(snapshot.balances.find(b => b.orderId === next.data.id).remainingBalance, 180);
+    await live.restock(product.supplierId, [{ productId: product.id, packId: 'C', quantity: 0.5, unitCost: 20 }], []);
+    snapshot = await live.load();
+    assert.equal(snapshot.products.find(p => p.id === product.id).stockByCasePack.C.totalStock, 1.5);
+    await api.authAPI.logout();
+    await assert.rejects(live.load(), error => error.response.status === 401);
+  } finally {
+    live.clear(); setAuthToken(null); client.defaults.baseURL = baseURL;
+    await new Promise(resolve => server.close(resolve));
+  }
+});
