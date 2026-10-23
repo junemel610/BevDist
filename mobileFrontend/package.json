@@ -37,6 +37,7 @@
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "29.5.14",
     "@types/react": "~19.2.2",
@@ -58,7 +59,11 @@
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node --test tests/*.test.mjs",
     "test:ui": "jest --runInBand",
-    "test:coverage": "jest --runInBand --coverage"
+    "test:coverage": "jest --runInBand --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui --ui-host 127.0.0.1",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report dist/playwright-report --host 127.0.0.1"
   },
   "private": true
 }
