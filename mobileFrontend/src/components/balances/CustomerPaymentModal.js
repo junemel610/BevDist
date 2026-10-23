@@ -42,7 +42,7 @@ export function CustomerPaymentModal({ customerId, invoiceNumber, onClose, onSav
         <Text style={styles.help}>Total outstanding: {peso(account.outstanding)}</Text>
         <Text style={styles.help}>Payment covers this customer’s oldest invoices first, including any older than the invoice you opened.</Text>
         <Text style={styles.label}>Payment method</Text>
-        <View style={styles.methods}>{Object.values(PAYMENT_METHOD).map(option => <Pressable key={option} onPress={() => setMethod(option)} accessibilityRole="radio" accessibilityState={{ checked: method === option }} style={[styles.method, method === option && styles.selected]}>
+        <View style={styles.methods}>{Object.values(PAYMENT_METHOD).map(option => <Pressable key={option} onPress={() => setMethod(option)} accessibilityRole="radio" accessibilityState={{ checked: method === option }} aria-checked={method === option} style={[styles.method, method === option && styles.selected]}>
           <MaterialIcons name={method === option ? 'radio-button-checked' : 'radio-button-unchecked'} size={18} color={theme.colors.primary} />
           <Text style={styles.copy}>{option}</Text>
         </Pressable>)}</View>

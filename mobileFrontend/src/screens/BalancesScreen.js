@@ -3,6 +3,7 @@ import {
   FlatList,
   ScrollView,
   Pressable,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -151,6 +152,7 @@ export function BalancesScreen({ navigation }) {
                     accessibilityRole="button"
                     accessibilityLabel={`${filter.label}, ${counts[filter.key]} ${counts[filter.key] === 1 ? 'balance' : 'balances'}`}
                     accessibilityState={{ selected }}
+                    {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
                     {selected && <MaterialIcons name="check" size={15} color={theme.colors.onPrimary} accessible={false} />}
