@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 import { formatPeso } from './chartGeometry';
+import { DeliveryBadge } from '../orders/DeliveryBadge';
 import { recentOrders } from './recentOrders';
 import { invoiceSummary } from './salesSummary';
 
@@ -65,6 +66,7 @@ export function DashboardActivity({ orders, balances, onNavigate, wide }) {
                   <Text style={styles.orderNumber}>{invoice.invoiceNumber}</Text>
                   <Text style={styles.customer}>{order.customer.name}</Text>
                   <Text style={styles.date}>{order.date}</Text>
+                  <DeliveryBadge order={order} />
                 </View>
               </View>
               <View style={styles.orderSummary}>

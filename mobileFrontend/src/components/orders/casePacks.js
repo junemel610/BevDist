@@ -52,3 +52,10 @@ export function availableCases(availableStock, pack) {
 export function caseAvailabilityLabel(availableStock) {
   return `${Math.floor(Math.max(0, availableStock) * 2) / 2} cases available`;
 }
+
+export function caseQuantityInputError(value, maximum) {
+  if (String(value).trim() === '') return '';
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(String(value)) || !Number.isFinite(Number(value)) || !Number.isInteger(Number(value) * 2)) return 'Use half-case steps: 0.5, 1, 1.5…';
+  if (Number(value) > maximum) return `Only ${maximum} cases available.`;
+  return '';
+}
