@@ -1,3 +1,4 @@
+import { businessDate } from '../../utils/businessDate.js';
 import { orderDeliveryStatus, orderLifecycleStatus } from '../orders/orderLifecycle.js';
 
 export function invoiceSummary(order, balance) {
@@ -59,8 +60,8 @@ export function salesSummary(orders, balances, paymentTransactions) {
 }
 
 export function salesTrends(orders, balances, paymentTransactions, today = new Date()) {
-  const todayDate = today instanceof Date ? today : new Date(`${today}T00:00:00.000Z`);
-  const todayKey = todayDate.toISOString().slice(0, 10);
+  const todayKey = today instanceof Date ? businessDate(today) : today;
+  const todayDate = new Date(`${todayKey}T00:00:00.000Z`);
   const ordersById = new Map(orders.map(order => [order.id, order]));
   const balancesById = new Map(balances.map(balance => [balance.id, balance]));
   const cashByDate = new Map();

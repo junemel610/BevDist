@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { businessDate } from '../utils/businessDate';
 import { randomUUID } from 'expo-crypto';
 import * as api from '../api/index';
 import { setUnauthorizedHandler, setAuthToken } from '../api/client';
@@ -140,7 +141,7 @@ export function AppProvider({ children }) {
   const getTodaySales = useCallback(() => {
     const orderById = new Map(orders.map(order => [order.id, order]));
     const balanceById = new Map(balances.map(balance => [balance.id, balance]));
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessDate();
     return paymentTransactions.reduce((sum, payment) => {
       const order = orderById.get(payment.orderId);
       const balance = balanceById.get(payment.balanceId);

@@ -12,7 +12,7 @@ import theme from '../styles/theme';
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { orders, balances, paymentTransactions, getLowStockCount } = useApp();
+  const { orders, balances, paymentTransactions, getTodaySales, getLowStockCount } = useApp();
   const navigateTo = useCallback(route => navigation.getParent()?.navigate(route), [navigation]);
   const openCreateInvoice = useCallback(() => navigation.getParent()?.navigate('Invoices', {
     screen: 'InvoicesMain',
@@ -26,6 +26,7 @@ export function DashboardScreen({ navigation }) {
   const sales = salesSummary(orders, balances, paymentTransactions);
   const trends = salesTrends(orders, balances, paymentTransactions);
   const summary = [
+    { label: 'Cash sales today', value: formatPeso(getTodaySales()), hint: 'Cash applied to invoices today' },
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices },
     { label: 'Completed Orders', value: sales.completedOrders },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding) },
