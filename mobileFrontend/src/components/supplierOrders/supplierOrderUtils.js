@@ -17,7 +17,7 @@ export function supplierOrderTotals(items, returnedCases) {
   return { productCost, returnCredit, netCost: roundMoney(Math.max(0, productCost - returnCredit)) };
 }
 
-export const hasValidSupplierOrderItems = items => items.some(item => (
+export const hasValidSupplierOrderItems = items => items.length > 0 && items.every(item => (
   typeof item.packId === 'string' && item.packId.length > 0
     && Number.isFinite(item.quantity) && Number.isInteger(item.quantity * 2) && item.quantity > 0
     && Number.isFinite(item.unitCost) && item.unitCost > 0

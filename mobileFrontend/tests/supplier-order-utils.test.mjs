@@ -20,4 +20,6 @@ test('supplier orders accept half-case steps and require a positive case cost', 
   assert.equal(hasValidSupplierOrderItems([{ packId: 'A', quantity: 1.25, unitCost: 10 }]), false);
   assert.equal(hasValidSupplierOrderItems([{ packId: 'A', quantity: 2, unitCost: 0 }]), false);
   assert.equal(hasValidSupplierOrderItems([{ quantity: 2, unitCost: 10 }]), false);
+  assert.equal(hasValidSupplierOrderItems([]), false);
+  assert.equal(hasValidSupplierOrderItems([{ packId: 'A', quantity: 1, unitCost: 10 }, { packId: 'B', quantity: 0.25, unitCost: 10 }]), false);
 });

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -59,10 +59,7 @@ export function SupplierOrdersScreen() {
       setError('');
     };
     if (items.length) {
-      Alert.alert('Change supplier?', 'Changing suppliers will clear the products in this order.', [
-        { text: 'Keep editing', style: 'cancel' },
-        { text: 'Change supplier', onPress: apply },
-      ]);
+      confirmAction({ title: 'Change supplier?', message: 'Changing suppliers will clear the products in this order.', confirmLabel: 'Change supplier', onConfirm: apply });
       return;
     }
     apply();
@@ -136,6 +133,7 @@ export function SupplierOrdersScreen() {
                   onPress={() => changeSupplier(name)}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
+                  {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                   style={({ pressed }) => [styles.supplierChip, selected && styles.supplierChipSelected, pressed && styles.pressed]}
                 >
                   <MaterialIcons name={selected ? 'check-circle' : 'inventory-2'} size={18} color={selected ? theme.colors.primary : theme.colors.textLight} accessible={false} />
