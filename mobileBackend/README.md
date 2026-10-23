@@ -66,3 +66,11 @@ Run `npm run db:migrate` again safely to verify there are no pending migrations.
 Expand **Servers → BevDist Local → Databases → bevdist_db → Schemas → public**. Refresh **Tables** and **Views** after running migrations. `invoice_balances`, `inventory_stock`, and report summaries are views; their numbers are calculated from underlying records.
 
 See [DATA_MODEL_SCHEMA_PLAN.md](DATA_MODEL_SCHEMA_PLAN.md) for tables, rules and remaining business decisions, and [API_CONTRACT.md](API_CONTRACT.md) for endpoint bodies and field mappings.
+
+## Mobile authentication setup
+
+Login now requires a real active account created with `npm run user:create -- <username>` in this backend directory. No default credentials are provided. Start the backend with `npm run dev` before signing in.
+
+Copy `mobileFrontend/.env.example` to `mobileFrontend/.env.local` and set `EXPO_PUBLIC_API_URL`. For a physical phone, use the Mac's LAN IP and set backend `HOST=0.0.0.0`; both devices must reach the same network. Restart Expo after changing the URL. Expo's Metro tunnel does not expose the separate backend server.
+
+Login and profile screens identify the remaining sample-data mode. In this incremental stage, authentication is live but business operations still use memory and reset on sign-out. Do not enter real transactions until live business data integration is complete. Session tokens are held only in memory; app reload requires another sign-in. Failed network sign-out keeps the session available for retry; successful sign-out revokes the server session.

@@ -2,7 +2,7 @@
 
 ## Current integration boundary
 
-The schema, backend transaction services, authenticated routes, and frontend API helpers are implemented. Mobile screens still use `AppContext` demo state. Do not mix database records with demo IDs such as `p1` or `c1`: live records use UUIDs. Switching screens to database persistence requires replacing all related read/write actions together, plus the container-return editor. Catalog creation/editing is now exposed through authenticated HTTP endpoints.
+The schema, backend transaction services, authenticated routes, and frontend API helpers are implemented. Login/logout now use backend authentication. Business screens still use `AppContext` demo state. Do not mix database records with demo IDs such as `p1` or `c1`: live records use UUIDs. Switching screens to database persistence requires replacing all related read/write actions together, plus the container-return editor. Catalog creation/editing is now exposed through authenticated HTTP endpoints.
 
 `GET /app-data` returns a consistent read snapshot mapped by `models/app-data.js`. It is a bootstrap endpoint for the current small dataset. Add paginated history endpoints before loading a large production history into memory.
 
@@ -77,7 +77,7 @@ The obsolete frontend `deposit` payment field is removed. Container deductions u
 
 ## Remaining screen work before live mode
 
-- Replace demo authentication with `authAPI`; tokens currently live in memory and sign-in is required after reload.
+- [x] Connect login/logout to `authAPI`, handle failed requests, and return to login when the current token expires. Tokens live in memory; sign-in is required after reload. Business sample data is reset on sign-out/session expiry.
 - Load the database snapshot after login and after successful mutations. Do not optimistically mutate stock or money in both layers.
 - Connect catalog/customer/supplier screens to the implemented endpoints. Convert synchronous save handlers to awaited actions with loading/error states and retain the existing confirmation dialogs.
 - Add editable customer container-return lines to create/edit invoice forms and display them in PDF/XLSX exports.
