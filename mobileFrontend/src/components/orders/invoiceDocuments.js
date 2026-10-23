@@ -210,4 +210,3 @@ export function invoiceWorkbook(order, invoice) {
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoice');
   return workbook;
 }
-
