@@ -1,6 +1,6 @@
 # Automated feature coverage
 
-Verified 2026-10-24: **167 passing tests** (66 frontend unit, 38 component/provider/export, 63 backend checks including nested cases). ESLint and TypeScript checks pass. This is a regression baseline across the current feature set, not proof that every possible input or device behavior is covered.
+Verified 2026-10-24: **179 passing tests** (66 frontend unit, 38 component/provider/export, 63 backend checks including nested cases, and 12 Playwright browser checks). ESLint and TypeScript checks pass. This is a regression baseline across the current feature set, not proof that every possible input or device behavior is covered.
 
 ## Run everything
 
@@ -10,7 +10,7 @@ From `Project`:
 node scripts/test-all.mjs
 ```
 
-Install dependencies in `mobileFrontend` and `mobileBackend` first. PostgreSQL must be running; backend `.env` supplies `DATABASE_URL` and its role needs permission to create a database. No app server or Expo session needs to be running. The runner stops on the first failure and returns a nonzero exit code.
+Install dependencies in `mobileFrontend` and `mobileBackend` first, then run `npx playwright install chromium` from `mobileFrontend`. PostgreSQL must be running; backend `.env` supplies `DATABASE_URL` and its role needs permission to create a database. No app server or Expo session needs to be running. The runner stops on the first failure and returns a nonzero exit code.
 
 The backend suite creates, migrates and drops a uniquely named `bevdist_test_*` database. It does not seed, truncate or migrate the configured application database. HTTP tests listen on temporary loopback ports. Frontend component tests mock API/native boundaries; a separate backend integration test exercises the actual mobile API helpers against HTTP and PostgreSQL.
 
@@ -22,6 +22,8 @@ npm test                 # unit + component/provider/export tests
 npm run test:coverage    # component suite with coverage report
 npm run lint
 npm run typecheck
+npm run test:e2e          # desktop + phone-sized Chromium
+npm run test:e2e:ui       # interactive browser test runner
 
 # mobileBackend
 npm run test:db
@@ -49,6 +51,12 @@ npm run test:db
 
 Unit file names in the table omit `.test.mjs`; UI file names omit `.test.js`.
 
+## Browser end-to-end checks
+
+Six scenarios run twice: desktop Chromium and Pixel 7 browser emulation. They use the real navigation container, production web export, Express API and PostgreSQL. Browser operations cover login/logout, tab navigation, refresh, typed invoice quantities and refunds, payment allocation, delivery, inventory editing/deletion, supplier receipts, profiles, credits and GCash.
+
+Playwright starts isolated loopback servers and creates/drops its own `bevdist_e2e_*` database. It does not reuse a developer server. Failure screenshots/traces and an HTML report are saved under ignored `mobileFrontend/dist/`. See [Playwright setup and UI runner](mobileFrontend/tests/e2e/README.md) for commands, isolation details, restart requirements and remaining limits.
+
 ## Measured coverage and limits
 
 The Jest-only report covers the configured screen, context, API, component and utility JavaScript files: **72.86% lines, 70.47% statements, 67.68% functions, 57.31% branches**. Open `mobileFrontend/dist/test-coverage/ui/index.html` after running coverage. Generated reports live under ignored `dist/`.
@@ -57,7 +65,7 @@ These percentages do not include execution from the separate 66 Node unit tests 
 
 Component tests use real screen components but mock HTTP, icons, safe-area metrics, chart drawing and native print/share/storage. They do not launch the app, exercise the real navigation container, inspect screenshots or measure scrolling performance. Chart calculations and quick-action route arguments are covered, but chart drawing and real navigation still need device checks. Type checking covers TypeScript files; JavaScript screens are linted.
 
-Remaining checks are in `mobileFrontend/QA_CHECKLIST.md`: physical Expo Go workflows, real PDF/XLSX opening/sharing, phone API connectivity, safe areas, keyboard behavior, larger fonts, small-screen layout, real chart rendering, and list performance. App-to-device end-to-end automation is not configured. Node currently emits existing module-format detection warnings for ESM-style JavaScript imports; they do not fail the tests.
+Remaining checks are in `mobileFrontend/QA_CHECKLIST.md`: physical Expo Go workflows, real PDF/XLSX opening/sharing, phone API connectivity, safe areas, keyboard behavior, larger fonts, small-screen layout, real chart rendering, and list performance. Browser end-to-end automation is configured; native Android/iOS end-to-end automation is not. Node currently emits existing module-format detection warnings for ESM-style JavaScript imports; they do not fail the tests.
 
 ## Defects caught while expanding automation
 

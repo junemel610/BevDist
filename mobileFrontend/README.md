@@ -53,8 +53,10 @@ npm test
 npm run test:coverage
 ```
 
+For browser UI testing, first run `npx playwright install chromium`, then `npm run test:e2e:ui` for the interactive runner or `npm run test:e2e` for headless desktop/mobile web checks. The test servers start automatically and PostgreSQL must be running. See [Playwright testing](tests/e2e/README.md) for setup and reports.
+
 Lint covers app code and tests and rejects warnings. Type checking covers the existing TypeScript files; JavaScript screens are linted. See [QA_CHECKLIST.md](QA_CHECKLIST.md) for the verified bundle exports and the remaining visual/device checks.
 
 The app uses React Navigation through `App.js` and `src/navigation/RootNavigator.js`. Unused Expo Router starter tabs and sample splash components were removed; do not restore them as a fix for navigation errors.
 
-Run `node scripts/test-all.mjs` from `Project` for frontend lint, types, unit/UI tests and backend database tests. See [TEST_COVERAGE.md](../TEST_COVERAGE.md) for the feature matrix, database requirements and coverage limits. Jest reports are generated in `dist/test-coverage/ui/`.
+Run `node scripts/test-all.mjs` from `Project` for frontend lint, types, unit/component tests, backend database tests and Playwright browser tests. See [TEST_COVERAGE.md](../TEST_COVERAGE.md) for the feature matrix, database requirements and coverage limits. Jest reports are generated in `dist/test-coverage/ui/`.

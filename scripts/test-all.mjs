@@ -9,6 +9,7 @@ const checks = [
   ['mobileFrontend', ['run', 'test:unit']],
   ['mobileFrontend', ['run', 'test:coverage']],
   ['mobileBackend', ['run', 'test:db']],
+  ['mobileFrontend', ['run', 'test:e2e']],
 ];
 for (const [directory, args] of checks) {
   console.log(`\n${directory}: npm ${args.join(' ')}`);

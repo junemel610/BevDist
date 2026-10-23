@@ -8,6 +8,7 @@ Checked on 2026-10-24. This file distinguishes automated checks from actual scre
 - [x] TypeScript check for the project's TypeScript files. JavaScript screens are checked by ESLint, not full TypeScript checking.
 - [x] 66 frontend unit tests and 38 component/provider/export tests pass.
 - [x] 63 backend HTTP/database checks pass in a disposable database.
+- [x] 12 Playwright checks pass across desktop and phone-sized Chromium using a real isolated API/database.
 - [x] Full feature matrix and measured coverage are recorded in [TEST_COVERAGE.md](../TEST_COVERAGE.md).
 - [x] Web JavaScript bundle exports successfully.
 - [x] Android Hermes bundle exports successfully.
@@ -26,7 +27,7 @@ Bundle exports verify compilation. They do not install, launch, or visually insp
 
 ## Visual and device checks still required
 
-Automated UI access was unavailable: the native computer-use pipe failed, no browser provider was available, `xcrun simctl` was not installed, and `adb` was absent. No visual/device check below is marked complete.
+Playwright now verifies web workflows and real navigation in desktop and phone-sized Chromium. It does not provide native-device testing or visual design approval. Native computer-use access, `xcrun simctl` and `adb` remain unavailable. No physical-device or manual visual check below is marked complete.
 
 Use a disposable test database and test operator account for transaction scenarios.
 
