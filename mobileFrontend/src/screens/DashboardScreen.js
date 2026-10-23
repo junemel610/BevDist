@@ -27,7 +27,7 @@ export function DashboardScreen({ navigation }) {
   const trends = salesTrends(orders, balances, paymentTransactions);
   const summary = [
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices },
-    { label: 'Completed Orders', value: sales.completedOrders, hint: 'Delivered and fully paid' },
+    { label: 'Completed Orders', value: sales.completedOrders },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding) },
     { label: 'Case Types to Restock', value: getLowStockCount() },
   ];
