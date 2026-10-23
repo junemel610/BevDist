@@ -6,13 +6,13 @@ import { useApp } from '../context/AppContext';
 import { DashboardActivity, QuickActions } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
-import { salesSummary, salesTrends } from '../components/dashboard/salesSummary';
+import { salesSummary, salesTrends, dailyAppliedPayments } from '../components/dashboard/salesSummary';
 import theme from '../styles/theme';
 
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
   const { fontScale } = useWindowDimensions();
-  const { orders, balances, paymentTransactions, getTodaySales, getLowStockCount } = useApp();
+  const { orders, balances, paymentTransactions, getLowStockCount } = useApp();
   const navigateTo = useCallback(route => navigation.getParent()?.navigate(route), [navigation]);
   const openCreateInvoice = useCallback(() => navigation.getParent()?.navigate('Invoices', {
     screen: 'InvoicesMain',
@@ -25,6 +25,7 @@ export function DashboardScreen({ navigation }) {
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
   const sales = salesSummary(orders, balances, paymentTransactions);
+  const dailyPayments = dailyAppliedPayments(orders, balances, paymentTransactions);
   const trends = salesTrends(orders, balances, paymentTransactions);
   const summary = [
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices },
@@ -73,12 +74,17 @@ export function DashboardScreen({ navigation }) {
           </View>
 
           <View style={styles.metrics}>
-            <View style={[styles.card, styles.cashCard]}>
-              <View style={styles.cashCopy}>
-                <Text style={styles.cardLabel}>Cash sales today</Text>
-                <Text style={styles.cardHint}>Cash applied to invoices today</Text>
+            <View style={[styles.card, styles.dailyCard]}>
+              <Text style={styles.sectionTitle}>Payments today</Text>
+              <Text style={styles.cardHint}>Applied to invoices · extra payments excluded</Text>
+              <View style={[styles.dailyMethods, wide && styles.dailyMethodsWide]}>
+                {Object.entries(dailyPayments).map(([method, amount]) => (
+                  <View key={method} style={[styles.dailyMethod, wide && styles.dailyMethodWide]}>
+                    <Text style={styles.dailyLabel}>{method}</Text>
+                    <Text style={styles.cashValue}>{formatPeso(amount)}</Text>
+                  </View>
+                ))}
               </View>
-              <Text style={styles.cashValue}>{formatPeso(getTodaySales())}</Text>
             </View>
             <View style={styles.grid}>
               {summary.map(card => (
@@ -126,8 +132,12 @@ const styles = StyleSheet.create({
   actualValue: { fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold, color: theme.colors.primary },
   salesHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 20, marginTop: theme.spacing.md },
   metrics: { gap: theme.spacing.md },
-  cashCard: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, padding: theme.spacing.lg },
-  cashCopy: { flexBasis: 180, flexGrow: 1, flexShrink: 1 },
+  dailyCard: { width: '100%', padding: theme.spacing.lg },
+  dailyMethods: { gap: theme.spacing.md, marginTop: theme.spacing.lg },
+  dailyMethodsWide: { flexDirection: 'row' },
+  dailyMethod: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderTopWidth: 1, borderColor: theme.colors.border, paddingTop: theme.spacing.md },
+  dailyMethodWide: { flex: 1, flexDirection: 'column', alignItems: 'flex-start' },
+  dailyLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.base },
   cashValue: { maxWidth: '100%', color: theme.colors.primary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.md },
   card: { minHeight: 104, justifyContent: 'center', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, padding: theme.spacing.md },

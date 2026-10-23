@@ -90,3 +90,19 @@ export function salesTrends(orders, balances, paymentTransactions, today = new D
   }));
   return { daily, monthly };
 }
+
+export function dailyAppliedPayments(orders, balances, payments, today = businessDate()) {
+  const cents = { Cash: 0, GCash: 0, 'Bank Transfer': 0 };
+  const orderById = new Map(orders.map(order => [order.id, order]));
+  const balanceById = new Map(balances.map(balance => [balance.id, balance]));
+  for (const payment of payments) {
+    const order = orderById.get(payment.orderId);
+    const balance = balanceById.get(payment.balanceId);
+    const amount = Number(payment.amountApplied);
+    if (payment.date === today && Object.hasOwn(cents, payment.method) && order && order.status !== 'cancelled'
+      && balance?.orderId === order.id && balance.status !== 'cancelled' && Number.isFinite(amount) && amount > 0) {
+      cents[payment.method] += Math.round(amount * 100);
+    }
+  }
+  return Object.fromEntries(Object.entries(cents).map(([method, amount]) => [method, amount / 100]));
+}

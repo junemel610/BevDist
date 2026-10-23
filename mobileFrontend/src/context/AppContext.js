@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { businessDate } from '../utils/businessDate';
+import { dailyAppliedPayments } from '../components/dashboard/salesSummary';
 import { randomUUID } from 'expo-crypto';
 import * as api from '../api/index';
 import { setUnauthorizedHandler, setAuthToken } from '../api/client';
@@ -138,19 +138,7 @@ export function AppProvider({ children }) {
     return availableStock(product, packId);
   }, [products]);
 
-  const getTodaySales = useCallback(() => {
-    const orderById = new Map(orders.map(order => [order.id, order]));
-    const balanceById = new Map(balances.map(balance => [balance.id, balance]));
-    const today = businessDate();
-    return paymentTransactions.reduce((sum, payment) => {
-      const order = orderById.get(payment.orderId);
-      const balance = balanceById.get(payment.balanceId);
-      const amount = Number(payment.amountApplied);
-      return payment.method === PAYMENT_METHOD.CASH && payment.date === today && order && order.status !== 'cancelled'
-        && balance?.orderId === order.id && balance.status !== 'cancelled' && Number.isFinite(amount)
-        ? sum + Math.max(0, amount) : sum;
-    }, 0);
-  }, [orders, balances, paymentTransactions]);
+  const getTodaySales = useCallback(() => dailyAppliedPayments(orders, balances, paymentTransactions)[PAYMENT_METHOD.CASH], [orders, balances, paymentTransactions]);
 
   const getPendingOrdersCount = useCallback(() => {
     return orders.filter((o) => o.status === 'pending').length;
