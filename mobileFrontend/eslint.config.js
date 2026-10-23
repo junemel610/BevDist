@@ -5,6 +5,10 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*"],
+    files: ["tests/ui/**/*.js"],
+    languageOptions: { globals: Object.fromEntries(["jest", "test", "expect", "beforeEach", "afterEach"].map(name => [name, "readonly"])) },
+  },
+  {
+    ignores: ["dist/**", "coverage/**"],
   }
 ]);
