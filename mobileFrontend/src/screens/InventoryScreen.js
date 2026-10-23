@@ -219,6 +219,7 @@ export function InventoryScreen() {
                     onPress={() => setActiveFilter(filter.key)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
+                    {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
                     {selected && <MaterialIcons name="check" size={15} color={theme.colors.onPrimary} accessible={false} />}
@@ -237,6 +238,7 @@ export function InventoryScreen() {
                     onPress={() => setSupplierFilter(supplier)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
+                    {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                     style={({ pressed }) => [styles.supplierChip, selected && styles.supplierChipSelected, pressed && styles.pressed]}
                   >
                     {selected && <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />}
@@ -293,6 +295,7 @@ export function InventoryScreen() {
                       onPress={() => setCasePackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: selected }}
+                      aria-checked={selected}
                       style={[styles.caseTypeChip, selected && styles.caseTypeChipSelected]}
                     >
                       {selected && <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />}
