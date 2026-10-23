@@ -6,7 +6,7 @@ async function login(pool, username, password, secret) {
   const user = (await pool.query('SELECT * FROM app_users WHERE lower(username)=lower($1) AND is_active', [username.trim()])).rows[0];
   if (!user || !await bcrypt.compare(password, user.password_hash)) throw new HttpError(401, 'Invalid username or password');
   return {
-    token: jwt.sign({ sub: user.id, version: user.session_version }, secret, { algorithm: 'HS256', expiresIn: '8h', issuer: 'bevdist-api', audience: 'bevdist-mobile' }),
+    token: jwt.sign({ sub: user.id, version: user.session_version }, secret, { algorithm: 'HS256', expiresIn: '30d', issuer: 'bevdist-api', audience: 'bevdist-mobile' }),
     user: { id: user.id, username: user.username },
   };
 }

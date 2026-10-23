@@ -70,8 +70,14 @@ export function AppProvider({ children }) {
   const logout = useCallback(async () => {
     if (pending.current) throw new Error('Another request is still running.');
     pending.current = true;
-    try { await api.authAPI.logout(); clearSession(); setSessionMessage(''); }
-    finally { pending.current = false; }
+    try {
+      // We attempt to notify the server, but clear the session regardless of result
+      await api.authAPI.logout().catch(() => {});
+    } finally {
+      clearSession();
+      setSessionMessage('');
+      pending.current = false;
+    }
   }, [clearSession]);
 
   const mutate = useCallback(async work => {
