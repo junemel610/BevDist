@@ -279,3 +279,51 @@ test('HTTP routes authenticate, validate, and reach the same database workflows'
     assert.equal((await request('/app-data')).status, 401);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('catalog HTTP writes preserve history and enforce per-case stock rules', async () => {
+  const secret = 'test-only-secret-longer-than-thirty-two-characters';
+  const server = await new Promise(resolve => { const s = createApp(pool, secret).listen(0, '127.0.0.1', () => resolve(s)); });
+  const user = await one('SELECT * FROM app_users WHERE id=$1', [actor]);
+  const jwt = require('jsonwebtoken');
+  const token = jwt.sign({ sub: actor, version: user.session_version }, secret, { algorithm: 'HS256', issuer: 'bevdist-api', audience: 'bevdist-mobile', expiresIn: '1h' });
+  const request = (url, method, body) => fetch(`http://127.0.0.1:${server.address().port}${url}`, {
+    method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  try {
+    const customerResponse = await request('/customers', 'POST', { name: ' New store ', contact: '09123', address: 'Street' });
+    assert.equal(customerResponse.status, 201);
+    const customer = await customerResponse.json();
+    assert.equal(customer.name, 'New store');
+    assert.equal((await request(`/customers/${customer.id}`, 'PUT', { name: 'Updated store' })).status, 200);
+    const supplierResponse = await request('/suppliers', 'POST', { name: `Catalog ${randomUUID()}` });
+    assert.equal(supplierResponse.status, 201);
+    const supplier = await supplierResponse.json();
+    const input = { name: 'Beverage', supplierId: supplier.id, packs: [
+      { packId: 'A', casePrice: 100, lowStockThreshold: 1 }, { packId: 'B', casePrice: 200 }, { packId: 'C', casePrice: 50 },
+    ] };
+    assert.equal((await request('/products', 'POST', { ...input, packs: [input.packs[0], input.packs[0]] })).status, 400);
+    const created = await request('/products', 'POST', input);
+    assert.equal(created.status, 201);
+    const product = (await created.json()).id;
+    const stockInput = { packId: 'A', quantityDelta: 2, reason: 'Opening count', requestKey: randomUUID() };
+    const adjusted = await request(`/products/${product}/stock-adjustments`, 'POST', stockInput);
+    assert.equal(adjusted.status, 201);
+    assert.deepEqual(await (await request(`/products/${product}/stock-adjustments`, 'POST', stockInput)).json(), await adjusted.json());
+    assert.equal((await request(`/products/${product}/stock-adjustments`, 'POST', { ...stockInput, quantityDelta: 3 })).status, 409);
+    assert.equal((await request(`/products/${product}/stock-adjustments`, 'POST', { ...stockInput, requestKey: randomUUID(), quantityDelta: 0.1 })).status, 400);
+    const inv = await invoice({ product, customer: customer.id });
+    assert.equal((await request(`/products/${product}`, 'DELETE')).status, 409);
+    assert.equal((await request(`/products/${product}`, 'PUT', { ...input, packs: [input.packs[1]] })).status, 409);
+    assert.equal((await request(`/products/${product}/stock-adjustments`, 'POST', { ...stockInput, requestKey: randomUUID(), quantityDelta: -2 })).status, 400);
+    assert.equal((await request(`/products/${product}`, 'PUT', { ...input, name: 'Renamed', packs: input.packs.map(p => ({ ...p, casePrice: 300 })) })).status, 200);
+    assert.equal(Number((await one('SELECT total_amount FROM invoice_summary WHERE id=$1', [inv])).total_amount), 100);
+    await transitionInvoice(pool, inv, 'cancel', 'Test cancellation');
+    assert.equal((await request(`/products/${product}/stock-adjustments`, 'POST', { ...stockInput, requestKey: randomUUID(), quantityDelta: -2 })).status, 201);
+    assert.equal((await request(`/products/${product}`, 'DELETE')).status, 204);
+    const snapshot = await loadAppData(pool);
+    assert.equal(snapshot.products.some(p => p.id === product), false);
+    assert.equal(snapshot.orders.find(o => o.id === inv).items[0].productName, 'Beverage');
+    assert.equal(snapshot.suppliers.some(s => s.id === supplier.id), true);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});

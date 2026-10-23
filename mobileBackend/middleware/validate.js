@@ -31,4 +31,15 @@ const loginBody = validate(req => req.body && text(req.body.username) && typeof 
   && req.body.password.length > 0 && Buffer.byteLength(req.body.password, 'utf8') <= 72, 'Username and password are required');
 const cancelBody = validate(req => req.body && text(req.body.reason), 'A cancellation reason is required');
 
-module.exports = { idParam, invoiceBody, invoiceCreate, paymentBody, supplierBody, loginBody, cancelBody };
+const profile = body => body && text(body.name)
+  && [body.contact, body.address].every(value => value == null || (typeof value === 'string' && value.length <= 500));
+const profileBody = validate(req => profile(req.body), 'Provide a name and valid contact details');
+const productBody = validate(req => req.body && text(req.body.name) && uuid(req.body.supplierId)
+  && list(req.body.packs, p => p && text(p.packId) && amount(p.casePrice) && Number(p.casePrice) > 0
+    && (p.lowStockThreshold == null || (amount(p.lowStockThreshold) && Number(p.lowStockThreshold) <= 99999999.5 && Number.isInteger(Number(p.lowStockThreshold) * 2))), true)
+  && new Set(req.body.packs.map(p => p.packId)).size === req.body.packs.length, 'Provide a supplier and unique case types with valid prices and thresholds');
+const stockBody = validate(req => req.body && uuid(req.body.requestKey) && text(req.body.packId) && text(req.body.reason)
+  && ['string', 'number'].includes(typeof req.body.quantityDelta) && /^-?\d+(\.\d{1,2})?$/.test(String(req.body.quantityDelta))
+  && quantity(Math.abs(Number(req.body.quantityDelta))), 'Provide a nonzero half-case adjustment, reason, and request key');
+
+module.exports = { profileBody, productBody, stockBody, idParam, invoiceBody, invoiceCreate, paymentBody, supplierBody, loginBody, cancelBody };

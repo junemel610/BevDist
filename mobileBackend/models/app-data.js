@@ -39,6 +39,7 @@ async function loadAppData(pool) {
     });
     return {
       customers,
+      suppliers: await rows('SELECT id,name,contact,address FROM suppliers WHERE is_active ORDER BY name,id'),
       products: products.map(row => ({
         id: row.id, name: row.name, supplierId: row.supplier_id, supplier: row.supplier,
         casePackIds: (packs[row.id] || []).map(pack => pack.pack_code),

@@ -6,6 +6,7 @@ const { authRoutes } = require('./routes/auth');
 const { invoiceRoutes } = require('./routes/invoices');
 const { paymentRoutes } = require('./routes/payments');
 const { supplierOrderRoutes } = require('./routes/supplierOrders');
+const { catalogRoutes } = require('./routes/catalog');
 const { appDataController } = require('./controllers/appDataController');
 
 function createApp(pool, secret) {
@@ -21,6 +22,7 @@ function createApp(pool, secret) {
   app.use('/auth', authRoutes(pool, secret));
   app.use(authenticate(pool, secret));
   app.get('/app-data', asyncHandler(appDataController(pool)));
+  app.use(catalogRoutes(pool));
   app.use('/invoices', invoiceRoutes(pool));
   app.use('/customers', paymentRoutes(pool));
   app.use('/supplier-orders', supplierOrderRoutes(pool));

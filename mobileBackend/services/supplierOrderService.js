@@ -17,7 +17,10 @@ async function receiveSupplierOrder(pool, input, actorId) {
     const order = (await client.query(`INSERT INTO supplier_orders(supplier_id,supplier_name_snapshot,request_key,request_hash,created_by)
       SELECT id,name,$2,$3,$4 FROM suppliers WHERE id=$1 AND is_active RETURNING id`, [supplierId, requestKey, requestHash, actorId])).rows[0];
     if (!order) throw new HttpError(404, 'Supplier is missing or archived');
-    for (const item of items) {
+    for (const item of [...items].sort((a, b) => `${a.productId}/${a.packId}`.localeCompare(`${b.productId}/${b.packId}`))) {
+      // Hold catalog rows until the write commits so archiving cannot race stock changes.
+      await client.query('SELECT id FROM products WHERE id=$1 FOR SHARE', [item.productId]);
+      await client.query('SELECT pack_code FROM product_case_packs WHERE product_id=$1 AND pack_code=$2 FOR UPDATE', [item.productId, item.packId]);
       const result = await client.query(`INSERT INTO supplier_order_items
         (supplier_order_id,product_id,pack_code,product_name_snapshot,pack_label_snapshot,units_per_case_snapshot,quantity_cases,cost_per_case_snapshot)
         SELECT $1,p.id,pc.pack_code,p.name,ct.label,ct.units_per_case,$4,$5 FROM products p

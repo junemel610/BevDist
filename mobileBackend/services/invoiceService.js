@@ -8,6 +8,9 @@ async function addInvoiceLines(client, invoiceId, items, containerReturns, retai
   if (!Array.isArray(items) || !items.length) throw new HttpError(409, 'Invoice needs at least one item');
   // Stable pack order prevents conflicting invoices from locking stock in opposite order.
   for (const item of [...items].sort((a, b) => `${a.productId}/${a.packId}`.localeCompare(`${b.productId}/${b.packId}`))) {
+    // Hold catalog rows until the write commits so archiving cannot race stock changes.
+    await client.query('SELECT id FROM products WHERE id=$1 FOR SHARE', [item.productId]);
+    await client.query('SELECT pack_code FROM product_case_packs WHERE product_id=$1 AND pack_code=$2 FOR UPDATE', [item.productId, item.packId]);
     const result = await client.query(`INSERT INTO invoice_items
       (invoice_id, product_id, pack_code, product_name_snapshot, pack_label_snapshot,
        units_per_case_snapshot, quantity_cases, case_price_snapshot)
