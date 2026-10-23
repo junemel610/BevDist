@@ -1,5 +1,5 @@
 const { defineConfig, devices } = require('@playwright/test');
-const { apiURL, webURL } = require('./tests/e2e/settings.cjs');
+const { apiURL, webURL, outputRoot } = require('./tests/e2e/settings.cjs');
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
@@ -10,8 +10,8 @@ module.exports = defineConfig({
   retries: process.env.CI ? 1 : 0,
   timeout: 60000,
   expect: { timeout: 10000 },
-  outputDir: 'dist/playwright-results',
-  reporter: [['list'], ['html', { outputFolder: 'dist/playwright-report', open: 'never' }]],
+  outputDir: `${outputRoot}/playwright-results`,
+  reporter: [['list'], ['html', { outputFolder: `${outputRoot}/playwright-report`, open: 'never' }]],
   use: { baseURL: webURL, actionTimeout: 10000, navigationTimeout: 30000, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
   projects: [
     { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },

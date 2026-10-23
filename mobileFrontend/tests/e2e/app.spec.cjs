@@ -1,14 +1,9 @@
 const { test, expect } = require('@playwright/test');
 const { randomUUID } = require('node:crypto');
-const { username, password, apiURL, webURL } = require('./settings.cjs');
-const { signIn, tab, confirm, business, clientHeaders } = require('./helpers.cjs');
+const { username, password } = require('./settings.cjs');
+const { signIn, tab, confirm, business, preparePage } = require('./helpers.cjs');
 
-test.beforeEach(async ({ page }) => {
-  await page.setExtraHTTPHeaders(clientHeaders());
-  // Fail closed if a stale bundle points at a developer's application API.
-  await page.route('**/*', route => [apiURL, webURL].includes(new URL(route.request().url()).origin)
-    ? route.continue() : route.abort('blockedbyclient'));
-});
+test.beforeEach(preparePage);
 
 test('login validation, real navigation, refresh and confirmed sign-out', async ({ page }) => {
   await page.goto('/');
@@ -102,7 +97,9 @@ test('oldest-first Bank Transfer, delivery and excess credit reconcile with pers
 });
 
 test('inventory editing changes case stock and zero-stock deletion archives the product', async ({ page, request }) => {
-  const data = await business(request);
+  const data = await business(request), history = await data.invoice(20);
+  await data.post(`/invoices/${history.id}/deliver`);
+  await data.post(`/customers/${data.customer.id}/payments`, { method: 'Cash', amountReceived: 2000, requestKey: randomUUID() });
   await signIn(page);
   await tab(page, 'Stock');
   await page.getByLabel('Search inventory by product or supplier').fill(data.product.name);
@@ -116,7 +113,9 @@ test('inventory editing changes case stock and zero-stock deletion archives the 
   await page.getByRole('button', { name: `Edit ${data.product.name} inventory` }).click();
   await confirm(page, () => page.getByRole('button', { name: 'Delete' }).click());
   await expect(page.getByRole('button', { name: `Edit ${data.product.name} inventory` })).not.toBeVisible();
-  expect((await data.snapshot()).products.some(p => p.id === data.product.id)).toBe(false);
+  const archived = await data.snapshot();
+  expect(archived.products.some(p => p.id === data.product.id)).toBe(false);
+  expect(archived.orders.find(o => o.id === history.id)).toMatchObject({ status: 'completed', grandTotal: 2000 });
 });
 
 test('supplier orders persist half-case receipts and open their details', async ({ page, request }) => {

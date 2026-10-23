@@ -1,6 +1,6 @@
 const { randomUUID, randomInt } = require('node:crypto');
 const { expect } = require('@playwright/test');
-const { apiURL, username, password } = require('./settings.cjs');
+const { apiURL, webURL, username, password } = require('./settings.cjs');
 
 const clientHeaders = () => ({ 'X-Forwarded-For': `10.${randomInt(1, 255)}.${randomInt(1, 255)}.${randomInt(1, 255)}` });
 async function signIn(page) {
@@ -19,7 +19,37 @@ async function confirm(page, action, accept = true) {
   await (accept ? prompt.accept() : prompt.dismiss());
   await click;
 }
-async function business(request) {
+async function preparePage({ page }) {
+  await page.setExtraHTTPHeaders(clientHeaders());
+  // Fail closed if a stale bundle points at a developer's application API.
+  await page.route('**/*', route => [apiURL, webURL].includes(new URL(route.request().url()).origin)
+    ? route.continue() : route.abort('blockedbyclient'));
+}
+const activeText = (page, text) => page.getByText(text, { exact: true }).and(page.locator(':not([aria-hidden="true"] *)'));
+async function openInvoice(page, data, id) {
+  const order = (await data.snapshot()).orders.find(o => o.id === id);
+  await tab(page, 'Invoice');
+  await page.getByLabel('Search invoices by invoice number or customer', { exact: true }).fill(order.invoiceNumber);
+  await page.getByRole('button', { name: `View details for ${order.invoiceNumber}` }).click();
+  return order;
+}
+async function scrollUntilVisible(page, locator) {
+  const { width, height } = page.viewportSize();
+  await page.mouse.move(width / 2, height / 2);
+  await expect(async () => {
+    if (!await locator.count()) await page.mouse.wheel(0, 1200);
+    await expect(locator).toBeVisible({ timeout: 250 });
+  }).toPass({ timeout: 15000, intervals: [100] });
+}
+async function rejectedSave(page, action, message) {
+  const waiting = page.waitForEvent('dialog', dialog => dialog.type() === 'alert');
+  const confirmation = confirm(page, action);
+  const alert = await waiting;
+  expect(alert.message()).toMatch(message);
+  await alert.dismiss();
+  await confirmation;
+}
+async function business(request, options = {}) {
   const headers = clientHeaders();
   const login = await request.post(`${apiURL}/auth/login`, { data: { username, password }, headers });
   expect(login.ok(), await login.text()).toBeTruthy();
@@ -36,15 +66,15 @@ async function business(request) {
   };
   const suffix = randomUUID().slice(0, 8);
   const customer = { name: `Test Store ${suffix}`, ...(await post('/customers', { name: `Test Store ${suffix}`, contact: '09123456789', address: 'Test address' })) };
-  const productName = `Test Cola ${suffix}`, supplierName = `Test Supplier ${suffix}`;
+  const productName = `${options.name || 'Test Cola'} ${suffix}`, supplierName = `Test Supplier ${suffix}`;
   const product = { name: productName, ...(await post('/products', {
     name: productName, supplierName, stockReason: 'E2E opening count',
-    packs: [{ packId: 'A', casePrice: 100, totalStock: 20, lowStockThreshold: 2 }],
+    packs: options.packs || [{ packId: 'A', casePrice: 100, totalStock: 20, lowStockThreshold: 2 }],
   })) };
-  const invoice = async (quantity = 1) => post('/invoices', {
+  const invoice = async (quantity = 1, extra = {}) => post('/invoices', {
     customerId: customer.id, requestKey: randomUUID(), dueDate: '2099-12-31',
-    items: [{ productId: product.id, packId: 'A', quantity }],
+    items: [{ productId: product.id, packId: 'A', quantity }], ...extra,
   });
-  return { customer, product, supplierName, post, snapshot, invoice };
+  return { customer, product, supplierName, post, snapshot, invoice, headers };
 }
-module.exports = { signIn, tab, confirm, business, clientHeaders };
+module.exports = { signIn, tab, confirm, business, clientHeaders, preparePage, activeText, openInvoice, rejectedSave, scrollUntilVisible };

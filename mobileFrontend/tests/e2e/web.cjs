@@ -2,14 +2,14 @@ const { spawn } = require('node:child_process');
 const { createServer } = require('node:http');
 const { readFile } = require('node:fs/promises');
 const path = require('node:path');
-const { webURL } = require('./settings.cjs');
+const { webURL, outputRoot } = require('./settings.cjs');
 
 // Test a production web export: SDK 57's development env module also reads local .env files.
-const build = spawn(process.execPath, ['node_modules/expo/bin/cli', 'export', '--platform', 'web', '--output-dir', 'dist/playwright-web'], { stdio: 'inherit' });
+const build = spawn(process.execPath, ['node_modules/expo/bin/cli', 'export', '--platform', 'web', '--clear', '--output-dir', `${outputRoot}/playwright-web`], { stdio: 'inherit' });
 build.on('error', error => { console.error(error.message); process.exit(1); });
 build.on('exit', code => {
   if (code !== 0) process.exit(code || 1);
-  const root = path.resolve('dist/playwright-web');
+  const root = path.resolve(outputRoot, 'playwright-web');
   const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff2': 'font/woff2', '.ico': 'image/x-icon' };
   const server = createServer(async (req, res) => {
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405).end(); return; }
