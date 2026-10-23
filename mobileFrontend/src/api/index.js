@@ -32,3 +32,20 @@ export const paymentsAPI = {
 export const supplierOrdersAPI = {
   create: data => apiClient.post('/supplier-orders', data),
 };
+
+export const customersAPI = {
+  create: data => apiClient.post('/customers', data),
+  update: (id, data) => apiClient.put(`/customers/${id}`, data),
+};
+
+export const suppliersAPI = {
+  create: data => apiClient.post('/suppliers', data),
+  update: (id, data) => apiClient.put(`/suppliers/${id}`, data),
+};
+
+export const productsAPI = {
+  create: data => apiClient.post('/products', data),
+  update: (id, data) => apiClient.put(`/products/${id}`, data),
+  remove: id => apiClient.delete(`/products/${id}`),
+  adjustStock: (id, data) => apiClient.post(`/products/${id}/stock-adjustments`, data),
+};
