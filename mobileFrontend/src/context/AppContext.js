@@ -11,6 +11,7 @@ import {
 import { availableStock, canDeleteProduct, createProductProfile, isValidInventoryUpdate, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
 import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
+import { updatePendingInvoice as applyPendingInvoiceUpdate } from '../components/orders/pendingInvoice';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
 import { createPaymentTransaction } from '../components/balances/paymentLedger';
 import { PAYMENT_METHOD } from '../types';
@@ -151,6 +152,17 @@ export function AppProvider({ children }) {
 
     return { ...newOrder, appliedCredit };
   }, [orders, products, balances, customerCredits]);
+
+  const editPendingInvoice = useCallback((orderId, items) => {
+    const order = orders.find(item => item.id === orderId);
+    const balance = balances.find(item => item.orderId === orderId);
+    const result = applyPendingInvoiceUpdate(products, order, balance, items);
+    if (result.error) return result;
+    setProducts(result.products);
+    setOrders(current => current.map(item => item.id === orderId ? result.order : item));
+    if (result.balance) setBalances(current => current.map(item => item.orderId === orderId ? result.balance : item));
+    return result;
+  }, [orders, products, balances]);
 
   const updateOrderStatus = useCallback((orderId, newStatus) => {
     const order = orders.find((o) => o.id === orderId);
@@ -348,6 +360,7 @@ export function AppProvider({ children }) {
     login,
     logout,
     createOrder,
+    editPendingInvoice,
     saveCustomer,
     updateOrderStatus,
     recordCustomerPayment,
