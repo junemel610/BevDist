@@ -12,7 +12,12 @@ export async function exportInvoicePdf(order, balance) {
   const invoice = invoiceSummary(order, balance);
   const html = invoiceHtml(order, invoice);
   if (Platform.OS === 'web') {
-    await Print.printToFileAsync({ html });
+    const printWindow = globalThis.open?.('', '_blank');
+    if (!printWindow) throw new Error('Allow pop-ups to print or save this invoice as PDF.');
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.addEventListener('load', () => { printWindow.focus(); printWindow.print(); }, { once: true });
+    printWindow.document.close();
     return;
   }
   const result = await Print.printToFileAsync({ html, base64: true });

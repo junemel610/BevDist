@@ -4,6 +4,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -81,7 +82,9 @@ export function OrdersScreen({ navigation, route }) {
       else await exportInvoiceExcel(invoiceOrder, balance);
     } catch (error) {
       console.error('Invoice export failed:', error);
-      Alert.alert('Export failed', error?.message || 'Could not create this invoice file. Please try again.');
+      const message = error?.message || 'Could not create this invoice file. Please try again.';
+      if (Platform.OS === 'web') globalThis.alert?.(`Export failed: ${message}`);
+      else Alert.alert('Export failed', message);
     } finally {
       setExporting('');
     }
