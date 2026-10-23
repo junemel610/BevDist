@@ -425,7 +425,7 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  listContent: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl },
+  listContent: { width: '100%', maxWidth: theme.layout.maxContentWidth, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing.xl },
   headerContent: { marginBottom: theme.spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.md },
   heading: { flex: 1 },

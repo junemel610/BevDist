@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
   quantityEntryError: { borderColor: theme.colors.danger }, quantityError: { color: theme.colors.danger, fontSize: 14 },
   paymentActionLabel: { color: theme.colors.onPrimary, fontSize: 16, fontWeight: '600' },
   container: { flex: 1, backgroundColor: theme.colors.background },
-  listContent: { width: '100%', maxWidth: 960, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'], flexGrow: 1 },
+  listContent: { width: '100%', maxWidth: theme.layout.maxContentWidth, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'], flexGrow: 1 },
   headerContent: { gap: theme.spacing.md, marginBottom: theme.spacing.lg },
   headingBlock: { marginBottom: theme.spacing.xs },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },

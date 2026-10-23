@@ -269,7 +269,7 @@ function CustomerAccountCard({ account, onPay }) {
 const styles = StyleSheet.create({
   creditLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   container: { flex: 1, backgroundColor: theme.colors.background },
-  listContent: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xl },
+  listContent: { width: '100%', maxWidth: theme.layout.maxContentWidth, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing.xl },
   headerContent: { marginBottom: theme.spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.md },
   heading: { flex: 1 },

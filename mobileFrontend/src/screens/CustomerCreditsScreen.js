@@ -24,7 +24,7 @@ export function CustomerCreditsScreen() {
   </SafeAreaView>;
 }
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background }, list: { padding: 16 }, header: { gap: 12, marginBottom: 16 },
+  container: { flex: 1, backgroundColor: theme.colors.background }, list: { width: '100%', maxWidth: theme.layout.maxContentWidth, alignSelf: 'center', padding: theme.spacing.lg }, header: { gap: 12, marginBottom: 16 },
   total: { color: theme.colors.primary, fontSize: 22, fontWeight: '600' }, help: { color: theme.colors.textLight, fontSize: 15, lineHeight: 22 },
   search: { minHeight: 50, borderWidth: 1, borderColor: theme.colors.border, paddingHorizontal: 12, borderRadius: 10, fontSize: 16, color: theme.colors.text, backgroundColor: theme.colors.surface },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 20, borderBottomWidth: 1, borderColor: theme.colors.border },

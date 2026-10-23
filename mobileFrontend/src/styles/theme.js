@@ -1,4 +1,5 @@
 const theme = {
+  layout: { maxContentWidth: 1120 },
   // Navy for actions and emphasis; semantic colors only for status feedback.
   colors: {
     primary: '#1e3a8a',
