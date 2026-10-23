@@ -38,13 +38,14 @@ const STATUS = {
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
 export function OrdersScreen({ navigation, route }) {
-  const { orders, balances, products, customers, saveCustomer, createOrder, updateOrderStatus, getAvailableStock } = useApp();
+  const { orders, balances, products, customers, saveCustomer, createOrder, editPendingInvoice, updateOrderStatus, getAvailableStock } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
   const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [exporting, setExporting] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
   const [selectedCustomer, setSelectedCustomer] = useState(customers[0]);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
@@ -201,6 +202,14 @@ export function OrdersScreen({ navigation, route }) {
       <OrderDetailModal
         order={detailOrder}
         onClose={() => setDetailOrder(null)}
+        onEdit={() => {
+          if (!detailOrder) return;
+          setEditingOrder(detailOrder);
+          setSelectedCustomer(detailOrder.customer);
+          setIsNewCustomer(false);
+          setCart(Object.fromEntries(detailOrder.items.map(item => [`${item.productId}:${item.packId}`, item.quantity])));
+          setDetailOrder(null);
+        }}
         onShowInvoice={() => {
           setInvoiceOrder(detailOrder);
           setDetailOrder(null);
@@ -232,13 +241,14 @@ export function OrdersScreen({ navigation, route }) {
         }}
       />
       <CreateInvoiceModal
-        visible={creatingInvoice || Boolean(route.params?.openCreateInvoiceToken)}
+        visible={creatingInvoice || Boolean(route.params?.openCreateInvoiceToken) || Boolean(editingOrder)}
         width={width}
         products={products}
         customers={customers}
         balances={balances}
         orders={orders}
         cart={cart}
+        editingOrder={editingOrder}
         customer={selectedCustomer}
         isNewCustomer={isNewCustomer}
         newCustomer={newCustomer}
@@ -250,14 +260,19 @@ export function OrdersScreen({ navigation, route }) {
           const product = products.find(item => item.id === productId);
           const pack = casePacksForProduct(product).find(option => option.id === packId);
           if (!pack) return current;
-          const max = availableCases(getAvailableStock(productId, packId), pack);
+          const existingQuantity = editingOrder?.items.reduce((sum, item) => (
+            item.productId === productId && item.packId === packId ? sum + item.quantity : sum
+          ), 0) || 0;
+          const max = availableCases(getAvailableStock(productId, packId) + existingQuantity, pack);
           return { ...current, [`${productId}:${packId}`]: Math.min(quantity, max) };
         })}
         onClose={() => {
           setCreatingInvoice(false);
+          setEditingOrder(null);
+          setCart({});
           navigation.setParams({ openCreateInvoiceToken: undefined });
         }}
-        onCreate={() => {
+        onSave={() => {
           const items = products.flatMap(product => casePacksForProduct(product).flatMap(pack => {
             const quantity = cart[`${product.id}:${pack.id}`] || 0;
             const item = quantity > 0 ? invoiceCaseItem(product, pack, quantity) : null;
@@ -271,10 +286,27 @@ export function OrdersScreen({ navigation, route }) {
           }
           const total = items.reduce((sum, item) => sum + item.quantity * (item.casePrice ?? item.unitPrice), 0);
           confirmAction({
-            title: 'Create this invoice?',
+            title: editingOrder ? 'Save invoice changes?' : 'Create this invoice?',
             message: `${customerName} · ${items.length} product lines · ${formatPeso(total)}${isNewCustomer ? '. A new customer profile will also be saved.' : ''}`,
-            confirmLabel: 'Create invoice',
+            confirmLabel: editingOrder ? 'Save changes' : 'Create invoice',
             onConfirm: () => {
+              if (editingOrder) {
+                const result = editPendingInvoice(editingOrder.id, items);
+                if (result.error) {
+                  Alert.alert('Could not update invoice', result.error);
+                  return;
+                }
+                setCaseToast(`${editingOrder.invoiceNumber} updated. ${items.map(item => {
+                  const product = products.find(entry => entry.id === item.productId);
+                  const remaining = Math.max(0, getAvailableStock(product.id, item.packId) + item.quantity
+                    - (editingOrder.items.find(line => line.productId === item.productId && line.packId === item.packId)?.quantity || 0));
+                  const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
+                  return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
+                }).join(' · ')}`);
+                setEditingOrder(null);
+                setCart({});
+                return;
+              }
               const customer = isNewCustomer ? saveCustomer(newCustomer) : selectedCustomer;
               if (!customer) {
                 Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
@@ -405,7 +437,7 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateInvoiceModal({ visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onCreate }) {
+function CreateInvoiceModal({ visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onSave }) {
   const total = products.reduce((sum, product) => {
     return sum + casePacksForProduct(product).reduce((productTotal, pack) => {
       const quantity = cart[`${product.id}:${pack.id}`] || 0;
@@ -414,7 +446,7 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
     }, 0);
   }, 0);
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + (quantity || 0), 0);
-  const canCreate = itemCount > 0 && (!isNewCustomer || !!newCustomer.name.trim());
+  const canCreate = itemCount > 0 && (editingOrder || !isNewCustomer || !!newCustomer.name.trim());
   const customerIdentity = isNewCustomer
     ? customers.find(item => item.name.trim().toLocaleLowerCase() === newCustomer.name.trim().toLocaleLowerCase()) || { name: newCustomer.name }
     : customer;
@@ -427,9 +459,9 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
 
   return (
     <OverlayModal visible={visible} onClose={onClose} width={width}>
-      <ModalHeader title="Create invoice" subtitle="Choose a customer and add products" onClose={onClose} />
+      <ModalHeader title={editingOrder ? 'Edit pending invoice' : 'Create invoice'} subtitle={editingOrder ? `${editingOrder.invoiceNumber} · update products and quantities` : 'Choose a customer and add products'} onClose={onClose} />
       <ScrollView contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
-        <View style={styles.createSection}>
+        {!editingOrder ? <View style={styles.createSection}>
           <Text style={styles.createSectionTitle}>Customer</Text>
           <View style={styles.customerMode}>
             {[false, true].map(isNew => (
@@ -483,7 +515,13 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
               <Text style={styles.openInvoiceHelp}>This sale creates a separate invoice. Payments apply to the oldest invoice first.</Text>
             </View>
           ) : null}
-        </View>
+        </View> : (
+          <View style={styles.createSection}>
+            <Text style={styles.createSectionTitle}>Customer</Text>
+            <Text style={styles.infoPrimary}>{editingOrder.customer.name}</Text>
+            <Text style={styles.infoSecondary}>This invoice stays with its original customer.</Text>
+          </View>
+        )}
         <View style={styles.createSection}>
           <Text style={styles.createSectionTitle}>Products</Text>
           {products.map(product => {
@@ -496,7 +534,10 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
                 </View>
                 {productPacks.map(pack => {
                   const quantity = cart[`${product.id}:${pack.id}`] || 0;
-                  const available = getAvailableStock(product.id, pack.id);
+                  const existingQuantity = editingOrder?.items.reduce((sum, item) => (
+                    item.productId === product.id && item.packId === pack.id ? sum + item.quantity : sum
+                  ), 0) || 0;
+                  const available = getAvailableStock(product.id, pack.id) + existingQuantity;
                   const maxCases = availableCases(available, pack);
                   return (
                     <View key={pack.id} style={styles.caseQuantityRow}>
@@ -539,20 +580,20 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
           <Text style={styles.createTotalValue}>{formatPeso(total)}</Text>
         </View>
         <Pressable
-          onPress={onCreate}
+          onPress={onSave}
           disabled={!canCreate}
           accessibilityRole="button"
-          accessibilityLabel="Save invoice"
+          accessibilityLabel={editingOrder ? 'Save invoice changes' : 'Create invoice'}
           style={({ pressed }) => [styles.createSubmit, !canCreate && styles.createSubmitDisabled, pressed && canCreate && styles.pressed]}
         >
-          <Text style={styles.createSubmitText}>Create invoice</Text>
+          <Text style={styles.createSubmitText}>{editingOrder ? 'Save changes' : 'Create invoice'}</Text>
         </Pressable>
       </View>
     </OverlayModal>
   );
 }
 
-function OrderDetailModal({ order, onClose, onShowInvoice, onMarkDelivered, onCancel }) {
+function OrderDetailModal({ order, onClose, onShowInvoice, onEdit, onMarkDelivered, onCancel }) {
   if (!order) return null;
   const status = STATUS[order.status] ?? STATUS.unpaid;
   return (
@@ -609,6 +650,11 @@ function OrderDetailModal({ order, onClose, onShowInvoice, onMarkDelivered, onCa
         <Pressable onPress={onShowInvoice} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
           <Text style={styles.footerOutlineText}>Preview / export invoice</Text>
         </Pressable>
+        {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
+          <Pressable onPress={onEdit} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
+            <Text style={styles.footerOutlineText}>Edit invoice</Text>
+          </Pressable>
+        ) : null}
           {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
           <>
             {order.amountPaid === 0 ? (
@@ -834,14 +880,14 @@ const styles = StyleSheet.create({
   grandTotalRow: { flexDirection: 'row', justifyContent: 'space-between', gap: theme.spacing.sm, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   grandTotalLabel: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   grandTotalValue: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.primary },
-  modalFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  modalFooter: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
   invoiceModalFooter: { gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
   invoiceExportActions: { flexDirection: 'row', gap: theme.spacing.sm },
   invoiceExportButton: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.primarySoft },
   invoiceExportLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   invoiceCloseButton: { alignSelf: 'flex-end' },
   exportDisabled: { opacity: 0.6 },
-  footerButton: { minHeight: 46, minWidth: 112, alignItems: 'center', justifyContent: 'center', borderRadius: 9, paddingHorizontal: theme.spacing.lg },
+  footerButton: { minHeight: 48, minWidth: 112, alignItems: 'center', justifyContent: 'center', borderRadius: 9, paddingHorizontal: theme.spacing.lg },
   footerButtonOutline: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   footerOutlineText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
   invoiceBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
