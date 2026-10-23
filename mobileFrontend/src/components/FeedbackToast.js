@@ -7,9 +7,9 @@ import theme from '../styles/theme';
 export function FeedbackToast({ message, onDismiss, onViewStock }) {
   const insets = useSafeAreaInsets();
   if (!message) return null;
-  return <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={[styles.toast, { top: insets.top + 8 }]}>
+  return <View style={[styles.toast, { top: insets.top + 8 }]}>
     <MaterialIcons name="check-circle-outline" size={22} color={theme.colors.onPrimary} accessible={false} />
-    <View style={styles.copy}><Text style={styles.text}>{message}</Text>
+    <View style={styles.copy}><Text accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.text}>{message}</Text>
       {!!onViewStock && <Pressable onPress={onViewStock} accessibilityRole="button" style={styles.link}><Text style={styles.linkText}>View stock</Text><MaterialIcons name="chevron-right" size={18} color={theme.colors.onPrimary} /></Pressable>}
     </View>
     <Pressable onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss notification" style={styles.close}><MaterialIcons name="close" size={22} color={theme.colors.onPrimary} /></Pressable>
