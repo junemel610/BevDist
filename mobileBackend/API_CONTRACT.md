@@ -82,7 +82,14 @@ The obsolete frontend `deposit` payment field is removed. Container deductions u
 - [x] Connect login/logout to `authAPI`, handle failed requests, and return to login when the current token expires. Tokens live in memory; sign-in is required after reload. Business records are cleared from memory on sign-out/session expiry.
 - [x] Load the database snapshot after login and successful mutations; reset to empty data on sign-out.
 - [x] Connect customer, inventory, invoice, payment and supplier-order saves to HTTP, awaiting operations and preserving confirmation dialogs. Inventory adjustments record a reason and reject stale stock counts.
-- Add editable customer container-return lines to create/edit invoice forms and display them in PDF/XLSX exports.
+- [x] Add editable customer container returns to create/edit invoice forms and PDF/XLSX output. Each row records type, cases, and refund per case; deductions cannot exceed product value or reduce total below existing settlements. Explicitly removing all rows sends `[]`.
 - [x] Generate native UUID request keys for invoice/payment/supplier-order creates using Expo Crypto. Keep the same key for an ambiguous retry in the current session; always review recovered records first.
 - Use the Mac's network IP as `EXPO_PUBLIC_API_URL` for a physical phone; `localhost` on a phone refers to the phone. The server defaults to loopback until `HOST` is explicitly configured.
 - Test the entire persisted flow on Expo Go before client use.
+
+## Container-return device check
+
+- Create a pending invoice with returned cases and verify the displayed refund and amount due after saving/reloading.
+- Change a return label/rate, then remove every return line and save. Confirm the full product subtotal becomes due again.
+- Check that a refund below recorded settlements is rejected and delivered invoices remain locked.
+- Export PDF and Excel. Confirm return names, half-case quantities, rates, deductions, grand total and balance match the persisted invoice. Test native file sharing on the client device.
