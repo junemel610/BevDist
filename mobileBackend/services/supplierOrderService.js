@@ -25,8 +25,8 @@ async function receiveSupplierOrder(pool, input, actorId) {
         (supplier_order_id,product_id,pack_code,product_name_snapshot,pack_label_snapshot,units_per_case_snapshot,quantity_cases,cost_per_case_snapshot)
         SELECT $1,p.id,pc.pack_code,p.name,ct.label,ct.units_per_case,$4,$5 FROM products p
         JOIN product_case_packs pc ON pc.product_id=p.id JOIN case_pack_types ct ON ct.code=pc.pack_code
-        WHERE p.id=$2 AND pc.pack_code=$3 AND p.is_active AND pc.is_active AND ct.is_active`,
-      [order.id, item.productId, item.packId, item.quantity, item.unitCost]);
+        WHERE p.id=$2 AND pc.pack_code=$3 AND p.supplier_id=$6 AND p.is_active AND pc.is_active AND ct.is_active`,
+      [order.id, item.productId, item.packId, item.quantity, item.unitCost, supplierId]);
       if (!result.rowCount) throw new HttpError(404, 'Product case type is missing or archived');
     }
     for (const entry of returnedCases) {

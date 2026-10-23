@@ -543,3 +543,14 @@ test('all five case packs keep independent half-case stock and Bank Transfer rec
   const daily = dailyAppliedPayments(snapshot.orders, snapshot.balances, snapshot.paymentTransactions.filter(p => p.receiptId === receiptId), receipt.date.slice(0, 10));
   assert.deepEqual(daily, { Cash: 0, GCash: 0, 'Bank Transfer': 295 });
 });
+
+test('supplier orders cannot restock another supplier’s product and roll back the whole receipt', async () => {
+  const f = await fixture(2), other = await fixture(2);
+  const requestKey = randomUUID();
+  await assert.rejects(receiveSupplierOrder(pool, {
+    supplierId: other.supplier, requestKey,
+    items: [{ productId: f.product, packId: 'A', quantity: 0.5, unitCost: 80 }],
+  }, actor), /supplier|Product case type/i);
+  assert.equal((await one('SELECT count(*) AS count FROM supplier_orders WHERE request_key=$1', [requestKey])).count, '0');
+  assert.equal(Number((await one("SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code='A'", [f.product])).total_stock_cases), 2);
+});
