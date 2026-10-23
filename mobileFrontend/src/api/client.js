@@ -2,6 +2,12 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 let authToken = null;
+let onUnauthorized = null;
+
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+  return () => { if (onUnauthorized === handler) onUnauthorized = null; };
+}
 
 export function setAuthToken(token) {
   authToken = token;
@@ -30,9 +36,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized - clear token and redirect to login
+    const sentToken = error.config?.headers?.Authorization;
+    if (error.response?.status === 401 && authToken && sentToken === `Bearer ${authToken}`) {
       setAuthToken(null);
+      onUnauthorized?.();
     }
     return Promise.reject(error);
   }

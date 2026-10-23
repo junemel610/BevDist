@@ -1,4 +1,4 @@
-import apiClient, { setAuthToken } from './client';
+import apiClient, { setAuthToken } from './client.js';
 
 // These helpers match the implemented backend. AppContext remains in demo mode
 // until its complete read/write flow is switched to these asynchronous calls.
@@ -9,8 +9,9 @@ export const authAPI = {
     return response;
   },
   logout: async () => {
-    try { return await apiClient.post('/auth/logout'); }
-    finally { setAuthToken(null); }
+    const response = await apiClient.post('/auth/logout');
+    setAuthToken(null);
+    return response;
   },
 };
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import {
   INITIAL_PRODUCTS,
   INITIAL_ORDERS,
@@ -15,6 +15,8 @@ import { updatePendingInvoice as applyPendingInvoiceUpdate } from '../components
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
 import { createPaymentTransaction } from '../components/balances/paymentLedger';
 import { PAYMENT_METHOD } from '../types';
+import { authAPI } from '../api/index';
+import { setUnauthorizedHandler } from '../api/client';
 import { allocateAccountPayment } from '../components/balances/customerAccounts';
 
 function releaseReservedStock(products, order) {
@@ -44,16 +46,45 @@ export function AppProvider({ children }) {
   const [balances, setBalances] = useState(INITIAL_BALANCES);
   const [paymentTransactions, setPaymentTransactions] = useState(INITIAL_PAYMENT_TRANSACTIONS);
   const [customerCredits, setCustomerCredits] = useState(INITIAL_CUSTOMER_CREDITS);
-  // Auth actions
-  const login = useCallback((username, password) => {
-    setCurrentUser(username);
-    setIsLoggedIn(true);
-  }, []);
-
-  const logout = useCallback(() => {
+  const authPending = useRef(false);
+  const [sessionMessage, setSessionMessage] = useState('');
+  const clearSession = useCallback(() => {
     setCurrentUser(null);
     setIsLoggedIn(false);
+    setProducts(INITIAL_PRODUCTS);
+    setCustomers(INITIAL_CUSTOMERS);
+    setOrders(INITIAL_ORDERS);
+    setRestockRecords(INITIAL_RESTOCK_RECORDS);
+    setBalances(INITIAL_BALANCES);
+    setPaymentTransactions(INITIAL_PAYMENT_TRANSACTIONS);
+    setCustomerCredits(INITIAL_CUSTOMER_CREDITS);
   }, []);
+
+  useEffect(() => setUnauthorizedHandler(() => {
+    clearSession();
+    setSessionMessage('Your session has expired. Please sign in again.');
+  }), [clearSession]);
+
+  const login = useCallback(async (username, password) => {
+    if (authPending.current) return;
+    authPending.current = true;
+    setSessionMessage('');
+    try {
+      const { data } = await authAPI.login(username.trim(), password);
+      setCurrentUser(data.user.username);
+      setIsLoggedIn(true);
+    } finally { authPending.current = false; }
+  }, []);
+
+  const logout = useCallback(async () => {
+    if (authPending.current) return;
+    authPending.current = true;
+    try {
+      await authAPI.logout();
+      clearSession();
+      setSessionMessage('');
+    } finally { authPending.current = false; }
+  }, [clearSession]);
 
   const saveCustomer = useCallback((profile) => {
     const result = saveCustomerProfile(customers, profile);
@@ -334,6 +365,7 @@ export function AppProvider({ children }) {
   const value = {
     isLoggedIn,
     currentUser,
+    sessionMessage,
     products,
     customers,
     orders,

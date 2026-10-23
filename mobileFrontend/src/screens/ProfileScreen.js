@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,11 +9,22 @@ import { confirmAction } from '../utils/confirmAction';
 export function ProfileScreen() {
   const { currentUser, logout } = useApp();
 
-  const signOut = () => confirmAction({
+  const [signingOut, setSigningOut] = useState(false);
+  const [error, setError] = useState('');
+  const pending = useRef(false);
+  const signOut = () => !pending.current && confirmAction({
     title: 'Sign out?',
     message: 'You can sign back in to continue.',
     confirmLabel: 'Sign out',
-    onConfirm: logout,
+    onConfirm: async () => {
+      if (pending.current) return;
+      pending.current = true;
+      setSigningOut(true);
+      setError('');
+      try { await logout(); }
+      catch (failure) { setError(failure.response?.data?.error || 'Could not sign out. Check your connection and try again.'); }
+      finally { pending.current = false; setSigningOut(false); }
+    },
   });
 
   return (
@@ -36,16 +47,19 @@ export function ProfileScreen() {
 
         <View style={styles.infoCard}>
           <MaterialIcons name="info-outline" size={20} color={theme.colors.primary} accessible={false} />
-          <Text style={styles.infoText}>This app is set up for single-user access on this device.</Text>
+          <Text style={styles.infoText}>Signed in to your registered account. Business screens currently use sample data; changes there are not saved to the database.</Text>
         </View>
 
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable
+          disabled={signingOut}
+          accessibilityState={{ disabled: signingOut, busy: signingOut }}
           onPress={signOut}
           accessibilityRole="button"
           style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
         >
           <MaterialIcons name="logout" size={20} color={theme.colors.danger} accessible={false} />
-          <Text style={styles.signOutLabel}>Sign out</Text>
+          <Text style={styles.signOutLabel}>{signingOut ? 'Signing out…' : 'Sign out'}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -67,5 +81,6 @@ const styles = StyleSheet.create({
   infoText: { flex: 1, color: theme.colors.primary, fontSize: theme.fontSize.sm, lineHeight: 21 },
   signOutButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 12, backgroundColor: theme.colors.surface },
   signOutLabel: { color: theme.colors.danger, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+  error: { color: theme.colors.danger, fontSize: theme.fontSize.sm },
   pressed: { opacity: 0.75 },
 });

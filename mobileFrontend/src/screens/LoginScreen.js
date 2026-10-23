@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   ScrollView,
@@ -15,26 +15,33 @@ import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 
 export function LoginScreen() {
-  const { login } = useApp();
+  const { login, sessionMessage } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const pending = useRef(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (pending.current) return;
     const nextUsernameError = username.trim() ? '' : 'Enter your username.';
     const nextPasswordError = password.trim() ? '' : 'Enter your password.';
     setUsernameError(nextUsernameError);
     setPasswordError(nextPasswordError);
     if (nextUsernameError || nextPasswordError) return;
 
+    pending.current = true;
     setLoading(true);
-    // Simulate login delay while the demo app signs in.
-    setTimeout(() => {
-      login(username, password);
+    setLoginError('');
+    try { await login(username, password); }
+    catch (error) {
+      setLoginError(error.response?.data?.error || 'Cannot reach the server. Check your connection and try again.');
+    } finally {
+      pending.current = false;
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
@@ -60,6 +67,7 @@ export function LoginScreen() {
           </View>
 
           <View style={styles.form}>
+            {loginError || sessionMessage ? <Text accessibilityRole="alert" style={styles.error}>{loginError || sessionMessage}</Text> : null}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Username</Text>
               <TextInput
@@ -108,7 +116,7 @@ export function LoginScreen() {
 
           <View style={styles.demoInfo}>
             <MaterialIcons name="info-outline" size={18} color={theme.colors.primary} accessible={false} />
-            <Text style={styles.demoText}>Demo access: any username and password will work.</Text>
+            <Text style={styles.demoText}>Use your registered account. Business screens currently show sample data; changes there are not saved to the database.</Text>
           </View>
         </View>
       </ScrollView>
