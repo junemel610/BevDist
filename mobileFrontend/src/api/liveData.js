@@ -24,12 +24,13 @@ export function createLiveData(api, randomUUID) {
   return {
     load: async () => (await api.appDataAPI.get()).data,
     saveCustomer: async profile => (await (profile.id ? api.customersAPI.update(profile.id, profile) : api.customersAPI.create(profile))).data,
-    createOrder: (customer, items) => keyed('invoice', {
+    createOrder: (customer, items, containerReturns = []) => keyed('invoice', {
       customerId: customer.id,
       items: items.map(({ productId, packId, quantity }) => ({ productId, packId, quantity })),
       dueDate: dueDate(),
+      containerReturns,
     }, input => api.invoicesAPI.create(input)),
-    editInvoice: (id, items) => api.invoicesAPI.update(id, { items: items.map(({ productId, packId, quantity }) => ({ productId, packId, quantity })) }),
+    editInvoice: (id, items, containerReturns) => api.invoicesAPI.update(id, { ...(containerReturns === undefined ? {} : { containerReturns }), items: items.map(({ productId, packId, quantity }) => ({ productId, packId, quantity })) }),
     transition: (id, status) => status === 'cancelled' ? api.invoicesAPI.cancel(id, 'Cancelled by operator') : api.invoicesAPI.deliver(id),
     payment: (customer, amountReceived, method) => keyed('payment', { customerId: customer.id || customer.customerId, amountReceived, method },
       ({ customerId, ...input }) => api.paymentsAPI.create(customerId, input)),

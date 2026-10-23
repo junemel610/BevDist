@@ -99,13 +99,13 @@ export function AppProvider({ children }) {
     const { result } = await mutate(() => live.current.saveCustomer(profile));
     return result;
   }, [mutate]);
-  const createOrder = useCallback(async (customer, items) => {
-    const { result, snapshot } = await mutate(() => live.current.createOrder(customer, items));
+  const createOrder = useCallback(async (customer, items, containerReturns = []) => {
+    const { result, snapshot } = await mutate(() => live.current.createOrder(customer, items, containerReturns));
     const order = snapshot.orders.find(o => o.id === result.data.id);
     return { ...order, appliedCredit: snapshot.balances.find(b => b.orderId === order.id)?.appliedCredit || 0, products: snapshot.products };
   }, [mutate]);
-  const editPendingInvoice = useCallback(async (id, items) => {
-    const { snapshot } = await mutate(() => live.current.editInvoice(id, items));
+  const editPendingInvoice = useCallback(async (id, items, containerReturns) => {
+    const { snapshot } = await mutate(() => live.current.editInvoice(id, items, containerReturns));
     return { order: snapshot.orders.find(o => o.id === id), products: snapshot.products };
   }, [mutate]);
   const updateOrderStatus = useCallback(async (id, status) => { await mutate(() => live.current.transition(id, status)); return true; }, [mutate]);

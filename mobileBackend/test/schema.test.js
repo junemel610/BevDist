@@ -384,6 +384,16 @@ test('mobile API helpers complete a persisted business flow without demo IDs', a
     await live.restock(product.supplierId, [{ productId: product.id, packId: 'C', quantity: 0.5, unitCost: 20 }], []);
     snapshot = await live.load();
     assert.equal(snapshot.products.find(p => p.id === product.id).stockByCasePack.C.totalStock, 1.5);
+    const withReturns = await live.createOrder(customer, [{ productId: product.id, packId: 'C', quantity: 0.5 }], [{ type: 'Empty crate', quantity: 0.5, refundPerCase: 10 }]);
+    snapshot = await live.load();
+    assert.equal(snapshot.orders.find(o => o.id === withReturns.data.id).grandTotal, 20);
+    await live.editInvoice(withReturns.data.id, [{ productId: product.id, packId: 'C', quantity: 0.5 }], [{ type: 'Edited crate', quantity: 0.5, refundPerCase: 20 }]);
+    snapshot = await live.load();
+    assert.equal(snapshot.orders.find(o => o.id === withReturns.data.id).containerRefundTotal, 10);
+    await live.editInvoice(withReturns.data.id, [{ productId: product.id, packId: 'C', quantity: 0.5 }], []);
+    snapshot = await live.load();
+    assert.equal(snapshot.orders.find(o => o.id === withReturns.data.id).grandTotal, 25);
+    assert.equal(snapshot.orders.find(o => o.id === withReturns.data.id).containerReturns.length, 0);
     await api.authAPI.logout();
     await assert.rejects(live.load(), error => error.response.status === 401);
   } finally {

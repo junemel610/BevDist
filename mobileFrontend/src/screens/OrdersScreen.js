@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { availableStock as getStockAvailable } from '../components/inventory/inventoryUtils';
+import { ContainerReturnEditor } from '../components/orders/ContainerReturnEditor';
+import { prepareContainerReturns, refundAmount, caseLineAmount } from '../components/orders/containerReturns';
 import { invoiceEditorProducts } from '../components/orders/pendingInvoice';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
 import { availableCases, casePacksForProduct, invoiceCaseItem } from '../components/orders/casePacks';
@@ -52,6 +54,7 @@ export function OrdersScreen({ navigation, route }) {
   const [selectedCustomer, setSelectedCustomer] = useState(customers[0]);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [containerReturns, setContainerReturns] = useState([]);
   const [cart, setCart] = useState({});
   const [caseToast, setCaseToast] = useState('');
   const { width, fontScale } = useWindowDimensions();
@@ -208,6 +211,7 @@ export function OrdersScreen({ navigation, route }) {
         onEdit={() => {
           if (!detailOrder) return;
           setEditingOrder(detailOrder);
+          setContainerReturns((detailOrder.containerReturns || []).map(row => ({ ...row })));
           setSelectedCustomer(detailOrder.customer);
           setIsNewCustomer(false);
           setCart(Object.fromEntries(detailOrder.items.map(item => [`${item.productId}:${item.packId}`, item.quantity])));
@@ -252,6 +256,8 @@ export function OrdersScreen({ navigation, route }) {
         orders={orders}
         cart={cart}
         editingOrder={editingOrder}
+        containerReturns={containerReturns}
+        onChangeReturns={setContainerReturns}
         customer={selectedCustomer}
         isNewCustomer={isNewCustomer}
         newCustomer={newCustomer}
@@ -273,6 +279,7 @@ export function OrdersScreen({ navigation, route }) {
           setCreatingInvoice(false);
           setEditingOrder(null);
           setCart({});
+          setContainerReturns([]);
           navigation.setParams({ openCreateInvoiceToken: undefined });
         }}
         onSave={() => {
@@ -287,14 +294,18 @@ export function OrdersScreen({ navigation, route }) {
             Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
             return;
           }
-          const total = items.reduce((sum, item) => sum + item.quantity * (item.casePrice ?? item.unitPrice), 0);
+          const subtotal = items.reduce((sum, item) => sum + Math.round(caseLineAmount(item.quantity, item.casePrice ?? item.unitPrice) * 100), 0) / 100;
+          const settlement = balances.find(balance => balance.orderId === editingOrder?.id)?.amountPaid || 0;
+          const prepared = prepareContainerReturns(containerReturns, subtotal, settlement);
+          if (prepared.error) { Alert.alert('Check returned containers', prepared.error); return; }
+          const total = prepared.total;
           confirmAction({
             title: editingOrder ? 'Save invoice changes?' : 'Create this invoice?',
-            message: `${customerName} · ${items.length} product lines · ${formatPeso(total)}${isNewCustomer ? '. A new customer profile will also be saved.' : ''}`,
+            message: `${customerName} · ${items.length} product lines · ${formatPeso(total)} after ${formatPeso(prepared.refund)} container refunds${isNewCustomer ? '. A new customer profile will also be saved.' : ''}`,
             confirmLabel: editingOrder ? 'Save changes' : 'Create invoice',
             onConfirm: async () => {
               if (editingOrder) {
-                const result = await editPendingInvoice(editingOrder.id, items);
+                const result = await editPendingInvoice(editingOrder.id, items, prepared.entries);
                 if (result.error) {
                   Alert.alert('Could not update invoice', result.error);
                   return;
@@ -305,6 +316,7 @@ export function OrdersScreen({ navigation, route }) {
                   return `${product.name}: ${remaining} ${item.packLabel} cases left`;
                 }).join(' · ')}`);
                 setEditingOrder(null);
+                setContainerReturns([]);
                 setCart({});
                 return;
               }
@@ -315,13 +327,14 @@ export function OrdersScreen({ navigation, route }) {
               }
               setSelectedCustomer(customer);
               setIsNewCustomer(false);
-              const order = await createOrder(customer, items);
+              const order = await createOrder(customer, items, prepared.entries);
               if (!order) {
                 Alert.alert('Not enough stock', 'Available stock changed. Review the case quantities and try again.');
                 return;
               }
               const invoiceNumber = order.invoiceNumber || `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
               setCart({});
+              setContainerReturns([]);
               setNewCustomer({ name: '', contact: '', address: '' });
               setIsNewCustomer(false);
               setCreatingInvoice(false);
@@ -438,16 +451,18 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateInvoiceModal({ visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onSave }) {
-  const total = products.reduce((sum, product) => {
+function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onSave }) {
+  const subtotal = products.reduce((sum, product) => {
     return sum + casePacksForProduct(product).reduce((productTotal, pack) => {
       const quantity = cart[`${product.id}:${pack.id}`] || 0;
       const item = quantity > 0 ? invoiceCaseItem(product, pack, quantity) : null;
-      return productTotal + (item ? item.quantity * (item.casePrice ?? item.unitPrice) : 0);
+      return productTotal + (item ? Math.round(caseLineAmount(item.quantity, item.casePrice ?? item.unitPrice) * 100) / 100 : 0);
     }, 0);
   }, 0);
+  const prepared = prepareContainerReturns(containerReturns, subtotal, balances.find(balance => balance.orderId === editingOrder?.id)?.amountPaid || 0);
+  const total = prepared.total ?? subtotal;
   const itemCount = Object.values(cart).reduce((sum, quantity) => sum + (quantity || 0), 0);
-  const canCreate = itemCount > 0 && (editingOrder || !isNewCustomer || !!newCustomer.name.trim());
+  const canCreate = !prepared.error && itemCount > 0 && (editingOrder || (isNewCustomer ? !!newCustomer.name.trim() : !!customer?.id));
   const customerIdentity = isNewCustomer
     ? customers.find(item => item.name.trim().toLocaleLowerCase() === newCustomer.name.trim().toLocaleLowerCase()) || { name: newCustomer.name }
     : customer;
@@ -487,7 +502,7 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
               <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
             </View>
           ) : customers.map(option => {
-            const selected = option.id === customer.id;
+            const selected = option.id === customer?.id;
             return (
               <Pressable
                 key={option.id}
@@ -574,6 +589,9 @@ function CreateInvoiceModal({ visible, width, products, customers, balances, ord
             );
           })}
         </View>
+        <ContainerReturnEditor rows={containerReturns} onChange={onChangeReturns} error={prepared.error} />
+        <SummaryLine label="Product subtotal" value={formatPeso(subtotal)} />
+        <SummaryLine label="Container refunds" value={`−${formatPeso(prepared.refund || 0)}`} />
       </ScrollView>
       <View style={styles.createOrderFooter}>
         <View style={styles.createTotal}>
@@ -716,9 +734,18 @@ function InvoiceModal({ order, balance, onClose, onExportPdf, onExportExcel, exp
           </View>
         ))}
 
+        {(order.containerReturns || []).length > 0 && <View>
+          <Text style={styles.sectionLabel}>Returned containers</Text>
+          {order.containerReturns.map((entry, index) => <View key={entry.id || index} style={styles.invoiceItem}>
+            <View style={styles.itemDescription}><Text style={styles.itemName}>{entry.type}</Text>
+              <Text style={styles.infoSecondary}>{entry.quantity} cases × {formatPeso(entry.refundPerCase)} refund per case</Text></View>
+            <Text style={styles.itemAmount}>−{formatPeso(refundAmount(entry))}</Text>
+          </View>)}
+        </View>}
         <View style={styles.invoiceSummary}>
           <SummaryLine label="Subtotal" value={formatPeso(order.subtotal)} />
-          <SummaryLine label="Payments received" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
+          <SummaryLine label="Container refunds" value={`−${formatPeso(order.containerRefundTotal || 0)}`} />
+          <SummaryLine label="Payments and credit applied" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
           <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
           <View style={styles.invoiceGrandTotal}>
             <Text style={styles.invoiceTotalLabel}>Grand total</Text>
