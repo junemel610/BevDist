@@ -183,6 +183,7 @@ export function OrdersScreen({ navigation, route }) {
                     accessibilityRole="button"
                     accessibilityLabel={`${filter.label}, ${counts[filter.key]} ${counts[filter.key] === 1 ? 'invoice' : 'invoices'}`}
                     accessibilityState={{ selected }}
+                    {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                     style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}
                   >
                     {selected && <MaterialIcons name="check" size={15} color={theme.colors.onPrimary} accessible={false} />}
@@ -481,6 +482,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                 onPress={() => onSelectCustomerMode(isNew)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isNewCustomer === isNew }}
+                {...(Platform.OS === 'web' ? { 'aria-pressed': isNewCustomer === isNew } : {})}
                 style={[styles.customerModeButton, isNewCustomer === isNew && styles.customerModeButtonSelected]}
               >
                 {isNewCustomer === isNew && <MaterialIcons name="check-circle" size={17} color={theme.colors.primary} accessible={false} />}
@@ -504,6 +506,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                 onPress={() => onSelectCustomer(option)}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
+                {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                 style={[styles.customerOption, selected && styles.customerOptionSelected]}
               >
                 <View style={styles.customerOptionText}>
