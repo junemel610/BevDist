@@ -39,7 +39,19 @@ Follow the `bevdist-stack` skill in the parent `.claude/skills/` directory for g
 Create a `.env` file in the root:
 
 ```
-EXPO_PUBLIC_API_URL=http://localhost:5000
+EXPO_PUBLIC_API_URL=http://127.0.0.1:5000
 ```
 
-Or use Expo's `.env.local` for sensitive values.
+Use the ignored `.env.local` for machine-specific settings. `EXPO_PUBLIC_*` values are bundled into the client; never put database credentials or server secrets there.
+
+## Quality checks
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+```
+
+Lint covers app code and tests and rejects warnings. Type checking covers the existing TypeScript files; JavaScript screens are linted. See [QA_CHECKLIST.md](QA_CHECKLIST.md) for the verified bundle exports and the remaining visual/device checks.
+
+The app uses React Navigation through `App.js` and `src/navigation/RootNavigator.js`. Unused Expo Router starter tabs and sample splash components were removed; do not restore them as a fix for navigation errors.
