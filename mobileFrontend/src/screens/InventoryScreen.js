@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { stockNotice } from '../components/inventory/stockNotice';
+import { FeedbackToast } from '../components/FeedbackToast';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, productStockState, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
@@ -54,7 +56,7 @@ export function InventoryScreen() {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const timeout = setTimeout(() => setToast(''), 3500);
+    const timeout = setTimeout(() => setToast(''), 6500);
     return () => clearTimeout(timeout);
   }, [toast]);
 
@@ -123,7 +125,7 @@ export function InventoryScreen() {
           }
           setEditingProduct(null);
           setAddingProduct(false);
-          setToast(`${product.name} added with separate stock by case type.`);
+          setToast(stockNotice(selectedCasePackIds.map(packId => ({ productId: product.id, packId })), [product], 'Product added'));
         },
       });
       return;
@@ -138,12 +140,13 @@ export function InventoryScreen() {
       message: `${editingProduct.name}: ${priceSummary}.`,
       confirmLabel: 'Save changes',
       onConfirm: async () => {
-        if (!await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason }, editingProduct)) {
+        const updated = await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason }, editingProduct);
+        if (!updated) {
           setError('Could not save these inventory values. Check them and try again.');
           return;
         }
         setEditingProduct(null);
-        setToast(`${editingProduct.name} stock updated by case type.`);
+        setToast(stockNotice(selectedCasePackIds.map(packId => ({ productId: updated.id, packId })), [updated], 'Stock updated'));
       },
     });
   };
@@ -354,12 +357,7 @@ export function InventoryScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {toast ? (
-        <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.toast}>
-          <MaterialIcons name={toast.includes('left.') ? 'warning-amber' : 'check-circle'} size={20} color={theme.colors.onPrimary} accessible={false} />
-          <Text style={styles.toastText}>{toast}</Text>
-        </View>
-      ) : null}
+      <FeedbackToast message={toast} onDismiss={() => setToast('')} />
     </SafeAreaView>
   );
 }
@@ -373,7 +371,7 @@ function SummaryCount({ count, label, color }) {
   );
 }
 
-const InventoryCard = memo(function InventoryCard({ product, compact, onEdit }) {
+const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
   const state = STATUS[productStockState(product)];
   const packs = casePacksForProduct(product);
   return (
@@ -382,11 +380,20 @@ const InventoryCard = memo(function InventoryCard({ product, compact, onEdit }) 
         <View style={styles.productInfo}>
           <Text style={styles.productName}>{product.name}</Text>
           <Text style={styles.supplierName}>{product.supplier}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: state.background }]}>
+            <MaterialIcons name={state.icon} size={15} color={state.color} accessible={false} />
+            <Text style={[styles.statusLabel, { color: state.color }]}>{state.label}</Text>
+          </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: state.background }]}>
-          <MaterialIcons name={state.icon} size={15} color={state.color} accessible={false} />
-          <Text style={[styles.statusLabel, { color: state.color }]}>{state.label}</Text>
-        </View>
+        <Pressable
+          onPress={() => onEdit(product)}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${product.name} inventory`}
+          style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
+        >
+          <MaterialIcons name="edit" size={17} color={theme.colors.primary} accessible={false} />
+          <Text style={styles.editLabel}>Edit</Text>
+        </Pressable>
       </View>
 
       <View style={styles.caseStockList}>
@@ -408,19 +415,6 @@ const InventoryCard = memo(function InventoryCard({ product, compact, onEdit }) 
             </View>
           );
         })}
-      </View>
-
-      <View style={styles.productFooter}>
-        <Text style={styles.price}>Stock tracked by case type</Text>
-        <Pressable
-          onPress={() => onEdit(product)}
-          accessibilityRole="button"
-          accessibilityLabel={`Edit ${product.name} inventory`}
-          style={({ pressed }) => [styles.editButton, compact && styles.editButtonCompact, pressed && styles.pressed]}
-        >
-          <MaterialIcons name="edit" size={17} color={theme.colors.primary} accessible={false} />
-          {!compact && <Text style={styles.editLabel}>Edit</Text>}
-        </Pressable>
       </View>
     </View>
   );
@@ -466,21 +460,8 @@ const styles = StyleSheet.create({
   supplierName: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
   statusBadge: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: theme.spacing.sm, borderRadius: 20 },
   statusLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
-  stockNumbers: { flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
-  caseAvailability: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, lineHeight: 18, marginTop: theme.spacing.sm },
-  stockMetric: { flex: 1 },
-  stockValue: { color: theme.colors.text, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
-  stockLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
-  metricDivider: { width: 1, height: 32, backgroundColor: theme.colors.border, marginHorizontal: theme.spacing.sm },
-  stockTrack: { height: 6, overflow: 'hidden', borderRadius: 4, backgroundColor: theme.colors.surfaceMuted },
-  stockFill: { height: '100%', borderRadius: 4 },
-  productFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing.sm },
-  price: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
-  perUnit: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.regular },
   editButton: { minWidth: 72, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
-  editButtonCompact: { minWidth: 44, width: 44 },
   editLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  cardSeparator: { height: theme.spacing.md },
   emptyState: { alignItems: 'center', paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing['2xl'] },
   emptyIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.md, borderRadius: 28, backgroundColor: theme.colors.primarySoft },
   emptyTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
@@ -523,8 +504,6 @@ const styles = StyleSheet.create({
   deleteLabel: { color: theme.colors.danger, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   saveButton: { minHeight: 46, justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.primary },
   saveLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  toast: { position: 'absolute', left: theme.spacing.lg, right: theme.spacing.lg, bottom: theme.spacing.md, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: 12, backgroundColor: theme.colors.primary, elevation: 5 },
-  toastText: { flex: 1, color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   pressed: { opacity: 0.75 },
 });
 

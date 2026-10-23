@@ -126,8 +126,8 @@ export function AppProvider({ children }) {
     return snapshot.products.find(p => p.id === result.data.id);
   }, [mutate]);
   const updateProductInventory = useCallback(async (id, changes, original) => {
-    await mutate(() => live.current.saveProduct(id, changes, original));
-    return true;
+    const { snapshot } = await mutate(() => live.current.saveProduct(id, changes, original));
+    return snapshot.products.find(product => product.id === id);
   }, [mutate]);
   const deleteProduct = useCallback(async id => { await mutate(() => live.current.deleteProduct(id)); return true; }, [mutate]);
 
