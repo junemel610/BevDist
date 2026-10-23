@@ -40,3 +40,10 @@ test('completed and delivered invoices cannot be edited', () => {
   const result = updatePendingInvoice([product], { ...order, status: 'completed' }, balance, [line(2)]);
   assert.match(result.error, /Only pending/);
 });
+
+test('editing items preserves the container deduction and net balance', () => {
+  const result = updatePendingInvoice([product], { ...order, containerRefundTotal: 30 }, balance, [line(2)]);
+  assert.equal(result.order.subtotal, 200);
+  assert.equal(result.order.grandTotal, 170);
+  assert.equal(result.balance.remainingBalance, 150);
+});

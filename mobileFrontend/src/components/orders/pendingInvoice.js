@@ -37,11 +37,12 @@ export function updatePendingInvoice(products, order, balance, items) {
   });
   if (updatedProducts.some(product => !product)) return { error: 'Not enough available stock for these invoice quantities.' };
 
-  const total = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.casePrice), 0);
+  const subtotal = items.reduce((sum, item) => sum + Math.round(Number(item.quantity) * Number(item.casePrice) * 100) / 100, 0);
+  const total = Math.round((subtotal - Number(order.containerRefundTotal || 0)) * 100) / 100;
   const amountPaid = Number(balance?.amountPaid) || 0;
   if (total < amountPaid) return { error: 'The invoice total cannot be lower than payments already recorded.' };
 
-  const updatedOrder = { ...order, items, subtotal: total, grandTotal: total };
+  const updatedOrder = { ...order, items, subtotal, grandTotal: total };
   const updatedBalance = balance ? {
     ...balance,
     totalAmount: total,

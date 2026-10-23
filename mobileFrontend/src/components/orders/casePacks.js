@@ -13,7 +13,7 @@ export function casePackOptionsForProduct(product) {
 }
 
 export function casePacksForProduct(product) {
-  const options = casePackOptionsForProduct(product);
+  const options = product?.casePackIds?.length ? CASE_PACKS : casePackOptionsForProduct(product);
   const selectedIds = product?.casePackIds?.length ? product.casePackIds : options.map(pack => pack.id);
   return options.filter(pack => selectedIds.includes(pack.id)).map(pack => ({
     ...pack,

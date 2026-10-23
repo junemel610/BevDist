@@ -10,27 +10,12 @@ import {
 } from '../data/initialData';
 import { availableStock, canDeleteProduct, createProductProfile, isValidInventoryUpdate, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
 import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
-import { canMarkDelivered, orderLifecycleStatus } from '../components/orders/orderLifecycle';
+import { canMarkDelivered, orderLifecycleStatus, finalizeReservedStock } from '../components/orders/orderLifecycle';
 import { updatePendingInvoice as applyPendingInvoiceUpdate } from '../components/orders/pendingInvoice';
 import { saveCustomerProfile } from '../components/customers/customerProfiles';
 import { createPaymentTransaction } from '../components/balances/paymentLedger';
 import { PAYMENT_METHOD } from '../types';
 import { allocateAccountPayment } from '../components/balances/customerAccounts';
-
-function finalizeReservedStock(products, order) {
-  return products.map((product) => {
-    const quantities = {};
-    order.items.filter(item => item.productId === product.id && item.packId).forEach(item => {
-      const packId = item.packId;
-      quantities[packId] = (quantities[packId] || 0) + (item.stockQuantity ?? item.quantity);
-    });
-    const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
-      const stock = stockForCasePack(product, packId);
-      return [packId, { totalStock: stock.totalStock - quantity, reservedStock: stock.reservedStock - quantity }];
-    }));
-    return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
-  });
-}
 
 function releaseReservedStock(products, order) {
   return products.map((product) => {
@@ -90,7 +75,7 @@ export function AppProvider({ children }) {
     })) return false;
 
     const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
-    const total = items.reduce((sum, item) => sum + item.quantity * (item.casePrice ?? item.unitPrice), 0);
+    const total = items.reduce((sum, item) => sum + Math.round(item.quantity * (item.casePrice ?? item.unitPrice) * 100), 0) / 100;
     const totalDue = total;
     const creditKey = customerCreditKey(customer);
     const creditAvailable = Number(customerCredits[creditKey] || 0);
@@ -103,7 +88,8 @@ export function AppProvider({ children }) {
       customer,
       items,
       subtotal: total,
-      deposit: 0,
+      containerReturns: [],
+      containerRefundTotal: 0,
       grandTotal: total,
       status: 'pending',
       deliveryStatus: 'pending',
@@ -187,7 +173,7 @@ export function AppProvider({ children }) {
     const deliveredOrder = { ...order, deliveryStatus: 'delivered' };
     const status = orderLifecycleStatus(deliveredOrder, paid ? 'paid' : 'partial');
     setOrders(orders.map((item) => item.id === orderId ? { ...deliveredOrder, status } : item));
-    if (status === 'completed') setProducts(finalizeReservedStock(products, order));
+    setProducts(finalizeReservedStock(products, order));
     return true;
   }, [orders, products, balances]);
 
@@ -235,8 +221,6 @@ export function AppProvider({ children }) {
     setBalances(updatedBalances);
     setPaymentTransactions(current => [...current, ...transactions]);
     if (completedOrderIds.size) {
-      const completedOrders = orders.filter(order => completedOrderIds.has(order.id));
-      setProducts(current => completedOrders.reduce((next, order) => finalizeReservedStock(next, order), current));
       setOrders(current => current.map(order => completedOrderIds.has(order.id) ? { ...order, status: 'completed' } : order));
     }
     if (plan.excess > 0) {

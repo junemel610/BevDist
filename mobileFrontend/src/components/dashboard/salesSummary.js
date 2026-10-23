@@ -2,7 +2,7 @@ import { orderDeliveryStatus, orderLifecycleStatus } from '../orders/orderLifecy
 
 export function invoiceSummary(order, balance) {
   const invoiceTotal = Number(order.grandTotal ?? balance?.totalAmount ?? 0);
-  const paidTotal = Number(balance?.amountPaid ?? order.deposit ?? 0);
+  const paidTotal = Number(balance?.amountPaid ?? 0);
   const total = Number.isFinite(invoiceTotal) ? Math.max(0, invoiceTotal) : 0;
   const received = Number.isFinite(paidTotal) ? Math.max(0, paidTotal) : 0;
   const amountPaid = Math.min(total, Math.max(0, received));
@@ -14,7 +14,7 @@ export function invoiceSummary(order, balance) {
     : remainingBalance === 0 ? 'paid' : received > 0 ? 'partial' : 'unpaid';
 
   return {
-    invoiceNumber: balance?.invoiceNumber || order.orderNumber?.replace(/^ORD-/, 'INV-'),
+    invoiceNumber: balance?.invoiceNumber || order.invoiceNumber || order.orderNumber?.replace(/^ORD-/, 'INV-'),
     amountPaid,
     totalDue: total,
     remainingBalance,
