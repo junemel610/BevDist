@@ -7,6 +7,8 @@ const { createInvoice, editInvoice, transitionInvoice } = require('../services/i
 const { recordPayment } = require('../services/paymentService');
 const { receiveSupplierOrder } = require('../services/supplierOrderService');
 const { loadAppData } = require('../models/app-data');
+const { createApp } = require('../app');
+const bcrypt = require('bcryptjs');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 
@@ -240,4 +242,40 @@ test('Manila reporting dates are independent of server timezone', async () => {
   });
   const day = await one("SELECT received_amount FROM daily_payment_summary WHERE business_date='2001-01-02' AND method='CASH'");
   assert.equal(Number(day.received_amount), 10);
+});
+
+test('HTTP routes authenticate, validate, and reach the same database workflows', async () => {
+  const f = await fixture();
+  const username = `api-${randomUUID()}`;
+  const password = 'test-password-with-enough-length';
+  const user = await one('INSERT INTO app_users(username,password_hash) VALUES ($1,$2) RETURNING id', [username, await bcrypt.hash(password, 4)]);
+  const app = createApp(pool, 'test-only-secret-longer-than-thirty-two-characters');
+  const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let token;
+  const request = (url, method = 'GET', body) => fetch(base + url, {
+    method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  try {
+    assert.equal((await request('/app-data')).status, 401);
+    assert.equal((await request('/auth/login', 'POST', { username, password: 'wrong' })).status, 401);
+    const signedIn = await request('/auth/login', 'POST', { username, password });
+    assert.equal(signedIn.status, 200);
+    token = (await signedIn.json()).token;
+    assert.equal((await request('/app-data')).status, 200);
+    assert.equal((await request('/invoices', 'POST', { customerId: f.customer, requestKey: randomUUID(), dueDate, items: [{ productId: f.product, packId: 'A', quantity: 0.1 }] })).status, 400);
+    const created = await request('/invoices', 'POST', { customerId: f.customer, requestKey: randomUUID(), dueDate,
+      items: [{ productId: f.product, packId: 'A', quantity: 1, casePrice: 1 }], total: 1, createdBy: actor });
+    assert.equal(created.status, 201);
+    const id = (await created.json()).id;
+    const stored = await one('SELECT total_amount,created_by FROM invoice_summary WHERE id=$1', [id]);
+    assert.equal(Number(stored.total_amount), 100);
+    assert.equal(stored.created_by, user.id);
+    assert.equal((await request(`/invoices/${id}/deliver`, 'POST')).status, 200);
+    assert.equal((await request(`/customers/${f.customer}/payments`, 'POST', { method: 'Cash', amountReceived: 100, requestKey: randomUUID() })).status, 201);
+    assert.equal((await one('SELECT status FROM invoice_summary WHERE id=$1', [id])).status, 'COMPLETED');
+    assert.equal((await request('/auth/logout', 'POST')).status, 204);
+    assert.equal((await request('/app-data')).status, 401);
+  } finally { await new Promise(resolve => server.close(resolve)); }
 });
