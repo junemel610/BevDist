@@ -401,3 +401,145 @@ test('mobile API helpers complete a persisted business flow without demo IDs', a
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+async function withApi(run) {
+  const jwt = require('jsonwebtoken');
+  const secret = 'test-only-secret-longer-than-thirty-two-characters';
+  const version = (await one('SELECT session_version FROM app_users WHERE id=$1', [actor])).session_version;
+  const token = jwt.sign({ sub: actor, version }, secret, { issuer: 'bevdist-api', audience: 'bevdist-mobile', expiresIn: '1h' });
+  const server = await new Promise(resolve => { const s = createApp(pool, secret).listen(0, '127.0.0.1', () => resolve(s)); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const request = (url, method = 'GET', body, credential = token) => fetch(base + url, {
+    method, headers: { 'Content-Type': 'application/json', ...(credential ? { Authorization: `Bearer ${credential}` } : {}) },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  try { await run({ request, base, token, secret }); }
+  finally { await new Promise(resolve => server.close(resolve)); }
+}
+
+test('all business routes reject unauthenticated requests', async t => withApi(async ({ request }) => {
+  const id = randomUUID();
+  for (const [method, url] of [
+    ['GET','/app-data'], ['POST','/invoices'], ['PUT',`/invoices/${id}`],
+    ['POST',`/invoices/${id}/deliver`], ['POST',`/invoices/${id}/cancel`],
+    ['POST',`/customers/${id}/payments`], ['POST','/customers'], ['PUT',`/customers/${id}`],
+    ['POST','/suppliers'], ['PUT',`/suppliers/${id}`], ['POST','/products'], ['PUT',`/products/${id}`],
+    ['DELETE',`/products/${id}`], ['POST',`/products/${id}/stock-adjustments`], ['POST','/supplier-orders'], ['POST','/auth/logout'],
+  ]) await t.test(`${method} ${url.replace(id, ':id')}`, async () => assert.equal((await request(url, method, method === 'GET' ? undefined : {}, null)).status, 401));
+}));
+
+test('HTTP boundary rejects invalid business inputs without changing invoice or stock records', async t => {
+  const f = await fixture(2);
+  const item = { productId: f.product, packId: 'A', quantity: 0.5 };
+  const input = { customerId: f.customer, requestKey: randomUUID(), dueDate, items: [item] };
+  const before = await one('SELECT count(*) AS count FROM invoices');
+  await withApi(async ({ request }) => {
+    for (const [name, url, method, body] of [
+      ['empty invoice', '/invoices', 'POST', { ...input, items: [] }],
+      ['quarter cases', '/invoices', 'POST', { ...input, items: [{ ...item, quantity: 0.25 }] }],
+      ['negative cases', '/invoices', 'POST', { ...input, items: [{ ...item, quantity: -0.5 }] }],
+      ['impossible date', '/invoices', 'POST', { ...input, dueDate: '2026-02-30' }],
+      ['missing customer', '/invoices', 'POST', { ...input, customerId: 'bad-id' }],
+      ['oversized list', '/invoices', 'POST', { ...input, items: Array(101).fill(item) }],
+      ['negative refund', '/invoices', 'POST', { ...input, containerReturns: [{ type: 'Empty', quantity: 1, refundPerCase: -1 }] }],
+      ['quarter return', '/invoices', 'POST', { ...input, containerReturns: [{ type: 'Empty', quantity: 0.25, refundPerCase: 1 }] }],
+      ['empty customer name', '/customers', 'POST', { name: ' ' }],
+      ['object contact', '/customers', 'POST', { name: 'Store', contact: {} }],
+      ['empty supplier', '/suppliers', 'POST', { name: '' }],
+      ['zero payment', `/customers/${f.customer}/payments`, 'POST', { requestKey: randomUUID(), method: 'Cash', amountReceived: 0 }],
+      ['payment precision', `/customers/${f.customer}/payments`, 'POST', { requestKey: randomUUID(), method: 'Cash', amountReceived: '1.001' }],
+      ['unsupported method', `/customers/${f.customer}/payments`, 'POST', { requestKey: randomUUID(), method: 'Cheque', amountReceived: 1 }],
+      ['zero case price', '/products', 'POST', { name: 'Invalid', supplierId: f.supplier, packs: [{ packId: 'A', casePrice: 0 }] }],
+      ['unknown case pack', '/products', 'POST', { name: 'Invalid', supplierId: f.supplier, packs: [{ packId: 'NOPE', casePrice: 1 }] }],
+      ['invalid product ID', '/products/bad-id', 'PUT', {}],
+      ['zero adjustment', `/products/${f.product}/stock-adjustments`, 'POST', { packId: 'A', quantityDelta: 0, reason: 'Count', requestKey: randomUUID() }],
+      ['zero purchase cost', '/supplier-orders', 'POST', { supplierId: f.supplier, requestKey: randomUUID(), items: [{ ...item, unitCost: 0 }] }],
+    ]) await t.test(name, async () => {
+      const result = await request(url, method, body);
+      assert.equal(result.status, 400);
+      assert.equal(typeof (await result.json()).error, 'string');
+    });
+  });
+  assert.equal((await one('SELECT count(*) AS count FROM invoices')).count, before.count);
+  assert.equal(Number((await one("SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code='A'", [f.product])).total_stock_cases), 2);
+});
+
+test('health, routing and body-parser errors have safe responses', async () => withApi(async ({ request, base, token }) => {
+  assert.deepEqual(await (await request('/health')).json(), { status: 'ok', database: 'connected' });
+  assert.equal((await request('/unknown')).status, 404);
+  const malformed = await fetch(base + '/invoices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' });
+  assert.equal(malformed.status, 400);
+  const oversized = await fetch(base + '/customers', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: 'x'.repeat(140000) }) });
+  assert.equal(oversized.status, 413);
+  assert.equal((await request(`/invoices/${randomUUID()}/deliver`, 'POST')).status, 404);
+}));
+
+test('authentication rejects expired, incorrectly signed, inactive and revoked sessions and throttles login', async t => withApi(async ({ request, secret }) => {
+  const jwt = require('jsonwebtoken');
+  const claims = { sub: actor, version: 0 };
+  for (const [name, token] of [
+    ['expired', jwt.sign(claims, secret, { issuer: 'bevdist-api', audience: 'bevdist-mobile', expiresIn: -1 })],
+    ['wrong signature', jwt.sign(claims, 'wrong-secret', { issuer: 'bevdist-api', audience: 'bevdist-mobile' })],
+    ['wrong audience', jwt.sign(claims, secret, { issuer: 'bevdist-api', audience: 'another-app' })],
+    ['revoked', jwt.sign({ ...claims, version: -1 }, secret, { issuer: 'bevdist-api', audience: 'bevdist-mobile' })],
+  ]) await t.test(name, async () => assert.equal((await request('/app-data', 'GET', undefined, token)).status, 401));
+  await pool.query('UPDATE app_users SET is_active=false WHERE id=$1', [actor]);
+  try { assert.equal((await request('/app-data')).status, 401); }
+  finally { await pool.query('UPDATE app_users SET is_active=true WHERE id=$1', [actor]); }
+  for (let i = 0; i < 10; i++) assert.equal((await request('/auth/login', 'POST', { username: 'missing-user', password: 'wrong' }, null)).status, 401);
+  assert.equal((await request('/auth/login', 'POST', { username: 'missing-user', password: 'wrong' }, null)).status, 429);
+}));
+
+test('a fully paid undelivered invoice reserves stock until delivery and then becomes immutable', async () => {
+  const f = await fixture(2);
+  const id = await invoice(f, 1);
+  await pay(f, 100);
+  let row = await one('SELECT * FROM invoice_summary WHERE id=$1', [id]);
+  assert.equal(row.status, 'PENDING');
+  assert.equal(row.delivery_status, 'PENDING');
+  assert.equal(Number((await one("SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code='A'", [f.product])).total_stock_cases), 2);
+  await transitionInvoice(pool, id, 'deliver');
+  row = await one('SELECT * FROM invoice_summary WHERE id=$1', [id]);
+  assert.equal(row.status, 'COMPLETED');
+  await assert.rejects(editInvoice(pool, id, { items: [{ productId: f.product, packId: 'A', quantity: 0.5 }], containerReturns: [] }));
+  await assert.rejects(transitionInvoice(pool, id, 'cancel', 'Too late'));
+});
+
+test('migration runner detects missing or modified applied migrations', async () => {
+  const row = await one('SELECT * FROM schema_migrations ORDER BY name LIMIT 1');
+  try {
+    await pool.query("UPDATE schema_migrations SET checksum='invalid' WHERE name=$1", [row.name]);
+    await assert.rejects(migrate(pool), /Applied migration changed/);
+    await pool.query("UPDATE schema_migrations SET name='999_unknown.sql' WHERE name=$1", [row.name]);
+    await assert.rejects(migrate(pool), /Applied migration missing/);
+  } finally {
+    await pool.query('UPDATE schema_migrations SET name=$1,checksum=$2 WHERE name=$1 OR name=$3', [row.name, row.checksum, '999_unknown.sql']);
+  }
+});
+
+test('all five case packs keep independent half-case stock and Bank Transfer reconciles with the dashboard', async () => {
+  const f = await fixture(2);
+  for (const pack of ['MUCHO_6', 'MUCHO_12']) {
+    await pool.query('INSERT INTO product_case_packs(product_id,pack_code,case_price) VALUES ($1,$2,120)', [f.product, pack]);
+    await pool.query(`INSERT INTO inventory_movements(product_id,pack_code,kind,quantity_delta,request_key,reason,created_by)
+      VALUES ($1,$2,'OPENING',2,$3,'Test opening',$4)`, [f.product, pack, randomUUID(), actor]);
+  }
+  const packs = ['A', 'B', 'C', 'MUCHO_6', 'MUCHO_12'];
+  const id = await createInvoice(pool, {
+    customerId: f.customer, requestKey: randomUUID(), dueDate,
+    items: packs.map(packId => ({ productId: f.product, packId, quantity: 0.5 })),
+  }, actor);
+  await transitionInvoice(pool, id, 'deliver');
+  const receiptId = await pay(f, 300, { method: 'Bank Transfer' });
+  const snapshot = await loadAppData(pool);
+  const order = snapshot.orders.find(o => o.id === id);
+  assert.equal(order.status, 'completed');
+  assert.equal(order.grandTotal, 295);
+  for (const pack of packs) assert.equal(snapshot.products.find(p => p.id === f.product).stockByCasePack[pack].totalStock, 1.5);
+  const receipt = snapshot.payments.find(p => p.id === receiptId);
+  assert.equal(receipt.method, 'Bank Transfer');
+  assert.equal(receipt.allocations.reduce((sum, entry) => sum + entry.amountApplied, 0), 295);
+  const { dailyAppliedPayments } = await import(pathToFileURL(path.resolve(__dirname, '../../mobileFrontend/src/components/dashboard/salesSummary.js')));
+  const daily = dailyAppliedPayments(snapshot.orders, snapshot.balances, snapshot.paymentTransactions.filter(p => p.receiptId === receiptId), receipt.date.slice(0, 10));
+  assert.deepEqual(daily, { Cash: 0, GCash: 0, 'Bank Transfer': 295 });
+});

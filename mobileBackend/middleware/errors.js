@@ -7,6 +7,7 @@ const asyncHandler = handler => (req, res, next) => Promise.resolve(handler(req,
 function errorHandler(error, req, res, next) {
   if (res.headersSent) return next(error);
   if (error instanceof HttpError) return res.status(error.status).json({ error: error.message });
+  if (error.type === 'entity.too.large') return res.status(413).json({ error: 'Request body is too large' });
   if (error.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body' });
   if (['23514', '23502', '22P02', '22003'].includes(error.code)) return res.status(400).json({ error: 'Invalid quantities, amounts, or required fields' });
   if (['23503', '23505', 'P0001', '40001', '40P01'].includes(error.code)) return res.status(409).json({ error: 'The operation conflicts with current records. Refresh and try again.' });
