@@ -25,3 +25,10 @@ export function customerCreditKey(customer) {
 export function creditAppliedToInvoice(credit, invoiceTotal) {
   return Math.min(Math.max(0, Number(credit) || 0), Math.max(0, Number(invoiceTotal) || 0));
 }
+
+export function customerCreditRows(customerCredits, customers) {
+  return Object.entries(customerCredits).map(([key, amount]) => {
+    const customer = customers.find(row => customerCreditKey(row) === key);
+    return { key, customerId: customer?.id, name: customer?.name || 'Customer profile unavailable', amount: Number(amount) || 0 };
+  }).filter(row => row.amount > 0).sort((a, b) => a.name.localeCompare(b.name));
+}

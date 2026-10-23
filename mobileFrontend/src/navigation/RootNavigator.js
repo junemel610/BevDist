@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { LoginScreen } from '../screens/LoginScreen';
+import { CustomerCreditsScreen } from '../screens/CustomerCreditsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import {
@@ -51,6 +52,7 @@ function BalancesStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="BalancesMain" component={BalancesScreen} options={{ title: 'Balances', headerShown: false }} />
+      <Stack.Screen name="CustomerCredits" component={CustomerCreditsScreen} options={{ title: 'Customer credits' }} />
       <Stack.Screen name="GCashTransactions" component={GCashTransactionsScreen} options={{ title: 'GCash' }} />
     </Stack.Navigator>
   );
