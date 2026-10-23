@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
@@ -10,8 +10,19 @@ export function ProfileScreen() {
   const { currentUser, logout, refreshData } = useApp();
 
   const [signingOut, setSigningOut] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const actionPending = signingOut || refreshing;
   const [error, setError] = useState('');
   const pending = useRef(false);
+  const refresh = async () => {
+    if (pending.current) return;
+    pending.current = true;
+    setRefreshing(true);
+    setError('');
+    try { await refreshData(); }
+    catch { setError('Could not refresh. Check your connection and try again.'); }
+    finally { pending.current = false; setRefreshing(false); }
+  };
   const signOut = () => !pending.current && confirmAction({
     title: 'Sign out?',
     message: 'You can sign back in to continue.',
@@ -50,19 +61,25 @@ export function ProfileScreen() {
           <Text style={styles.infoText}>Connected to the business database. Refresh to load the latest invoices and stock.</Text>
         </View>
 
-        <Pressable disabled={signingOut} accessibilityRole="button" onPress={async () => {
-          setSigningOut(true); setError('');
-          try { await refreshData(); }
-          catch { setError('Could not refresh. Check your connection and try again.'); }
-          finally { setSigningOut(false); }
-        }} style={styles.signOutButton}><Text style={styles.infoText}>{signingOut ? 'Please wait…' : 'Refresh records'}</Text></Pressable>
+        <Pressable
+          disabled={actionPending}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: actionPending, busy: refreshing }}
+          onPress={refresh}
+          style={({ pressed }) => [styles.refreshButton, actionPending && styles.disabled, pressed && styles.pressed]}
+        >
+          {refreshing
+            ? <ActivityIndicator size="small" color={theme.colors.onPrimary} />
+            : <MaterialIcons name="refresh" size={22} color={theme.colors.onPrimary} accessible={false} />}
+          <Text style={styles.refreshLabel}>{refreshing ? 'Refreshing records…' : 'Refresh records'}</Text>
+        </Pressable>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable
-          disabled={signingOut}
-          accessibilityState={{ disabled: signingOut, busy: signingOut }}
+          disabled={actionPending}
+          accessibilityState={{ disabled: actionPending, busy: signingOut }}
           onPress={signOut}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.signOutButton, actionPending && styles.disabled, pressed && styles.pressed]}
         >
           <MaterialIcons name="logout" size={20} color={theme.colors.danger} accessible={false} />
           <Text style={styles.signOutLabel}>{signingOut ? 'Signing out…' : 'Sign out'}</Text>
@@ -85,6 +102,9 @@ const styles = StyleSheet.create({
   username: { color: theme.colors.text, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
   infoCard: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, padding: theme.spacing.md, borderRadius: 12, backgroundColor: theme.colors.primarySoft },
   infoText: { flex: 1, color: theme.colors.primary, fontSize: theme.fontSize.sm, lineHeight: 21 },
+  refreshButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.lg, borderRadius: 12, backgroundColor: theme.colors.primary },
+  refreshLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
+  disabled: { opacity: 0.6 },
   signOutButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.danger, borderRadius: 12, backgroundColor: theme.colors.surface },
   signOutLabel: { color: theme.colors.danger, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.semibold },
   error: { color: theme.colors.danger, fontSize: theme.fontSize.sm },
