@@ -23,8 +23,8 @@ import { confirmAction } from '../utils/confirmAction';
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export function SupplierOrdersScreen() {
-  const { products, restockRecords, addRestockRecord } = useApp();
-  const [supplier, setSupplier] = useState('Coca-Cola');
+  const { products, suppliers: savedSuppliers, restockRecords, addRestockRecord } = useApp();
+  const [selectedSupplier, setSupplier] = useState('');
   const [items, setItems] = useState([]);
   const [returnedCases, setReturnedCases] = useState(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: '' })));
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -40,7 +40,8 @@ export function SupplierOrdersScreen() {
     return () => clearTimeout(timeout);
   }, [notice]);
 
-  const suppliers = useMemo(() => [...new Set(products.map(product => product.supplier))], [products]);
+  const suppliers = useMemo(() => savedSuppliers.map(entry => entry.name), [savedSuppliers]);
+  const supplier = suppliers.includes(selectedSupplier) ? selectedSupplier : suppliers[0] || '';
   const supplierProducts = useMemo(() => products.filter(product => product.supplier === supplier), [products, supplier]);
   const availableProducts = supplierProducts.flatMap(product => casePacksForProduct(product).map(pack => ({ product, pack })))
     .filter(({ product, pack }) => !items.some(item => item.productId === product.id && item.packId === pack.id));
@@ -84,6 +85,7 @@ export function SupplierOrdersScreen() {
   };
 
   const saveOrder = () => {
+    if (!supplier) { setError('Add a product and supplier in Inventory first.'); return; }
     const orderItems = items.map(item => ({
       ...item,
       quantity: Number(item.quantity) || 0,
@@ -101,8 +103,8 @@ export function SupplierOrdersScreen() {
       title: 'Save supplier order?',
       message: `${supplier}: ${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} · Net cost ${formatPeso(Math.max(0, productCost - returnCredit))}. Inventory stock will be updated.`,
       confirmLabel: 'Save order',
-      onConfirm: () => {
-        addRestockRecord(supplier, orderItems, recordedReturns);
+      onConfirm: async () => {
+        await addRestockRecord(supplier, orderItems, recordedReturns);
         setItems([]);
         setReturnedCases(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: '' })));
         setError('');

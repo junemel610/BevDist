@@ -14,6 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
+import { availableStock as getStockAvailable } from '../components/inventory/inventoryUtils';
+import { invoiceEditorProducts } from '../components/orders/pendingInvoice';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
 import { availableCases, casePacksForProduct, invoiceCaseItem } from '../components/orders/casePacks';
 import { groupOpenCustomerBalances } from '../components/balances/customerAccounts';
@@ -46,6 +48,7 @@ export function OrdersScreen({ navigation, route }) {
   const [exporting, setExporting] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
+  const invoiceProducts = useMemo(() => invoiceEditorProducts(products, editingOrder), [products, editingOrder]);
   const [selectedCustomer, setSelectedCustomer] = useState(customers[0]);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
@@ -220,8 +223,8 @@ export function OrdersScreen({ navigation, route }) {
             title: 'Mark invoice as delivered?',
             message: `${detailOrder.invoiceNumber} for ${detailOrder.customer.name}. It will be completed once it is fully paid.`,
             confirmLabel: 'Mark delivered',
-            onConfirm: () => {
-              if (updateOrderStatus(detailOrder.id, 'completed')) setDetailOrder(null);
+            onConfirm: async () => {
+              if (await updateOrderStatus(detailOrder.id, 'completed')) setDetailOrder(null);
               else Alert.alert('Could not update invoice', 'This invoice may already be delivered or cancelled.');
             },
           });
@@ -233,8 +236,8 @@ export function OrdersScreen({ navigation, route }) {
             message: 'Reserved stock will be released. This action cannot be undone.',
             confirmLabel: 'Cancel invoice',
             destructive: true,
-            onConfirm: () => {
-              if (updateOrderStatus(detailOrder.id, 'cancelled')) setDetailOrder(null);
+            onConfirm: async () => {
+              if (await updateOrderStatus(detailOrder.id, 'cancelled')) setDetailOrder(null);
               else Alert.alert('Could not cancel', 'Delivered or completed invoices cannot be cancelled here.');
             },
           });
@@ -243,7 +246,7 @@ export function OrdersScreen({ navigation, route }) {
       <CreateInvoiceModal
         visible={creatingInvoice || Boolean(route.params?.openCreateInvoiceToken) || Boolean(editingOrder)}
         width={width}
-        products={products}
+        products={invoiceProducts}
         customers={customers}
         balances={balances}
         orders={orders}
@@ -273,7 +276,7 @@ export function OrdersScreen({ navigation, route }) {
           navigation.setParams({ openCreateInvoiceToken: undefined });
         }}
         onSave={() => {
-          const items = products.flatMap(product => casePacksForProduct(product).flatMap(pack => {
+          const items = invoiceProducts.flatMap(product => casePacksForProduct(product).flatMap(pack => {
             const quantity = cart[`${product.id}:${pack.id}`] || 0;
             const item = quantity > 0 ? invoiceCaseItem(product, pack, quantity) : null;
             return item ? [item] : [];
@@ -289,30 +292,30 @@ export function OrdersScreen({ navigation, route }) {
             title: editingOrder ? 'Save invoice changes?' : 'Create this invoice?',
             message: `${customerName} · ${items.length} product lines · ${formatPeso(total)}${isNewCustomer ? '. A new customer profile will also be saved.' : ''}`,
             confirmLabel: editingOrder ? 'Save changes' : 'Create invoice',
-            onConfirm: () => {
+            onConfirm: async () => {
               if (editingOrder) {
-                const result = editPendingInvoice(editingOrder.id, items);
+                const result = await editPendingInvoice(editingOrder.id, items);
                 if (result.error) {
                   Alert.alert('Could not update invoice', result.error);
                   return;
                 }
                 setCaseToast(`${editingOrder.invoiceNumber} updated. ${items.map(item => {
-                  const product = products.find(entry => entry.id === item.productId);
-                  const remaining = Math.max(0, getAvailableStock(product.id, item.packId) + item.quantity
-                    - (editingOrder.items.find(line => line.productId === item.productId && line.packId === item.packId)?.quantity || 0));
-                  const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
-                  return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
+                  const product = result.products.find(entry => entry.id === item.productId);
+                  const remaining = getStockAvailable(product, item.packId);
+                  return `${product.name}: ${remaining} ${item.packLabel} cases left`;
                 }).join(' · ')}`);
                 setEditingOrder(null);
                 setCart({});
                 return;
               }
-              const customer = isNewCustomer ? saveCustomer(newCustomer) : selectedCustomer;
+              const customer = isNewCustomer ? await saveCustomer(newCustomer) : selectedCustomer;
               if (!customer) {
                 Alert.alert('Customer name required', 'Enter a customer name to save this profile.');
                 return;
               }
-              const order = createOrder(customer, items);
+              setSelectedCustomer(customer);
+              setIsNewCustomer(false);
+              const order = await createOrder(customer, items);
               if (!order) {
                 Alert.alert('Not enough stock', 'Available stock changed. Review the case quantities and try again.');
                 return;
@@ -324,10 +327,8 @@ export function OrdersScreen({ navigation, route }) {
               setCreatingInvoice(false);
               navigation.setParams({ openCreateInvoiceToken: undefined });
               setCaseToast(items.map(item => {
-                const product = products.find(entry => entry.id === item.productId);
-                const remaining = Math.max(0, getAvailableStock(product.id, item.packId) - item.quantity);
-                const cases = availableCases(remaining, { unitsPerCase: item.unitsPerCase });
-                return `${product.name}: ${cases} ${item.packLabel} ${cases === 1 ? 'case' : 'cases'} left`;
+                const product = order.products.find(entry => entry.id === item.productId);
+                return `${product.name}: ${getStockAvailable(product, item.packId)} ${item.packLabel} cases left`;
               }).join(' · '));
               Alert.alert('Invoice created', order.appliedCredit > 0
                 ? `${invoiceNumber} created. ${formatPeso(order.appliedCredit)} customer credit applied.`

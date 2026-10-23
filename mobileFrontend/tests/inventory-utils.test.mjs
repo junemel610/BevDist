@@ -19,6 +19,8 @@ test('inventory stock status uses available cases and the 15-case threshold', ()
 test('products with active stock reservations cannot be deleted', () => {
   assert.equal(canDeleteProduct({ reservedStock: 0 }), true);
   assert.equal(canDeleteProduct({ reservedStock: 0.5 }), false);
+  assert.equal(canDeleteProduct({ stockByCasePack: { A: { totalStock: 0.5, reservedStock: 0 } } }), false);
+  assert.equal(canDeleteProduct({ stockByCasePack: { A: { totalStock: 0, reservedStock: 0 } } }), true);
 });
 
 test('inventory filters combine product or supplier search, status, and supplier', () => {

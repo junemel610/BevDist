@@ -8,8 +8,8 @@ export const stockForCasePack = (product, packId) => {
 export const availableStock = (product, packId) => !product ? 0 : packId
   ? stockForCasePack(product, packId).totalStock - stockForCasePack(product, packId).reservedStock
   : product.casePackIds?.reduce((sum, id) => sum + availableStock(product, id), 0) ?? (product.totalStock - product.reservedStock);
-export const canDeleteProduct = product => Object.values(product.stockByCasePack ?? {}).every(stock => !stock.reservedStock)
-  && !(product.reservedStock > 0);
+export const canDeleteProduct = product => Object.values(product.stockByCasePack ?? {}).every(stock => !stock.reservedStock && !stock.totalStock)
+  && !(product.reservedStock > 0) && !(product.totalStock > 0);
 
 export const stockState = amount => amount <= 0 ? 'out' : amount <= 15 ? 'low' : 'healthy';
 export const productStockState = product => {

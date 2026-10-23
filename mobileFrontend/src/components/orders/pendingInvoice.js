@@ -51,3 +51,12 @@ export function updatePendingInvoice(products, order, balance, items) {
   } : null;
   return { products: updatedProducts, order: updatedOrder, balance: updatedBalance };
 }
+
+export function invoiceEditorProducts(products, order) {
+  if (!order) return products;
+  return products.map(product => ({ ...product, casePrices: {
+    ...product.casePrices,
+    ...Object.fromEntries(order.items.filter(item => item.productId === product.id)
+      .map(item => [item.packId, item.casePrice])),
+  } }));
+}

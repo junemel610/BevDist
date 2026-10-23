@@ -40,8 +40,8 @@ export function CustomerProfilesScreen() {
       title: editor?.id ? 'Save customer changes?' : 'Add this customer?',
       message: `Customer profile: ${draft.name.trim()}.`,
       confirmLabel: editor?.id ? 'Save changes' : 'Add customer',
-      onConfirm: () => {
-        const saved = saveCustomer(draft);
+      onConfirm: async () => {
+        const saved = await saveCustomer(draft);
         if (!saved) {
           setError('Enter a customer name.');
           return;

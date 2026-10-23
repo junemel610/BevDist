@@ -118,8 +118,8 @@ export function BalancesScreen({ navigation }) {
       title: 'Record this payment?',
       message: `${formatPeso(Number(paymentAmount))} by ${paymentMethod} for ${selectedAccount.customerName}. The oldest invoice is paid first; extra payment becomes customer credit.`,
       confirmLabel: 'Record payment',
-      onConfirm: () => {
-        const result = recordCustomerPayment(selectedAccount, Number(paymentAmount), paymentMethod);
+      onConfirm: async () => {
+        const result = await recordCustomerPayment(selectedAccount, Number(paymentAmount), paymentMethod);
         if (!result) {
           setError('This balance could not be updated. Reopen it and try again.');
           return;

@@ -46,6 +46,7 @@ export function InventoryScreen() {
   const [stockByCasePack, setStockByCasePack] = useState({});
   const [casePackIds, setCasePackIds] = useState([]);
   const [casePrices, setCasePrices] = useState({});
+  const [stockReason, setStockReason] = useState('');
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const { width } = useWindowDimensions();
@@ -70,6 +71,7 @@ export function InventoryScreen() {
 
   const startEditing = useCallback(product => {
     setAddingProduct(false);
+    setStockReason('');
     setEditingProduct(product);
     const packs = casePacksForProduct(product);
     setCasePackIds(packs.map(pack => pack.id));
@@ -84,6 +86,7 @@ export function InventoryScreen() {
 
   const startAdding = () => {
     setAddingProduct(true);
+    setStockReason('Opening stock count');
     setEditingProduct({ name: 'New product', reservedStock: 0 });
     setProductName('');
     setSupplierName('');
@@ -94,6 +97,7 @@ export function InventoryScreen() {
   };
 
   const saveProduct = () => {
+    if (!stockReason.trim()) { setError('Enter a reason for this stock count.'); return; }
     const normalizedStock = Object.fromEntries(selectedCasePackIds.map(id => [id, { totalStock: Number(stockByCasePack[id]) }]));
     if (addingProduct) {
       const { error: validationError } = createProductProfile(products, {
@@ -111,8 +115,8 @@ export function InventoryScreen() {
         title: 'Add product to inventory?',
         message: `${productName.trim()} · ${selectedCasePackIds.map(id => `${id}: ${stockByCasePack[id] || 0} cases at ${formatPeso(casePrices[id])}/case`).join(' · ')}.`,
         confirmLabel: 'Add product',
-        onConfirm: () => {
-          const product = addProduct({ name: productName, supplier: supplierName, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices });
+        onConfirm: async () => {
+          const product = await addProduct({ name: productName, supplier: supplierName, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason });
           if (!product) {
             setError('Could not add this product. Check the details and try again.');
             return;
@@ -133,8 +137,8 @@ export function InventoryScreen() {
       title: 'Save inventory changes?',
       message: `${editingProduct.name}: ${priceSummary}.`,
       confirmLabel: 'Save changes',
-      onConfirm: () => {
-        if (!updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices })) {
+      onConfirm: async () => {
+        if (!await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason }, editingProduct)) {
           setError('Could not save these inventory values. Check them and try again.');
           return;
         }
@@ -146,12 +150,12 @@ export function InventoryScreen() {
 
   const confirmDeleteProduct = () => confirmAction({
     title: 'Delete this product?',
-    message: `${editingProduct.name} and its remaining stock will be removed from inventory. Past invoices and supplier order history will remain.`,
+    message: `${editingProduct.name} will be archived. Physical and reserved stock must both be zero. Past invoices and supplier order history will remain.`,
     confirmLabel: 'Delete product',
     destructive: true,
-    onConfirm: () => {
-      if (!deleteProduct(editingProduct.id)) {
-        setError('This product has stock reserved for an active invoice and cannot be deleted.');
+    onConfirm: async () => {
+      if (!await deleteProduct(editingProduct.id)) {
+        setError('Clear physical stock and reservations before deleting this product.');
         return;
       }
       setEditingProduct(null);
@@ -327,6 +331,8 @@ export function InventoryScreen() {
                 );
               })}
               {!selectedCasePackIds.length ? <Text style={styles.helperText}>Select at least one case type.</Text> : null}
+              <Text style={styles.fieldLabel}>Stock count reason</Text>
+              <TextInput value={stockReason} onChangeText={setStockReason} placeholder="e.g. Physical count correction" accessibilityLabel="Stock count reason" style={styles.fieldInput} />
               <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock separately for each case type. Use half-case steps.' : 'Stock and reservations stay separate for each case type.'}</Text>
               {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
             </ScrollView>

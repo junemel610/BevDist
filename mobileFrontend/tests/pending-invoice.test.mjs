@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { updatePendingInvoice } from '../src/components/orders/pendingInvoice.js';
+import { updatePendingInvoice, invoiceEditorProducts } from '../src/components/orders/pendingInvoice.js';
 
 const product = {
   id: 'p1',
@@ -46,4 +46,12 @@ test('editing items preserves the container deduction and net balance', () => {
   assert.equal(result.order.subtotal, 200);
   assert.equal(result.order.grandTotal, 170);
   assert.equal(result.balance.remainingBalance, 150);
+});
+
+test('the live invoice editor shows retained prices while new packs use current catalog prices', () => {
+  const catalog = [{ id: 'p1', casePrices: { A: 150, B: 200 } }];
+  const shown = invoiceEditorProducts(catalog, { items: [{ productId: 'p1', packId: 'A', casePrice: 100 }] });
+  assert.deepEqual(shown[0].casePrices, { A: 100, B: 200 });
+  assert.equal(catalog[0].casePrices.A, 150);
+  assert.equal(invoiceEditorProducts(catalog, null), catalog);
 });

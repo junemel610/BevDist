@@ -1,326 +1,134 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import {
-  INITIAL_PRODUCTS,
-  INITIAL_ORDERS,
-  INITIAL_BALANCES,
-  INITIAL_RESTOCK_RECORDS,
-  INITIAL_CUSTOMERS,
-  INITIAL_PAYMENT_TRANSACTIONS,
-  INITIAL_CUSTOMER_CREDITS,
-} from '../data/initialData';
-import { availableStock, canDeleteProduct, createProductProfile, isValidInventoryUpdate, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
-import { balanceStatus, creditAppliedToInvoice, customerCreditKey } from '../components/balances/balanceUtils';
-import { canMarkDelivered, orderLifecycleStatus, finalizeReservedStock } from '../components/orders/orderLifecycle';
-import { updatePendingInvoice as applyPendingInvoiceUpdate } from '../components/orders/pendingInvoice';
-import { saveCustomerProfile } from '../components/customers/customerProfiles';
-import { createPaymentTransaction } from '../components/balances/paymentLedger';
+import { randomUUID } from 'expo-crypto';
+import * as api from '../api/index';
+import { setUnauthorizedHandler, setAuthToken } from '../api/client';
+import { createLiveData } from '../api/liveData';
+import { availableStock, stockState } from '../components/inventory/inventoryUtils';
 import { PAYMENT_METHOD } from '../types';
-import { authAPI } from '../api/index';
-import { setUnauthorizedHandler } from '../api/client';
-import { allocateAccountPayment } from '../components/balances/customerAccounts';
 
-function releaseReservedStock(products, order) {
-  return products.map((product) => {
-    const quantities = {};
-    order.items.filter(item => item.productId === product.id && item.packId).forEach(item => {
-      const packId = item.packId;
-      quantities[packId] = (quantities[packId] || 0) + (item.stockQuantity ?? item.quantity);
-    });
-    const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
-      const stock = stockForCasePack(product, packId);
-      return [packId, { ...stock, reservedStock: stock.reservedStock - quantity }];
-    }));
-    return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
-  });
-}
-
+const emptyData = () => ({ products: [], suppliers: [], customers: [], orders: [], restockRecords: [], balances: [], paymentTransactions: [], payments: [], customerCredits: {} });
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
-  const [customers, setCustomers] = useState(INITIAL_CUSTOMERS);
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
-  const [restockRecords, setRestockRecords] = useState(INITIAL_RESTOCK_RECORDS);
-  const [balances, setBalances] = useState(INITIAL_BALANCES);
-  const [paymentTransactions, setPaymentTransactions] = useState(INITIAL_PAYMENT_TRANSACTIONS);
-  const [customerCredits, setCustomerCredits] = useState(INITIAL_CUSTOMER_CREDITS);
-  const authPending = useRef(false);
+  const [data, setData] = useState(emptyData);
+  const [busy, setBusy] = useState(false);
+  const [dataError, setDataError] = useState('');
   const [sessionMessage, setSessionMessage] = useState('');
+  const pending = useRef(false);
+  const generation = useRef(0);
+  const live = useRef(null);
+  if (live.current === null) live.current = createLiveData(api, randomUUID);
+  const { products, suppliers, orders, balances, paymentTransactions } = data;
+
   const clearSession = useCallback(() => {
+    generation.current++;
+    setAuthToken(null);
+    live.current.clear();
     setCurrentUser(null);
     setIsLoggedIn(false);
-    setProducts(INITIAL_PRODUCTS);
-    setCustomers(INITIAL_CUSTOMERS);
-    setOrders(INITIAL_ORDERS);
-    setRestockRecords(INITIAL_RESTOCK_RECORDS);
-    setBalances(INITIAL_BALANCES);
-    setPaymentTransactions(INITIAL_PAYMENT_TRANSACTIONS);
-    setCustomerCredits(INITIAL_CUSTOMER_CREDITS);
+    setData(emptyData());
+    setDataError('');
   }, []);
-
   useEffect(() => setUnauthorizedHandler(() => {
     clearSession();
     setSessionMessage('Your session has expired. Please sign in again.');
   }), [clearSession]);
 
-  const login = useCallback(async (username, password) => {
-    if (authPending.current) return;
-    authPending.current = true;
-    setSessionMessage('');
-    try {
-      const { data } = await authAPI.login(username.trim(), password);
-      setCurrentUser(data.user.username);
-      setIsLoggedIn(true);
-    } finally { authPending.current = false; }
+  const loadData = useCallback(async () => {
+    const session = generation.current;
+    const snapshot = await live.current.load();
+    if (session !== generation.current) throw new Error('Session changed. Please sign in again.');
+    setData(snapshot);
+    setDataError('');
+    return snapshot;
   }, []);
 
-  const logout = useCallback(async () => {
-    if (authPending.current) return;
-    authPending.current = true;
+  const refreshData = useCallback(async () => {
+    if (pending.current) throw new Error('Another request is still running.');
+    pending.current = true;
+    setBusy(true);
+    try { return await loadData(); }
+    finally { pending.current = false; setBusy(false); }
+  }, [loadData]);
+
+  const login = useCallback(async (username, password) => {
+    if (pending.current) throw new Error('Another request is still running.');
+    pending.current = true;
+    setSessionMessage('');
     try {
-      await authAPI.logout();
-      clearSession();
-      setSessionMessage('');
-    } finally { authPending.current = false; }
+      const { data: signedIn } = await api.authAPI.login(username.trim(), password);
+      await loadData();
+      setCurrentUser(signedIn.user.username);
+      setIsLoggedIn(true);
+    } catch (error) { clearSession(); throw error; }
+    finally { pending.current = false; }
+  }, [loadData, clearSession]);
+
+  const logout = useCallback(async () => {
+    if (pending.current) throw new Error('Another request is still running.');
+    pending.current = true;
+    try { await api.authAPI.logout(); clearSession(); setSessionMessage(''); }
+    finally { pending.current = false; }
   }, [clearSession]);
 
-  const saveCustomer = useCallback((profile) => {
-    const result = saveCustomerProfile(customers, profile);
-    if (!result.error) setCustomers(result.customers);
-    return result.customer;
-  }, [customers]);
-
-  // Order actions
-  const createOrder = useCallback((customer, items) => {
-    const requestedStock = items.reduce((totals, item) => {
-      const key = `${item.productId}:${item.packId}`;
-      totals[key] = (totals[key] || 0) + (item.stockQuantity ?? item.quantity);
-      return totals;
-    }, {});
-    if (Object.entries(requestedStock).some(([key, quantity]) => {
-      const [productId, packId] = key.split(':');
-      const product = products.find((item) => item.id === productId);
-      return !product || quantity > availableStock(product, packId);
-    })) return false;
-
-    const invoiceNumber = `INV-2026-${String(orders.length + 1).padStart(3, '0')}`;
-    const total = items.reduce((sum, item) => sum + Math.round(item.quantity * (item.casePrice ?? item.unitPrice) * 100), 0) / 100;
-    const totalDue = total;
-    const creditKey = customerCreditKey(customer);
-    const creditAvailable = Number(customerCredits[creditKey] || 0);
-    const appliedCredit = creditAppliedToInvoice(creditAvailable, totalDue);
-    const newOrder = {
-      id: `o${Date.now()}`,
-      orderNumber: `ORD-2026-${String(orders.length + 1).padStart(3, '0')}`,
-      invoiceNumber,
-      customerId: customer.id,
-      customer,
-      items,
-      subtotal: total,
-      containerReturns: [],
-      containerRefundTotal: 0,
-      grandTotal: total,
-      status: 'pending',
-      deliveryStatus: 'pending',
-      date: new Date().toISOString().split('T')[0],
-    };
-
-    // Reserve stock for pending orders
-    const updatedProducts = products.map(product => {
-      const quantities = {};
-      items.filter(item => item.productId === product.id).forEach(item => {
-        quantities[item.packId] = (quantities[item.packId] || 0) + (item.stockQuantity ?? item.quantity);
-      });
-      const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
-        const stock = stockForCasePack(product, packId);
-        return [packId, { ...stock, reservedStock: stock.reservedStock + quantity }];
-      }));
-      return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
-    });
-
-    setProducts(updatedProducts);
-    setOrders([...orders, newOrder]);
-
-    // Create balance record
-    const newBalance = {
-      id: `b${Date.now()}`,
-      orderId: newOrder.id,
-      customerName: customer.name,
-      customerId: customer.id,
-      invoiceNumber,
-      totalAmount: totalDue,
-      amountPaid: appliedCredit,
-      remainingBalance: totalDue - appliedCredit,
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: appliedCredit >= totalDue ? 'paid' : appliedCredit > 0 ? 'partial' : 'unpaid',
-    };
-    setBalances([...balances, newBalance]);
-    if (appliedCredit > 0) {
-      const remainingCredit = creditAvailable - appliedCredit;
-      setCustomerCredits((current) => {
-        const next = { ...current };
-        if (remainingCredit > 0) next[creditKey] = remainingCredit;
-        else delete next[creditKey];
-        return next;
-      });
-    }
-
-    return { ...newOrder, appliedCredit };
-  }, [orders, products, balances, customerCredits]);
-
-  const editPendingInvoice = useCallback((orderId, items) => {
-    const order = orders.find(item => item.id === orderId);
-    const balance = balances.find(item => item.orderId === orderId);
-    const result = applyPendingInvoiceUpdate(products, order, balance, items);
-    if (result.error) return result;
-    setProducts(result.products);
-    setOrders(current => current.map(item => item.id === orderId ? result.order : item));
-    if (result.balance) setBalances(current => current.map(item => item.orderId === orderId ? result.balance : item));
-    return result;
-  }, [orders, products, balances]);
-
-  const updateOrderStatus = useCallback((orderId, newStatus) => {
-    const order = orders.find((o) => o.id === orderId);
-    if (!order || order.status === 'cancelled' || order.status === 'completed') return false;
-    const orderBalance = balances.find((item) => item.orderId === orderId);
-    if (newStatus === 'cancelled') {
-      if (order.deliveryStatus === 'delivered') return false;
-      const balance = orderBalance;
-      if (balance && balance.amountPaid > 0) return false;
-      setProducts(releaseReservedStock(products, order));
-      setOrders(orders.map((item) => item.id === orderId ? { ...item, status: 'cancelled' } : item));
-      setBalances(balances.map((item) => {
-        if (item.orderId === orderId) return { ...item, status: 'cancelled', remainingBalance: 0 };
-        return item;
-      }));
-      return true;
-    }
-    if (newStatus !== 'completed' || !canMarkDelivered(order)) return false;
-
-    const balance = orderBalance;
-    const paid = balance ? balance.remainingBalance <= 0 : order.grandTotal <= 0;
-    const deliveredOrder = { ...order, deliveryStatus: 'delivered' };
-    const status = orderLifecycleStatus(deliveredOrder, paid ? 'paid' : 'partial');
-    setOrders(orders.map((item) => item.id === orderId ? { ...deliveredOrder, status } : item));
-    setProducts(finalizeReservedStock(products, order));
-    return true;
-  }, [orders, products, balances]);
-
-  const recordCustomerPayment = useCallback((customer, amountPaid, method = PAYMENT_METHOD.CASH) => {
-    const identity = customer && typeof customer === 'object' ? customer : { name: customer };
-    const accountBalances = balances.filter(balance => {
-      const sameId = identity.id && balance.customerId && identity.id === balance.customerId;
-      const sameName = String(identity.name || identity.customerName || '').trim().toLocaleLowerCase()
-        === String(balance.customerName || '').trim().toLocaleLowerCase();
-      return (sameId || (!identity.id || !balance.customerId) && sameName)
-        && balance.status !== 'cancelled'
-        && Number(balance.remainingBalance) > 0;
-    });
-    const plan = allocateAccountPayment(accountBalances, orders, amountPaid);
-    if (!plan.valid) return false;
-    const allocations = new Map(plan.allocations.map(allocation => [allocation.balanceId, allocation.amount]));
-    const lastBalanceId = plan.allocations.at(-1)?.balanceId;
-    const receivedByBalance = new Map(plan.allocations.map(allocation => [
-      allocation.balanceId,
-      allocation.amount + (allocation.balanceId === lastBalanceId ? plan.excess : 0),
-    ]));
-    const transactions = plan.allocations.map((allocation, index) => {
-      const balance = accountBalances.find(item => item.id === allocation.balanceId);
-      const order = orders.find(item => item.id === balance.orderId);
-      return createPaymentTransaction(balance, order, receivedByBalance.get(balance.id), method, `pay${Date.now()}-${index}`);
-    });
-    if (transactions.some(transaction => !transaction)) return false;
-    const today = new Date().toISOString().slice(0, 10);
-    const completedOrderIds = new Set();
-    const updatedBalances = balances.map(item => {
-      const applied = allocations.get(item.id);
-      if (!applied) return item;
-      const remainingBalance = Math.max(0, Number(item.remainingBalance) - applied);
-      if (remainingBalance === 0) {
-        const paidOrder = orders.find(order => order.id === item.orderId);
-        if (paidOrder?.deliveryStatus === 'delivered' && paidOrder.status !== 'completed') completedOrderIds.add(paidOrder.id);
+  const mutate = useCallback(async work => {
+    if (pending.current) throw new Error('Another request is still running.');
+    if (dataError) throw new Error('Refresh the records before saving another change.');
+    pending.current = true;
+    setBusy(true);
+    const session = generation.current;
+    let saved = false;
+    try {
+      const result = await work();
+      saved = true;
+      return { result, snapshot: await loadData() };
+    } catch (error) {
+      if (session === generation.current && (saved || !error.response || error.response.status >= 500)) {
+        setDataError(saved
+          ? 'Your change was saved, but updated records could not load. Refresh before continuing.'
+          : 'The save result could not be confirmed. Refresh and check the records before trying again.');
       }
-      return {
-        ...item,
-        amountPaid: (Number(item.amountPaid) || 0) + applied,
-        remainingBalance,
-        status: balanceStatus({ ...item, remainingBalance }, today),
-      };
-    });
-    setBalances(updatedBalances);
-    setPaymentTransactions(current => [...current, ...transactions]);
-    if (completedOrderIds.size) {
-      setOrders(current => current.map(order => completedOrderIds.has(order.id) ? { ...order, status: 'completed' } : order));
-    }
-    if (plan.excess > 0) {
-      const creditKey = customerCreditKey(identity);
-      setCustomerCredits(current => ({ ...current, [creditKey]: (Number(current[creditKey]) || 0) + plan.excess }));
-    }
-    return { applied: plan.applied, excess: plan.excess, allocations: plan.allocations };
-  }, [balances, orders]);
+      if (saved) throw new Error('Your change was saved. Refresh records before continuing.');
+      throw error;
+    } finally { pending.current = false; setBusy(false); }
+  }, [dataError, loadData]);
 
-  const addRestockRecord = useCallback((supplier, items, returnedCases) => {
-    const totalProductCost = items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
-    const totalReturnedCredit = returnedCases.reduce(
-      (sum, rc) => sum + rc.quantity * rc.creditPerUnit,
-      0
-    );
-
-    const newRecord = {
-      id: `r${Date.now()}`,
-      supplier,
-      items,
-      returnedCases,
-      totalProductCost,
-      totalReturnedCredit,
-      netCost: totalProductCost - totalReturnedCredit,
-      date: new Date().toISOString().split('T')[0],
-    };
-
-    // Update product stock
-    const updatedProducts = products.map(product => {
-      const quantities = {};
-      items.filter(item => item.productId === product.id).forEach(item => {
-        quantities[item.packId] = (quantities[item.packId] || 0) + item.quantity;
-      });
-      const changes = Object.fromEntries(Object.entries(quantities).map(([packId, quantity]) => {
-        const stock = stockForCasePack(product, packId);
-        return [packId, { ...stock, totalStock: stock.totalStock + quantity }];
-      }));
-      return Object.keys(changes).length ? { ...product, stockByCasePack: { ...product.stockByCasePack, ...changes } } : product;
-    });
-
-    setProducts(updatedProducts);
-    setRestockRecords([newRecord, ...restockRecords]);
-
-    return newRecord;
-  }, [products, restockRecords]);
-
-  const updateProductInventory = useCallback((productId, changes) => {
-    const product = products.find((item) => item.id === productId);
-    if (!product || !isValidInventoryUpdate(product, changes.stockByCasePack, changes.casePackIds, changes.casePrices)) return false;
-
-    setProducts((current) => current.map((item) => item.id === productId
-      ? { ...item, stockByCasePack: Object.fromEntries(changes.casePackIds.map(id => [id, { ...stockForCasePack(item, id), totalStock: Number(changes.stockByCasePack[id].totalStock) }])), casePackIds: changes.casePackIds, casePrices: Object.fromEntries(changes.casePackIds.map(id => [id, Number(changes.casePrices[id])])) }
-      : item
-    ));
+  const saveCustomer = useCallback(async profile => {
+    const { result } = await mutate(() => live.current.saveCustomer(profile));
+    return result;
+  }, [mutate]);
+  const createOrder = useCallback(async (customer, items) => {
+    const { result, snapshot } = await mutate(() => live.current.createOrder(customer, items));
+    const order = snapshot.orders.find(o => o.id === result.data.id);
+    return { ...order, appliedCredit: snapshot.balances.find(b => b.orderId === order.id)?.appliedCredit || 0, products: snapshot.products };
+  }, [mutate]);
+  const editPendingInvoice = useCallback(async (id, items) => {
+    const { snapshot } = await mutate(() => live.current.editInvoice(id, items));
+    return { order: snapshot.orders.find(o => o.id === id), products: snapshot.products };
+  }, [mutate]);
+  const updateOrderStatus = useCallback(async (id, status) => { await mutate(() => live.current.transition(id, status)); return true; }, [mutate]);
+  const recordCustomerPayment = useCallback(async (customer, amount, method = PAYMENT_METHOD.CASH) => {
+    const { result, snapshot } = await mutate(() => live.current.payment(customer, amount, method));
+    const receipt = snapshot.payments.find(p => p.id === result.data.id);
+    const applied = receipt.allocations.reduce((sum, a) => sum + a.amountApplied, 0);
+    return { applied, excess: Math.round((receipt.amountReceived - applied) * 100) / 100 };
+  }, [mutate]);
+  const addRestockRecord = useCallback(async (supplierName, items, returnedCases) => {
+    const supplier = suppliers.find(s => s.name === supplierName);
+    if (!supplier) throw new Error('Choose a saved supplier. Add a product with its supplier in Inventory first.');
+    await mutate(() => live.current.restock(supplier.id, items, returnedCases));
+  }, [mutate, suppliers]);
+  const addProduct = useCallback(async profile => {
+    const { result, snapshot } = await mutate(() => live.current.saveProduct(null, profile));
+    return snapshot.products.find(p => p.id === result.data.id);
+  }, [mutate]);
+  const updateProductInventory = useCallback(async (id, changes, original) => {
+    await mutate(() => live.current.saveProduct(id, changes, original));
     return true;
-  }, [products]);
-
-  const addProduct = useCallback((profile) => {
-    const result = createProductProfile(products, profile);
-    if (!result.error) setProducts((current) => [result.product, ...current]);
-    return result.product;
-  }, [products]);
-
-  const deleteProduct = useCallback((productId) => {
-    const product = products.find(item => item.id === productId);
-    if (!product || !canDeleteProduct(product)) return false;
-    setProducts(current => current.filter(item => item.id !== productId));
-    return true;
-  }, [products]);
+  }, [mutate]);
+  const deleteProduct = useCallback(async id => { await mutate(() => live.current.deleteProduct(id)); return true; }, [mutate]);
 
   // Derived queries
   const getAvailableStock = useCallback((productId, packId) => {
@@ -363,42 +171,16 @@ export function AppProvider({ children }) {
   }, [products, getAvailableStock]);
 
   const value = {
-    isLoggedIn,
-    currentUser,
-    sessionMessage,
-    products,
-    customers,
-    orders,
-    restockRecords,
-    balances,
-    paymentTransactions,
-    customerCredits,
-    login,
-    logout,
-    createOrder,
-    editPendingInvoice,
-    saveCustomer,
-    updateOrderStatus,
-    recordCustomerPayment,
-    addRestockRecord,
-    updateProductInventory,
-    addProduct,
-    deleteProduct,
-    getAvailableStock,
-    getTodaySales,
-    getPendingOrdersCount,
-    getCompletedOrdersCount,
-    getOutstandingBalance,
-    getLowStockCount,
+    ...data, isLoggedIn, currentUser, sessionMessage, busy, dataError, refreshData,
+    login, logout, saveCustomer, createOrder, editPendingInvoice, updateOrderStatus,
+    recordCustomerPayment, addRestockRecord, addProduct, updateProductInventory, deleteProduct,
+    getAvailableStock, getTodaySales, getPendingOrdersCount, getCompletedOrdersCount, getOutstandingBalance, getLowStockCount,
   };
-
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 }

@@ -116,7 +116,7 @@ export function LoginScreen() {
 
           <View style={styles.demoInfo}>
             <MaterialIcons name="info-outline" size={18} color={theme.colors.primary} accessible={false} />
-            <Text style={styles.demoText}>Use your registered account. Business screens currently show sample data; changes there are not saved to the database.</Text>
+            <Text style={styles.demoText}>Use your registered account. Your invoices and stock are saved to the business database.</Text>
           </View>
         </View>
       </ScrollView>

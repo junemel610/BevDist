@@ -7,7 +7,7 @@ import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
 
 export function ProfileScreen() {
-  const { currentUser, logout } = useApp();
+  const { currentUser, logout, refreshData } = useApp();
 
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState('');
@@ -47,9 +47,15 @@ export function ProfileScreen() {
 
         <View style={styles.infoCard}>
           <MaterialIcons name="info-outline" size={20} color={theme.colors.primary} accessible={false} />
-          <Text style={styles.infoText}>Signed in to your registered account. Business screens currently use sample data; changes there are not saved to the database.</Text>
+          <Text style={styles.infoText}>Connected to the business database. Refresh to load the latest invoices and stock.</Text>
         </View>
 
+        <Pressable disabled={signingOut} accessibilityRole="button" onPress={async () => {
+          setSigningOut(true); setError('');
+          try { await refreshData(); }
+          catch { setError('Could not refresh. Check your connection and try again.'); }
+          finally { setSigningOut(false); }
+        }} style={styles.signOutButton}><Text style={styles.infoText}>{signingOut ? 'Please wait…' : 'Refresh records'}</Text></Pressable>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Pressable
           disabled={signingOut}

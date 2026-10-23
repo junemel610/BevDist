@@ -1,7 +1,6 @@
 import apiClient, { setAuthToken } from './client.js';
 
-// These helpers match the implemented backend. AppContext remains in demo mode
-// until its complete read/write flow is switched to these asynchronous calls.
+// AppContext uses these endpoints for all business reads and writes.
 export const authAPI = {
   login: async (username, password) => {
     const response = await apiClient.post('/auth/login', { username, password });
