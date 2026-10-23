@@ -1,4 +1,4 @@
-export const theme = {
+const theme = {
   // Navy for actions and emphasis; semantic colors only for status feedback.
   colors: {
     primary: '#1e3a8a',

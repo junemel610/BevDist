@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { create } from 'axios';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 let authToken = null;
@@ -13,7 +13,7 @@ export function setAuthToken(token) {
   authToken = token;
 }
 
-const apiClient = axios.create({
+const apiClient = create({
   baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {

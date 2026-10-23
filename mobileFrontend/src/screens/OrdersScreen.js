@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Alert,
   FlatList,
@@ -71,7 +71,7 @@ export function OrdersScreen({ navigation, route }) {
     return () => clearTimeout(timer);
   }, [caseToast]);
 
-  const invoiceFor = order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id));
+  const invoiceFor = useCallback(order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id)), [balances]);
   const exportInvoice = async format => {
     if (!invoiceOrder) return;
     setExporting(format);
@@ -95,7 +95,7 @@ export function OrdersScreen({ navigation, route }) {
       else if (status === 'cancelled') result.cancelled += 1;
     });
     return result;
-  }, [orders, balances]);
+  }, [orders, invoiceFor]);
 
   const visibleOrders = useMemo(() => orders
     .map(order => ({ ...order, lifecycleStatus: order.status, ...invoiceFor(order) }))
@@ -108,7 +108,7 @@ export function OrdersScreen({ navigation, route }) {
         || order.customer.name.toLocaleLowerCase().includes(query);
     })
     .slice()
-    .sort((a, b) => b.date.localeCompare(a.date)), [orders, balances, activeFilter, search]);
+    .sort((a, b) => b.date.localeCompare(a.date)), [orders, invoiceFor, activeFilter, search]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
