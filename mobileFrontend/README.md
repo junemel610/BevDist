@@ -53,7 +53,7 @@ npm test
 npm run test:coverage
 ```
 
-For browser UI testing, first run `npx playwright install chromium`, then `npm run test:e2e:ui` for the interactive runner or `npm run test:e2e` for headless desktop/mobile web checks. The test servers start automatically and PostgreSQL must be running. See [Playwright testing](tests/e2e/README.md) for setup and reports.
+For browser UI testing, first run `npx playwright install chromium`, then `npm run test:e2e:ui` for the interactive runner or `npm run test:e2e` for headless desktop/mobile web checks. The test servers start automatically and PostgreSQL must be running. See [Playwright testing](tests/e2e/README.md) for setup and reports, and the [functionality checklist](tests/e2e/COVERAGE.md) for all 40 scenarios (80 desktop/mobile checks). Restart an existing Playwright UI session after code changes to rebuild its test app.
 
 Lint covers app code and tests and rejects warnings. Type checking covers the existing TypeScript files; JavaScript screens are linted. See [QA_CHECKLIST.md](QA_CHECKLIST.md) for the verified bundle exports and the remaining visual/device checks.
 

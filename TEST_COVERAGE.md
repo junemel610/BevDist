@@ -1,6 +1,6 @@
 # Automated feature coverage
 
-Verified 2026-10-24: **179 passing tests** (66 frontend unit, 38 component/provider/export, 63 backend checks including nested cases, and 12 Playwright browser checks). ESLint and TypeScript checks pass. This is a regression baseline across the current feature set, not proof that every possible input or device behavior is covered.
+Verified 2026-10-24: **249 passing tests** (67 frontend unit, 39 component/provider/export, 63 backend checks including nested cases, and 80 Playwright browser checks). ESLint and TypeScript checks pass. This is a regression baseline across the current feature set, not proof that every possible input or device behavior is covered.
 
 ## Run everything
 
@@ -53,15 +53,15 @@ Unit file names in the table omit `.test.mjs`; UI file names omit `.test.js`.
 
 ## Browser end-to-end checks
 
-Six scenarios run twice: desktop Chromium and Pixel 7 browser emulation. They use the real navigation container, production web export, Express API and PostgreSQL. Browser operations cover login/logout, tab navigation, refresh, typed invoice quantities and refunds, payment allocation, delivery, inventory editing/deletion, supplier receipts, profiles, credits and GCash.
+Forty scenarios run twice: desktop Chromium and Pixel 7 browser emulation. They use the real navigation container, production web export, Express API and PostgreSQL. The [browser functionality checklist](mobileFrontend/tests/e2e/COVERAGE.md) maps every current screen to its covered workflows: lifecycle changes, all five case packs, CRUD forms, filters, payments, returned containers, exports, and save/session recovery.
 
 Playwright starts isolated loopback servers and creates/drops its own `bevdist_e2e_*` database. It does not reuse a developer server. Failure screenshots/traces and an HTML report are saved under ignored `mobileFrontend/dist/`. See [Playwright setup and UI runner](mobileFrontend/tests/e2e/README.md) for commands, isolation details, restart requirements and remaining limits.
 
 ## Measured coverage and limits
 
-The Jest-only report covers the configured screen, context, API, component and utility JavaScript files: **72.86% lines, 70.47% statements, 67.68% functions, 57.31% branches**. Open `mobileFrontend/dist/test-coverage/ui/index.html` after running coverage. Generated reports live under ignored `dist/`.
+The Jest-only report covers the configured screen, context, API, component and utility JavaScript files: **72.86% lines, 70.49% statements, 67.74% functions, 57.28% branches**. Open `mobileFrontend/dist/test-coverage/ui/index.html` after running coverage. Generated reports live under ignored `dist/`.
 
-These percentages do not include execution from the separate 66 Node unit tests or backend tests. They are not a combined full-stack coverage percentage. Unit tests also cover retained pure demo helpers; provider and HTTP tests separately cover live persisted operations.
+These percentages do not include execution from the separate 67 Node unit tests or backend tests. They are not a combined full-stack coverage percentage. Unit tests also cover retained pure demo helpers; provider and HTTP tests separately cover live persisted operations.
 
 Component tests use real screen components but mock HTTP, icons, safe-area metrics, chart drawing and native print/share/storage. They do not launch the app, exercise the real navigation container, inspect screenshots or measure scrolling performance. Chart calculations and quick-action route arguments are covered, but chart drawing and real navigation still need device checks. Type checking covers TypeScript files; JavaScript screens are linted.
 
@@ -72,3 +72,5 @@ Remaining checks are in `mobileFrontend/QA_CHECKLIST.md`: physical Expo Go workf
 - Oversized JSON requests now return a safe HTTP 413 response instead of HTTP 500.
 - Supplier receipts reject a product assigned to another supplier and roll back without adding stock or a receipt.
 - The stock toast's alert role/live announcement is attached to its accessible message text, leaving its action buttons independently accessible.
+
+Browser expansion also fixed invoice-only web printing and blocked-popup feedback, web supplier-change confirmation, mixed valid/invalid supplier line validation, and checked/pressed accessibility states for web choices. Browser PDF checks inspect the actual formatted print window and Chromium-rendered PDF bytes; system print dialogs and native sharing remain separate checks.
