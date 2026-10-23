@@ -119,7 +119,7 @@ Frontend changes in this implementation:
 - Preserve container deductions when updating pending invoice amounts.
 - API helpers use actual invoice, account-payment and supplier-order routes. Authentication tokens are held in memory rather than browser-only storage.
 
-The app is not yet switched to live persistence. Customer/catalog HTTP editing, complete AppContext read/write integration, and editable customer return UI/export presentation remain follow-up work. No production customers, products, invoice history or test passwords are seeded by migrations.
+The app is not yet switched to live persistence. Customer/catalog HTTP editing is implemented. Complete AppContext read/write integration and editable customer return UI/export presentation remain follow-up work. No production customers, products, invoice history or test passwords are seeded by migrations.
 
 ## Validation and remaining decisions
 
@@ -133,7 +133,7 @@ Still confirm with the client:
 - Refund/reversal behavior and excess container/supplier-return credit.
 - Whether product purchasing needs more than one default supplier.
 
-Further implementation: catalog/customer endpoints, frontend live persistence, container-return forms and exports, then device validation. Test SQL migrations and deployment backups before client installation.
+Further implementation: frontend live persistence, container-return forms and exports, then device validation. Test SQL migrations and deployment backups before client installation.
 
 ## Technical references
 

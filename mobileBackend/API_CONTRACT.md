@@ -2,7 +2,7 @@
 
 ## Current integration boundary
 
-The schema, backend transaction services, authenticated routes, and frontend API helpers are implemented. Mobile screens still use `AppContext` demo state. Do not mix database records with demo IDs such as `p1` or `c1`: live records use UUIDs. Switching screens to database persistence requires replacing all related read/write actions together, plus catalog/customer endpoints and the container-return editor. Catalog creation/editing is not yet exposed through HTTP.
+The schema, backend transaction services, authenticated routes, and frontend API helpers are implemented. Mobile screens still use `AppContext` demo state. Do not mix database records with demo IDs such as `p1` or `c1`: live records use UUIDs. Switching screens to database persistence requires replacing all related read/write actions together, plus the container-return editor. Catalog creation/editing is now exposed through authenticated HTTP endpoints.
 
 `GET /app-data` returns a consistent read snapshot mapped by `models/app-data.js`. It is a bootstrap endpoint for the current small dataset. Add paginated history endpoints before loading a large production history into memory.
 
@@ -32,7 +32,16 @@ All business endpoints require `Authorization: Bearer <token>`. Login and health
 | POST | `/invoices/:id/deliver` | Deducts stock once; repeated delivery has no further effect |
 | POST | `/invoices/:id/cancel` | `{ reason }`; only undelivered, unsettled invoices |
 | POST | `/customers/:customerId/payments` | `{ requestKey, method, amountReceived, reference? }`; oldest invoice first |
+| POST / PUT | `/customers`, `/customers/:id` | `{ name, contact?, address? }`; returns saved profile |
+| POST / PUT | `/suppliers`, `/suppliers/:id` | `{ name, contact?, address? }`; returns saved profile |
+| POST / PUT | `/products`, `/products/:id` | `{ name, supplierId, packs }`; returns `{ id }` |
+| DELETE | `/products/:id` | Archives a product with zero physical/reserved stock; returns 204 |
+| POST | `/products/:id/stock-adjustments` | `{ packId, quantityDelta, reason, requestKey }`; returns movement `{ id }` |
 | POST | `/supplier-orders` | `{ requestKey, supplierId, items, returnedCases? }`; posts one stock receipt |
+
+Catalog reads use `GET /app-data`, which now includes `suppliers`. Product packs use `{ packId, casePrice, lowStockThreshold? }`. Prices must be positive; thresholds are nonnegative half-case quantities and default to 15. PUT replaces the full pack selection. Case types with physical stock or reservations cannot be removed. Unknown or duplicate case types are rejected. Products begin at zero stock; use supplier receipts or an explained stock adjustment to establish inventory.
+
+Stock adjustments use signed half-case deltas, not replacement totals. Each adjustment requires a reason and a UUID request key, reused unchanged on retry. Negative adjustments cannot consume reserved stock. The authenticated user is recorded as the actor. Product removal archives rows; historical invoice and supplier item snapshots remain intact. Catalog profile/product creation does not yet have idempotency keys: after an ambiguous network error, refresh the catalog before retrying to avoid duplicates.
 
 Invoice item input: `{ productId, packId, quantity }`. Quantity uses cases in 0.5 increments. Prices come from the database; edits retain stored prices for existing product/pack lines. New lines use current catalog prices. Client totals and prices are not trusted.
 
@@ -70,7 +79,7 @@ The obsolete frontend `deposit` payment field is removed. Container deductions u
 
 - Replace demo authentication with `authAPI`; tokens currently live in memory and sign-in is required after reload.
 - Load the database snapshot after login and after successful mutations. Do not optimistically mutate stock or money in both layers.
-- Add catalog/customer/supplier editing endpoints and connect their screens.
+- Connect catalog/customer/supplier screens to the implemented endpoints. Convert synchronous save handlers to awaited actions with loading/error states and retain the existing confirmation dialogs.
 - Add editable customer container-return lines to create/edit invoice forms and display them in PDF/XLSX exports.
 - Send UUID request keys for retriable operations. Use an accessible confirmation dialog before each mutation.
 - Use the Mac's network IP as `EXPO_PUBLIC_API_URL` for a physical phone; `localhost` on a phone refers to the phone. The server defaults to loopback until `HOST` is explicitly configured.

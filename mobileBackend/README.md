@@ -1,6 +1,6 @@
 # BevDist backend
 
-Node.js + Express + PostgreSQL 15 for BevDist. The schema, transaction services, and authenticated invoice/payment/supplier endpoints are implemented. Mobile screens still use demo state; see [API_CONTRACT.md](API_CONTRACT.md) before connecting live reads and writes.
+Node.js + Express + PostgreSQL 15 for BevDist. The schema, transaction services, and authenticated catalog/invoice/payment/supplier endpoints are implemented. Mobile screens still use demo state; see [API_CONTRACT.md](API_CONTRACT.md) before connecting live reads and writes.
 
 ## Local setup
 
