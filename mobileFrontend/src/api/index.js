@@ -1,54 +1,34 @@
-import apiClient from './client';
+import apiClient, { setAuthToken } from './client';
 
-// Auth endpoints
+// These helpers match the implemented backend. AppContext remains in demo mode
+// until its complete read/write flow is switched to these asynchronous calls.
 export const authAPI = {
-  login: (username, password) =>
-    apiClient.post('/auth/login', { username, password }),
-  logout: () => apiClient.post('/auth/logout'),
+  login: async (username, password) => {
+    const response = await apiClient.post('/auth/login', { username, password });
+    setAuthToken(response.data.token);
+    return response;
+  },
+  logout: async () => {
+    try { return await apiClient.post('/auth/logout'); }
+    finally { setAuthToken(null); }
+  },
 };
 
-// Products endpoints
-export const productsAPI = {
-  getAll: () => apiClient.get('/products'),
-  getById: (id) => apiClient.get(`/products/${id}`),
-  create: (data) => apiClient.post('/products', data),
-  update: (id, data) => apiClient.put(`/products/${id}`, data),
+export const appDataAPI = {
+  get: () => apiClient.get('/app-data'),
 };
 
-// Orders endpoints
-export const ordersAPI = {
-  getAll: () => apiClient.get('/orders'),
-  getById: (id) => apiClient.get(`/orders/${id}`),
-  create: (data) => apiClient.post('/orders', data),
-  updateStatus: (id, status) =>
-    apiClient.patch(`/orders/${id}/status`, { status }),
+export const invoicesAPI = {
+  create: data => apiClient.post('/invoices', data),
+  update: (id, data) => apiClient.put(`/invoices/${id}`, data),
+  deliver: id => apiClient.post(`/invoices/${id}/deliver`),
+  cancel: (id, reason) => apiClient.post(`/invoices/${id}/cancel`, { reason }),
 };
 
-// Customers endpoints
-export const customersAPI = {
-  getAll: () => apiClient.get('/customers'),
-  getById: (id) => apiClient.get(`/customers/${id}`),
-  create: (data) => apiClient.post('/customers', data),
+export const paymentsAPI = {
+  create: (customerId, data) => apiClient.post(`/customers/${customerId}/payments`, data),
 };
 
-// Inventory endpoints
-export const inventoryAPI = {
-  getAll: () => apiClient.get('/inventory'),
-  getById: (id) => apiClient.get(`/inventory/${id}`),
-  update: (id, data) => apiClient.put(`/inventory/${id}`, data),
-};
-
-// Balances endpoints
-export const balancesAPI = {
-  getAll: () => apiClient.get('/balances'),
-  getByCustomer: (customerId) =>
-    apiClient.get(`/balances/customer/${customerId}`),
-  recordPayment: (id, data) =>
-    apiClient.post(`/balances/${id}/payment`, data),
-};
-
-// Restocks endpoints
-export const restocksAPI = {
-  getAll: () => apiClient.get('/restocks'),
-  create: (data) => apiClient.post('/restocks', data),
+export const supplierOrdersAPI = {
+  create: data => apiClient.post('/supplier-orders', data),
 };
