@@ -57,6 +57,8 @@ Use the feature service for each multi-record write. Do not update invoice total
 npm run test:db
 ```
 
+The suite includes real HTTP authentication/validation, invoice/payment/inventory workflows, all five case packs, supplier ownership, concurrency and migration integrity checks. See [TEST_COVERAGE.md](../TEST_COVERAGE.md) for the full matrix and `node scripts/test-all.mjs` to run both applications’ checks from `Project`.
+
 Tests create a uniquely named `bevdist_test_*` database, migrate it, exercise the workflows, and drop that database when finished. The configured PostgreSQL role therefore needs permission to create databases. Tests do not seed, truncate, or clear `bevdist_db`.
 
 Run `npm run db:migrate` again safely to verify there are no pending migrations. Once applied, migration files must not be edited; add a new numbered migration for later schema changes. The runner applies pending changes atomically and serializes simultaneous migration attempts.

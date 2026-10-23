@@ -6,7 +6,9 @@ Checked on 2026-10-24. This file distinguishes automated checks from actual scre
 
 - [x] ESLint for app code, configuration and tests: no errors or warnings.
 - [x] TypeScript check for the project's TypeScript files. JavaScript screens are checked by ESLint, not full TypeScript checking.
-- [x] 65 frontend tests pass.
+- [x] 66 frontend unit tests and 38 component/provider/export tests pass.
+- [x] 63 backend HTTP/database checks pass in a disposable database.
+- [x] Full feature matrix and measured coverage are recorded in [TEST_COVERAGE.md](../TEST_COVERAGE.md).
 - [x] Web JavaScript bundle exports successfully.
 - [x] Android Hermes bundle exports successfully.
 - [x] iOS Hermes bundle exports successfully.
