@@ -12,10 +12,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { PesoInput } from '../components/ui/PesoInput';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { hasValidSupplierOrderItems, RETURNED_CASE_TYPES, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
-import { casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
+import { casePackDisplay, casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
 import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
 
@@ -82,7 +83,7 @@ export function SupplierOrdersScreen() {
   };
 
   const addProduct = (product, pack) => {
-    setItems(current => [...current, { rowKey: `${product.id}:${pack.id}`, productId: product.id, productName: product.name, packId: pack.id, packLabel: pack.label, quantity: '', unitCost: '' }]);
+    setItems(current => [...current, { rowKey: `${product.id}:${pack.id}`, productId: product.id, productName: product.name, packId: pack.id, packLabel: casePackDisplay(pack), quantity: '', unitCost: '' }]);
     setPickerVisible(false);
     setError('');
   };
@@ -126,7 +127,7 @@ export function SupplierOrdersScreen() {
     setNewProducts(current => [...current, product]);
     setItems(current => [...current, ...product.packs.map(pack => ({
       rowKey: `${key}:${pack.id}`, newProductKey: key, productName: name,
-      packId: pack.id, packLabel: pack.label, casePrice: pack.casePrice, quantity: '', unitCost: '',
+      packId: pack.id, packLabel: casePackDisplay(pack), casePrice: pack.casePrice, quantity: '', unitCost: '',
     }))]);
     setProductEditorVisible(false);
     setPickerVisible(false);
@@ -241,6 +242,7 @@ export function SupplierOrdersScreen() {
               value={supplierSearch}
               onChangeText={setSupplierSearch}
               placeholder="Search suppliers"
+              placeholderTextColor={theme.colors.placeholder}
               accessibilityLabel="Search saved suppliers"
               style={styles.searchInput}
             />
@@ -317,17 +319,19 @@ export function SupplierOrdersScreen() {
                     onChangeText={value => updateItem(item.rowKey, 'quantity', value)}
                     keyboardType="decimal-pad"
                     placeholder="0"
+                    placeholderTextColor={theme.colors.placeholder}
                     accessibilityLabel={`${item.productName} quantity in cases`}
                     style={styles.input}
                   />
                 </View>
                 <View style={styles.itemField}>
-                  <Text style={styles.fieldLabel}>Supplier cost per case (₱)</Text>
-                  <TextInput
+                  <Text style={styles.fieldLabel}>Supplier cost per case</Text>
+                  <PesoInput
                     value={String(item.unitCost)}
                     onChangeText={value => updateItem(item.rowKey, 'unitCost', value)}
                     keyboardType="decimal-pad"
-                    placeholder="Enter numbers, e.g. 950"
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.placeholder}
                     accessibilityLabel={`${item.productName} supplier cost per case in pesos`}
                     style={styles.input}
                   />
@@ -355,11 +359,12 @@ export function SupplierOrdersScreen() {
                 <Text style={styles.returnName}>{item.type}</Text>
                 <View style={styles.returnPriceField}>
                   <Text style={styles.fieldLabel}>Credit per case</Text>
-                  <TextInput
+                  <PesoInput
                     value={String(item.creditPerUnit ?? '')}
                     onChangeText={value => updateReturnPrice(item.type, value)}
                     keyboardType="decimal-pad"
-                    placeholder="₱0.00"
+                    placeholder="0"
+                    placeholderTextColor={theme.colors.placeholder}
                     accessibilityLabel={`${item.type} return credit per case`}
                     style={styles.returnPriceInput}
                   />
@@ -448,7 +453,8 @@ export function SupplierOrdersScreen() {
               <TextInput
                 value={productSearch}
                 onChangeText={setProductSearch}
-                placeholder="Search products or case type"
+                placeholder="Search products"
+                placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search products"
                 style={styles.searchInput}
               />
@@ -468,7 +474,7 @@ export function SupplierOrdersScreen() {
                     <MaterialIcons name="local-drink" size={19} color={theme.colors.primary} accessible={false} />
                   </View>
                   <View style={styles.headingCopy}>
-                    <Text style={styles.optionName}>{product.name} · {pack.label}</Text>
+                    <Text style={styles.optionName}>{product.name} · {casePackDisplay(pack)}</Text>
                     <Text style={styles.optionMeta}>{stockForCasePack(product, pack.id).totalStock} cases in stock</Text>
                   </View>
                   <MaterialIcons name="add-circle-outline" size={21} color={theme.colors.primary} accessible={false} />
@@ -490,11 +496,11 @@ export function SupplierOrdersScreen() {
               </Pressable>
             </View>
             <Text style={styles.fieldLabel}>Supplier name *</Text>
-            <TextInput value={supplierForm.name} onChangeText={name => setSupplierForm(current => ({ ...current, name }))} placeholder="Supplier name" style={styles.input} accessibilityLabel="New supplier name" />
+            <TextInput value={supplierForm.name} onChangeText={name => setSupplierForm(current => ({ ...current, name }))} placeholder="Supplier name" placeholderTextColor={theme.colors.placeholder} style={styles.input} accessibilityLabel="New supplier name" />
             <Text style={styles.fieldLabel}>Contact (optional)</Text>
-            <TextInput value={supplierForm.contact} onChangeText={contact => setSupplierForm(current => ({ ...current, contact }))} placeholder="Phone or contact person" style={styles.input} accessibilityLabel="New supplier contact" />
+            <TextInput value={supplierForm.contact} onChangeText={contact => setSupplierForm(current => ({ ...current, contact }))} placeholder="Contact" placeholderTextColor={theme.colors.placeholder} style={styles.input} accessibilityLabel="New supplier contact" />
             <Text style={styles.fieldLabel}>Address (optional)</Text>
-            <TextInput value={supplierForm.address} onChangeText={address => setSupplierForm(current => ({ ...current, address }))} placeholder="Supplier address" style={styles.input} accessibilityLabel="New supplier address" />
+            <TextInput value={supplierForm.address} onChangeText={address => setSupplierForm(current => ({ ...current, address }))} placeholder="Supplier address" placeholderTextColor={theme.colors.placeholder} style={styles.input} accessibilityLabel="New supplier address" />
             {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
             <Pressable onPress={saveSupplierDraft} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
               <Text style={styles.saveLabel}>Use supplier in this order</Text>
@@ -516,7 +522,7 @@ export function SupplierOrdersScreen() {
               </Pressable>
             </View>
             <Text style={styles.fieldLabel}>Product name *</Text>
-            <TextInput value={productName} onChangeText={setProductName} placeholder="Product name" style={styles.input} accessibilityLabel="New product name" />
+            <TextInput value={productName} onChangeText={setProductName} placeholder="Product name" placeholderTextColor={theme.colors.placeholder} style={styles.input} accessibilityLabel="New product name" />
             <Text style={styles.fieldLabel}>Case types and selling price per case *</Text>
             {casePackOptionsForProduct({ name: productName, casePackTypes }).map(pack => {
               const selected = selectedPackIds.includes(pack.id);
@@ -524,9 +530,12 @@ export function SupplierOrdersScreen() {
                 <View key={pack.id} style={styles.newProductPack}>
                   <Pressable onPress={() => setSelectedPackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} aria-checked={selected} style={styles.packChoice}>
                     <MaterialIcons name={selected ? 'check-box' : 'check-box-outline-blank'} size={21} color={selected ? theme.colors.primary : theme.colors.textLight} accessible={false} />
-                    <Text style={styles.optionName}>{pack.label}</Text>
+                    <Text style={styles.optionName}>{casePackDisplay(pack)}</Text>
                   </Pressable>
-                  {selected ? <TextInput value={casePrices[pack.id] || ''} onChangeText={value => setCasePrices(current => ({ ...current, [pack.id]: value }))} placeholder="Numbers only, e.g. 1200" keyboardType="decimal-pad" accessibilityLabel={`${pack.label} selling price per case in pesos`} style={[styles.input, styles.priceInput]} /> : null}
+                  {selected ? <View style={styles.priceEditor}>
+                    <Text style={styles.sellingPriceLabel}>Selling price / case</Text>
+                    <PesoInput value={casePrices[pack.id] || ''} onChangeText={value => setCasePrices(current => ({ ...current, [pack.id]: value }))} placeholder="0" placeholderTextColor={theme.colors.placeholder} keyboardType="decimal-pad" accessibilityLabel={`${casePackDisplay(pack)} selling price per case in pesos`} style={[styles.input, styles.priceInput]} />
+                  </View> : null}
                 </View>
               );
             })}
@@ -556,11 +565,12 @@ export function SupplierOrdersScreen() {
                 <View key={`${item.productId}-${index}`} style={styles.detailRow}>
                   <View style={styles.headingCopy}>
                     <Text style={styles.historySupplier}>{item.productName}</Text>
-                    <Text style={styles.historyMeta}>{item.packLabel ? `${item.packLabel} · ` : ''}{item.quantity} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
+                    <Text style={styles.historyMeta}>{item.packLabel ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ` : ''}{item.quantity} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
                   </View>
                   <Text style={styles.detailAmount}>{formatPeso(item.quantity * item.unitCost)}</Text>
                 </View>
               ))}
+              <View style={styles.modalDivider} />
               <Text style={styles.detailSectionTitle}>Returned cases</Text>
               {selectedRecord?.returnedCases?.length ? selectedRecord.returnedCases.map((item, index) => (
                 <View key={`${item.type}-${index}`} style={styles.detailRow}>
@@ -568,6 +578,7 @@ export function SupplierOrdersScreen() {
                   <Text style={styles.creditValue}>−{formatPeso(item.quantity * item.creditPerUnit)}</Text>
                 </View>
               )) : <Text style={styles.historyMeta}>No returned cases recorded.</Text>}
+              <View style={styles.modalDivider} />
               <View style={styles.detailSummary}>
                 <SummaryLine label="Product cost" amount={selectedRecord?.totalProductCost ?? selectedRecord?.totalCost ?? 0} />
                 <SummaryLine label="Return credits" amount={selectedRecord?.totalReturnedCredit ?? 0} negative />
@@ -681,6 +692,7 @@ const styles = StyleSheet.create({
   detailSheet: { maxHeight: '85%', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
   detailContent: { gap: theme.spacing.sm, paddingBottom: theme.spacing.md },
   detailSectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold, marginTop: theme.spacing.sm },
+  modalDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
   detailRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: theme.spacing.xs },
   detailAmount: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
@@ -693,6 +705,8 @@ const styles = StyleSheet.create({
   newProductPack: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
   packChoice: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   priceInput: { width: 160, minHeight: 44 },
+  priceEditor: { width: 175, gap: 4 },
+  sellingPriceLabel: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
   pickerTitle: { color: theme.colors.text, fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   productOption: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },

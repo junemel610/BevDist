@@ -1,10 +1,22 @@
 export const CASE_PACKS = [
-  { id: 'A', label: 'A · 12 bottles/case', unitsPerCase: 12, type: 'standard' },
-  { id: 'B', label: 'B · 24 bottles/case', unitsPerCase: 24, type: 'standard' },
-  { id: 'C', label: 'C · 6 bottles/case', unitsPerCase: 6, type: 'standard' },
-  { id: 'MUCHO_6', label: '6 bottles/case', unitsPerCase: 6, type: 'mucho' },
-  { id: 'MUCHO_12', label: '12 bottles/case', unitsPerCase: 12, type: 'mucho' },
+  { id: 'A', label: 'A', unitsPerCase: 12, type: 'standard' },
+  { id: 'B', label: 'B', unitsPerCase: 24, type: 'standard' },
+  { id: 'C', label: 'C', unitsPerCase: 6, type: 'standard' },
+  { id: 'MUCHO_6', label: 'Mucho 6', unitsPerCase: 6, type: 'mucho' },
+  { id: 'MUCHO_12', label: 'Mucho 12', unitsPerCase: 12, type: 'mucho' },
 ];
+
+export function casePackName(pack) {
+  if (pack?.id === 'MUCHO_6') return 'Mucho 6';
+  if (pack?.id === 'MUCHO_12') return 'Mucho 12';
+  return String(pack?.label || pack?.id || '').match(/^([A-Z]+)\s*·/)?.[1] || pack?.label || pack?.id || '';
+}
+
+export function casePackDisplay(pack) {
+  const name = casePackName(pack);
+  const units = Number(pack?.unitsPerCase);
+  return name && Number.isInteger(units) && units > 0 ? `${name} · ${units} bottles per case` : name;
+}
 
 export function casePackOptionsForProduct(product) {
   const custom = [
@@ -40,7 +52,7 @@ export function invoiceCaseItem(product, pack, caseQuantity) {
     productId: product.id,
     productName: product.name,
     packId: pack.id,
-    packLabel: pack.label,
+    packLabel: casePackDisplay(pack),
     unitsPerCase: pack.unitsPerCase,
     quantity,
     stockQuantity,

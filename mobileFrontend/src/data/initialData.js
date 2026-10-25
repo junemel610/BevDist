@@ -29,8 +29,8 @@ export const INITIAL_ORDERS = [
     customerId: 'c1',
     customer: INITIAL_CUSTOMERS[0],
     items: [
-      { productId: 'p1', productName: 'Coca-Cola 1.5L', packId: 'A', packLabel: 'A · 12 bottles/case', unitsPerCase: 12, quantity: 1, stockQuantity: 1, casePrice: 660 },
-      { productId: 'p2', productName: 'Coca-Cola 330ml Can', packId: 'B', packLabel: 'B · 24 bottles/case', unitsPerCase: 24, quantity: 0.5, stockQuantity: 0.5, casePrice: 600 },
+      { productId: 'p1', productName: 'Coca-Cola 1.5L', packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 1, stockQuantity: 1, casePrice: 660 },
+      { productId: 'p2', productName: 'Coca-Cola 330ml Can', packId: 'B', packLabel: 'B', unitsPerCase: 24, quantity: 0.5, stockQuantity: 0.5, casePrice: 600 },
     ],
     subtotal: 960,
     containerReturns: [],
@@ -47,8 +47,8 @@ export const INITIAL_ORDERS = [
     customerId: 'c2',
     customer: INITIAL_CUSTOMERS[1],
     items: [
-      { productId: 'p7', productName: 'Pepsi 1.5L', packId: 'A', packLabel: 'A · 12 bottles/case', unitsPerCase: 12, quantity: 1, stockQuantity: 1, casePrice: 624 },
-      { productId: 'p9', productName: '7UP 1.5L', packId: 'C', packLabel: 'C · 6 bottles/case', unitsPerCase: 6, quantity: 1, stockQuantity: 1, casePrice: 300 },
+      { productId: 'p7', productName: 'Pepsi 1.5L', packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 1, stockQuantity: 1, casePrice: 624 },
+      { productId: 'p9', productName: '7UP 1.5L', packId: 'C', packLabel: 'C', unitsPerCase: 6, quantity: 1, stockQuantity: 1, casePrice: 300 },
     ],
     subtotal: 924,
     containerReturns: [],
@@ -65,7 +65,7 @@ export const INITIAL_ORDERS = [
     customerId: 'c3',
     customer: INITIAL_CUSTOMERS[2],
     items: [
-      { productId: 'p5', productName: 'Magnolia Fresh Milk 1L', packId: 'A', packLabel: 'A · 12 bottles/case', unitsPerCase: 12, quantity: 0.5, stockQuantity: 0.5, casePrice: 936 },
+      { productId: 'p5', productName: 'Magnolia Fresh Milk 1L', packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 0.5, stockQuantity: 0.5, casePrice: 936 },
     ],
     subtotal: 468,
     containerReturns: [],
@@ -82,8 +82,8 @@ export const INITIAL_ORDERS = [
     customerId: 'c4',
     customer: INITIAL_CUSTOMERS[3],
     items: [
-      { productId: 'p3', productName: 'Sprite 1.5L', packId: 'A', packLabel: 'A · 12 bottles/case', unitsPerCase: 12, quantity: 0.5, stockQuantity: 0.5, casePrice: 600 },
-      { productId: 'p10', productName: 'Wilkins Water 500ml', packId: 'C', packLabel: 'C · 6 bottles/case', unitsPerCase: 6, quantity: 0.5, stockQuantity: 0.5, casePrice: 72 },
+      { productId: 'p3', productName: 'Sprite 1.5L', packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 0.5, stockQuantity: 0.5, casePrice: 600 },
+      { productId: 'p10', productName: 'Wilkins Water 500ml', packId: 'C', packLabel: 'C', unitsPerCase: 6, quantity: 0.5, stockQuantity: 0.5, casePrice: 72 },
     ],
     subtotal: 336,
     containerReturns: [],
@@ -100,8 +100,8 @@ export const INITIAL_ORDERS = [
     customerId: 'c5',
     customer: INITIAL_CUSTOMERS[4],
     items: [
-      { productId: 'p11', productName: 'C2 Apple Green Tea', packId: 'C', packLabel: 'C · 6 bottles/case', unitsPerCase: 6, quantity: 1.5, stockQuantity: 1.5, casePrice: 108 },
-      { productId: 'p12', productName: 'Gatorade Lemon-Lime', packId: 'A', packLabel: 'A · 12 bottles/case', unitsPerCase: 12, quantity: 0.5, stockQuantity: 0.5, casePrice: 540 },
+      { productId: 'p11', productName: 'C2 Apple Green Tea', packId: 'C', packLabel: 'C', unitsPerCase: 6, quantity: 1.5, stockQuantity: 1.5, casePrice: 108 },
+      { productId: 'p12', productName: 'Gatorade Lemon-Lime', packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 0.5, stockQuantity: 0.5, casePrice: 540 },
     ],
     subtotal: 432,
     containerReturns: [],
@@ -190,8 +190,8 @@ export const INITIAL_RESTOCK_RECORDS = [
     id: 'r1',
     supplier: 'Coca-Cola',
     items: [
-      { productId: 'p1', productName: 'Coca-Cola 1.5L', packId: 'A', packLabel: 'A · 12 bottles/case', unitsPerCase: 12, quantity: 10, unitCost: 400 },
-      { productId: 'p2', productName: 'Coca-Cola 330ml Can', packId: 'B', packLabel: 'B · 24 bottles/case', unitsPerCase: 24, quantity: 8, unitCost: 450 },
+      { productId: 'p1', productName: 'Coca-Cola 1.5L', packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 10, unitCost: 400 },
+      { productId: 'p2', productName: 'Coca-Cola 330ml Can', packId: 'B', packLabel: 'B', unitsPerCase: 24, quantity: 8, unitCost: 450 },
     ],
     returnedCases: [{ type: 'Case Type A', quantity: 5, creditPerUnit: 15 }],
     totalProductCost: 7600,

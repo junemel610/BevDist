@@ -17,10 +17,10 @@ test('inline new customer, case steppers, empty cart, modal close and stock noti
   await page.getByLabel('New customer name, required').fill(name);
   await page.getByLabel('New customer contact number, optional').fill('09111111111');
   await page.getByLabel('New customer address, optional').fill('Test address');
-  const add = page.getByRole('button', { name: `Add half a A · 12 bottles/case case of ${data.product.name}` });
-  const subtract = page.getByRole('button', { name: `Remove half a A · 12 bottles/case case of ${data.product.name}` });
+  const add = page.getByRole('button', { name: `Add half a A · 12 bottles per case case of ${data.product.name}` });
+  const subtract = page.getByRole('button', { name: `Remove half a A · 12 bottles per case case of ${data.product.name}` });
   await add.click(); await add.click(); await subtract.click();
-  await expect(page.getByLabel(`${data.product.name}, A · 12 bottles/case, quantity in cases`, { exact: true })).toHaveValue('0.5');
+  await expect(page.getByLabel(`${data.product.name}, A · 12 bottles per case, quantity in cases`, { exact: true })).toHaveValue('0.5');
   await confirm(page, () => page.getByRole('button', { name: 'Create invoice', exact: true }).last().click());
   await expect(page.getByLabel('Close create invoice')).not.toBeVisible();
   const snapshot = await data.snapshot(), customer = snapshot.customers.find(c => c.name === name);
@@ -38,7 +38,7 @@ test('pending invoice edits preserve settlements, validate refunds and replace c
   await data.post(`/customers/${data.customer.id}/payments`, { method: 'Cash', amountReceived: 20, requestKey: randomUUID() });
   await signIn(page); await openInvoice(page, data, invoice.id);
   await page.getByText('Edit invoice', { exact: true }).click();
-  const quantity = page.getByLabel(`${data.product.name}, A · 12 bottles/case, quantity in cases`, { exact: true });
+  const quantity = page.getByLabel(`${data.product.name}, A · 12 bottles per case, quantity in cases`, { exact: true });
   await quantity.fill('0.5');
   await page.getByLabel('Returned cases, row 1').fill('0.25');
   await expect(activeText(page, 'Returned quantities must use half-case steps, starting at 0.5 case.')).toBeVisible();
@@ -48,7 +48,7 @@ test('pending invoice edits preserve settlements, validate refunds and replace c
   await expect(page.getByRole('button', { name: 'Save invoice changes' })).toBeDisabled();
   await page.getByRole('button', { name: 'Remove returned case row 1' }).click();
   await quantity.fill('2.5');
-  await page.getByLabel(`${followup}, B · 24 bottles/case, quantity in cases`, { exact: true }).fill('0.5');
+  await page.getByLabel(`${followup}, B · 24 bottles per case, quantity in cases`, { exact: true }).fill('0.5');
   await page.getByRole('button', { name: 'Add returned case type' }).click();
   await page.getByLabel('Return type, row 1').fill('New empty');
   await page.getByLabel('Refund per case, row 1').fill('20');
@@ -118,7 +118,7 @@ test('fully paid invoices complete only after delivery and completed details sta
   expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.A.totalStock).toBe(19);
 });
 
-for (const [packId, packLabel, units] of [['A', 'A · 12 bottles/case', 12], ['B', 'B · 24 bottles/case', 24], ['C', 'C · 6 bottles/case', 6], ['MUCHO_6', '6 bottles/case', 6], ['MUCHO_12', '12 bottles/case', 12]]) {
+for (const [packId, packLabel, units] of [['A', 'A · 12 bottles per case', 12], ['B', 'B · 24 bottles per case', 24], ['C', 'C · 6 bottles per case', 6], ['MUCHO_6', 'Mucho 6 · 6 bottles per case', 6], ['MUCHO_12', 'Mucho 12 · 12 bottles per case', 12]]) {
   test(`invoice ${packId} accepts a half case at its direct case price without converting stock to bottles`, async ({ page, request }) => {
     const data = await business(request, { name: packId.startsWith('MUCHO') ? 'Mucho Beverage' : 'Case Beverage', packs: [{ packId, casePrice: 120, totalStock: 2 }] });
     await signIn(page); await tab(page, 'Invoice');

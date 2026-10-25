@@ -24,7 +24,7 @@ function invoiceScreen(params = {}) { return render(<OrdersScreen navigation={na
 
 test('invoice quantity is typable, rejects quarter cases and overstock, and creates only after confirmation', async () => {
   await invoiceScreen({ openCreateInvoiceToken: 1 });
-  const input = screen.getByLabelText('Cola, A · 12 bottles/case, quantity in cases');
+  const input = screen.getByLabelText('Cola, A · 12 bottles per case, quantity in cases');
   await fireEvent.changeText(input, '0.25');
   expect(screen.getByText('Use half-case steps: 0.5, 1, 1.5…')).toBeOnTheScreen();
   expect(screen.getAllByRole('button', { name: 'Create invoice', exact: true }).at(-1)).toBeDisabled();
@@ -77,8 +77,8 @@ test('customer editor validates name and confirms before saving a new profile', 
 test('inventory search filters products and Edit opens labelled stock/price fields', async () => {
   await render(<InventoryScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Edit Cola inventory' }));
-  expect(screen.getByLabelText('A · 12 bottles/case quantity in cases')).toHaveDisplayValue('10');
-  expect(screen.getByLabelText('A · 12 bottles/case selling price per case in pesos')).toHaveDisplayValue('100');
+  expect(screen.getByLabelText('A · 12 bottles per case quantity in cases')).toHaveDisplayValue('10');
+  expect(screen.getByLabelText('A · 12 bottles per case selling price per case in pesos')).toHaveDisplayValue('100');
   await fireEvent.changeText(screen.getByLabelText('Stock count reason'), 'Count correction');
   await userEvent.press(screen.getByRole('button', { name: 'Save changes' }));
   expect(app.updateProductInventory).not.toHaveBeenCalled();
@@ -150,7 +150,7 @@ test('delivery and cancellation each require confirmation before changing an inv
 
 test('invoice return rows allow editable types, quantities and refund rates', async () => {
   await invoiceScreen({ openCreateInvoiceToken: 1 });
-  await fireEvent.changeText(screen.getByLabelText('Cola, A · 12 bottles/case, quantity in cases'), '1');
+  await fireEvent.changeText(screen.getByLabelText('Cola, A · 12 bottles per case, quantity in cases'), '1');
   await userEvent.press(screen.getByRole('button', { name: 'Add returned case type' }));
   await fireEvent.changeText(screen.getByLabelText('Return type, row 1'), 'A empty case');
   await fireEvent.changeText(screen.getByLabelText('Returned cases, row 1'), '0.5');

@@ -4,7 +4,7 @@ const { apiURL } = require('./settings.cjs');
 const { business, signIn, tab, confirm, preparePage, activeText, rejectedSave } = require('./helpers.cjs');
 test.beforeEach(preparePage);
 
-for (const [kind, packs] of [['standard', [['A', 'A · 12 bottles/case'], ['B', 'B · 24 bottles/case'], ['C', 'C · 6 bottles/case']]], ['Mucho', [['MUCHO_6', '6 bottles/case'], ['MUCHO_12', '12 bottles/case']]]]) {
+for (const [kind, packs] of [['standard', [['A', 'A · 12 bottles per case'], ['B', 'B · 24 bottles per case'], ['C', 'C · 6 bottles per case']]], ['Mucho', [['MUCHO_6', 'Mucho 6 · 6 bottles per case'], ['MUCHO_12', 'Mucho 12 · 12 bottles per case']]]]) {
   test(`add ${kind} product with independently priced and counted case types`, async ({ page, request }) => {
     const data = await business(request);
     await signIn(page); await tab(page, 'Stock');
@@ -40,7 +40,7 @@ test('inventory validation rejects invalid counts, missing reasons and deletion 
   await expect(activeText(page, 'Enter a reason for this stock count.')).toBeVisible();
   await page.getByLabel('Stock count reason', { exact: true }).fill('Invalid stock test');
   for (const count of ['0.25', '0', '-1']) {
-    await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill(count);
+    await page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true }).fill(count);
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect(activeText(page, 'Enter half-case stock at least as high as reserved stock for each case type, and a price greater than ₱0.')).toBeVisible();
   }
@@ -57,14 +57,14 @@ test('stale inventory counts fail atomically and refresh loads the new physical 
   const update = await request.put(`${apiURL}/products/${product.id}`, { headers: data.headers, data: { name: product.name, supplierId: product.supplierId, stockReason: 'Concurrent count', packs: [{ packId: 'A', casePrice: 100, totalStock: 21, expectedStock: 20 }] } });
   expect(update.ok()).toBeTruthy();
   await page.getByLabel('Stock count reason', { exact: true }).fill('Stale count');
-  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('999');
+  await page.getByLabel('A · 12 bottles per case selling price per case in pesos', { exact: true }).fill('999');
   await rejectedSave(page, () => page.getByRole('button', { name: 'Save changes' }).click(), /refresh|stock.*changed/i);
   expect((await data.snapshot()).products.find(p => p.id === data.product.id).casePrices.A).toBe(100);
   await page.getByLabel('Close inventory editor').click();
   await tab(page, 'Profile'); await page.getByRole('button', { name: 'Refresh records' }).click();
   await expect(page.getByRole('button', { name: 'Refresh records' })).toBeEnabled();
   await tab(page, 'Stock'); await page.getByRole('button', { name: `Edit ${data.product.name} inventory` }).click();
-  await expect(page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true })).toHaveValue('21');
+  await expect(page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true })).toHaveValue('21');
 });
 
 test('stock status, supplier filters, search and clear return the matching products', async ({ page, request }) => {
@@ -99,8 +99,8 @@ test('new product form validates required fields, duplicate names and invalid ca
   await expect(activeText(page, 'A product with this name already exists.')).toBeVisible();
   await page.getByLabel('Product name', { exact: true }).fill(`New ${data.product.name}`);
   await page.getByRole('checkbox', { name: /A · 12 bottles/ }).click();
-  await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill('0.25');
-  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('0');
+  await page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true }).fill('0.25');
+  await page.getByLabel('A · 12 bottles per case selling price per case in pesos', { exact: true }).fill('0');
   await save.click();
   await expect(activeText(page, 'Enter stock in half-case steps and a numeric selling price greater than ₱0 for each selected case type.')).toBeVisible();
   await page.getByLabel('Close inventory editor').click();

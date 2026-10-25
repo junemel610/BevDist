@@ -6,10 +6,10 @@ test.beforeEach(preparePage);
 const unique = label => `${label} ${randomUUID().slice(0, 8)}`;
 async function stockPack(page) {
   await page.getByRole('checkbox', { name: /A · 12 bottles/ }).click();
-  await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill('0.5');
-  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('120');
+  await page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true }).fill('0.5');
+  await page.getByLabel('A · 12 bottles per case selling price per case in pesos', { exact: true }).fill('120');
 }
-async function newReceiptProduct(page, name, packs = ['A · 12 bottles/case']) {
+async function newReceiptProduct(page, name, packs = ['A · 12 bottles per case']) {
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
   await page.getByRole('button', { name: /Create a new product/ }).click();
   await page.getByLabel('New product name', { exact: true }).fill(name);
@@ -76,30 +76,30 @@ test('stock new supplier validates duplicates, abandons drafts, and saves suppli
   expect(snapshot.products.find(p => p.name === name).supplierId).toBe(snapshot.suppliers.find(s => s.name === supplierName).id);
 });
 
-test('stock defines a reusable custom case type and allows removing it from a product', async ({ page, request }) => {
-  const data = await business(request), name = unique('Custom Case Drink'), label = unique('Family Case');
+test('stock defines an alphabetically named custom case type and allows removing it from a product', async ({ page, request }) => {
+  const data = await business(request), name = unique('Custom Case Drink');
   await signIn(page); await tab(page, 'Stock');
   await page.getByRole('button', { name: 'Add product' }).click();
   await page.getByLabel('Product name', { exact: true }).fill(name);
   await page.getByLabel('Search saved suppliers', { exact: true }).fill(data.supplierName);
   await page.getByRole('radio', { name: `Select supplier ${data.supplierName}`, exact: true }).click();
-  await page.getByRole('checkbox', { name: 'A · 12 bottles/case', exact: true }).click();
-  await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill('0');
-  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('120');
-  await page.getByLabel('Custom case type name', { exact: true }).fill(label);
+  await page.getByRole('checkbox', { name: 'A · 12 bottles per case', exact: true }).click();
+  await page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true }).fill('0');
+  await page.getByLabel('A · 12 bottles per case selling price per case in pesos', { exact: true }).fill('120');
   await page.getByLabel('Custom bottles per case', { exact: true }).fill('18');
   await page.getByRole('button', { name: 'Add custom case type', exact: true }).click();
-  await page.getByLabel(`${label} quantity in cases`, { exact: true }).fill('0');
-  await page.getByLabel(`${label} selling price per case in pesos`, { exact: true }).fill('750');
+  await page.getByLabel(/^[A-Z]+ · 18 bottles per case quantity in cases$/).fill('0');
+  await page.getByLabel(/^[A-Z]+ · 18 bottles per case selling price per case in pesos$/).fill('750');
   await confirm(page, () => page.getByRole('button', { name: 'Add product', exact: true }).last().click());
   await expect(page.getByText('Product added', { exact: false }).last()).toBeVisible();
   let snapshot = await data.snapshot();
   const product = snapshot.products.find(item => item.name === name);
-  const custom = snapshot.casePackTypes.find(type => type.label === label);
+  const custom = snapshot.casePackTypes.find(type => product.casePackIds.includes(type.id) && type.family === 'custom');
+  expect(custom.label).toMatch(/^[A-Z]+ · /);
   expect(custom.unitsPerCase).toBe(18);
   expect(product.casePackIds).toContain(custom.id);
   await page.getByRole('button', { name: `Edit ${name} inventory`, exact: true }).click();
-  const customCheckbox = page.getByRole('checkbox', { name: new RegExp(label) });
+  const customCheckbox = page.getByRole('checkbox', { name: new RegExp(`^${custom.label} · 18 bottles per case$`) });
   await expect(customCheckbox).toHaveAttribute('aria-checked', 'true');
   await customCheckbox.click();
   await expect(customCheckbox).toHaveAttribute('aria-checked', 'false');
@@ -134,9 +134,9 @@ test('receipt product search, new-product validation and supplier form cancellat
   await add.click(); await expect(page.getByText(/This supplier already has a product/).last()).toBeVisible();
   await page.getByLabel('New product name', { exact: true }).fill(unique('Unsaved'));
   await add.click(); await expect(page.getByText('Select at least one case type.', { exact: true }).last()).toBeVisible();
-  await page.getByRole('checkbox', { name: /A · 12 bottles\/case/ }).click();
+  await page.getByRole('checkbox', { name: /A · 12 bottles per case/ }).click();
   for (const price of ['0', '-1', '1.001']) {
-    await page.getByLabel('A · 12 bottles/case selling price per case in pesos').fill(price);
+    await page.getByLabel('A · 12 bottles per case selling price per case in pesos').fill(price);
     await add.click(); await expect(page.getByText('Enter a numeric selling price for every selected case type.', { exact: true }).last()).toBeVisible();
   }
   await page.getByLabel('Close new product form').click();
@@ -151,8 +151,8 @@ test('new supplier and new product receipt save only on confirmation with manual
   await page.getByLabel('New supplier contact').fill('09123');
   await page.getByLabel('New supplier address').fill('Warehouse');
   await page.getByRole('button', { name: 'Use supplier in this order' }).click();
-  await newReceiptProduct(page, name, ['A · 12 bottles/case', 'B · 24 bottles/case']);
-  await page.getByRole('button', { name: `Remove ${name} A · 12 bottles/case`, exact: true }).click();
+  await newReceiptProduct(page, name, ['A · 12 bottles per case', 'B · 24 bottles per case']);
+  await page.getByRole('button', { name: `Remove ${name} A · 12 bottles per case`, exact: true }).click();
   await page.getByLabel(`${name} quantity in cases`, { exact: true }).fill('0.5');
   await page.getByLabel(`${name} supplier cost per case in pesos`, { exact: true }).fill('80');
   const minus = page.getByRole('button', { name: 'Remove half case of Case Type A', exact: true });
@@ -205,10 +205,10 @@ test('supplier receipt saves a new supplier and multiple new products without ca
 test('existing supplier can receive a new Mucho product and remove then re-add a draft product', async ({ page, request }) => {
   const data = await business(request), name = unique('Mucho Receipt');
   await signIn(page); await tab(page, 'Orders'); await selectSupplier(page, data.supplierName);
-  await newReceiptProduct(page, name, ['6 bottles/case']);
-  await page.getByRole('button', { name: `Remove ${name} 6 bottles/case`, exact: true }).click();
+  await newReceiptProduct(page, name, ['Mucho 6 · 6 bottles per case']);
+  await page.getByRole('button', { name: `Remove ${name} Mucho 6 · 6 bottles per case`, exact: true }).click();
   await expect(activeText(page, 'No products added')).toBeVisible();
-  await newReceiptProduct(page, name, ['12 bottles/case']);
+  await newReceiptProduct(page, name, ['Mucho 12 · 12 bottles per case']);
   await page.getByLabel(`${name} quantity in cases`, { exact: true }).fill('0.5');
   await page.getByLabel(`${name} supplier cost per case in pesos`, { exact: true }).fill('80');
   await confirm(page, () => page.getByRole('button', { name: 'Save supplier order' }).click());

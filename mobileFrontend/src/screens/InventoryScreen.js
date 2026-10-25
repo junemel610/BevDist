@@ -14,13 +14,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { PesoInput } from '../components/ui/PesoInput';
 import { randomUUID } from 'expo-crypto';
 import { stockNotice } from '../components/inventory/stockNotice';
 import { FeedbackToast } from '../components/FeedbackToast';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, productStockState, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
-import { casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
+import { casePackDisplay, casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
 import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
@@ -31,6 +32,16 @@ const FILTERS = [
 ];
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
+const alphabeticCaseCode = value => {
+  let code = '';
+  for (let number = value; number > 0; number = Math.floor((number - 1) / 26)) {
+    code = String.fromCharCode(65 + ((number - 1) % 26)) + code;
+  }
+  return code;
+};
+const nextCaseCode = packs => {
+  return alphabeticCaseCode(4 + packs.filter(pack => pack.family === 'custom').length);
+};
 const STATUS = {
   healthy: { label: 'In stock', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   low: { label: 'Low stock', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'warning-amber' },
@@ -53,7 +64,6 @@ export function InventoryScreen() {
   const [casePackIds, setCasePackIds] = useState([]);
   const [casePrices, setCasePrices] = useState({});
   const [newCasePackTypes, setNewCasePackTypes] = useState([]);
-  const [customPackLabel, setCustomPackLabel] = useState('');
   const [customPackUnits, setCustomPackUnits] = useState('');
   const [stockReason, setStockReason] = useState('');
   const [error, setError] = useState('');
@@ -81,6 +91,7 @@ export function InventoryScreen() {
   const customPacks = [...casePackTypes.filter(pack => pack.family === 'custom'), ...newCasePackTypes];
   const casePackOptions = casePackOptionsForProduct({ name: addingProduct ? productName : editingProduct?.name, casePackTypes: customPacks });
   const selectedCasePackIds = casePackIds.filter(id => casePackOptions.some(pack => pack.id === id));
+  const nextCustomCaseCode = nextCaseCode([...casePackTypes, ...newCasePackTypes]);
 
   const startEditing = useCallback(product => {
     setAddingProduct(false);
@@ -89,7 +100,7 @@ export function InventoryScreen() {
     const packs = casePacksForProduct(product);
     setCasePackIds(packs.map(pack => pack.id));
     setNewCasePackTypes([]);
-    setCustomPackLabel(''); setCustomPackUnits('');
+    setCustomPackUnits('');
     setCasePrices(Object.fromEntries(packs.map(pack => [pack.id, String(pack.casePrice)])));
     setStockByCasePack(Object.fromEntries(packs.map(pack => [pack.id, String(stockForCasePack(product, pack.id).totalStock)])));
     setError('');
@@ -110,7 +121,7 @@ export function InventoryScreen() {
     setSupplierSearch('');
     setCasePackIds([]);
     setNewCasePackTypes([]);
-    setCustomPackLabel(''); setCustomPackUnits('');
+    setCustomPackUnits('');
     setCasePrices({});
     setStockByCasePack({});
     setError('');
@@ -174,19 +185,31 @@ export function InventoryScreen() {
   };
 
   const addCustomCaseType = () => {
-    const label = customPackLabel.trim();
     const unitsPerCase = Number(customPackUnits);
-    if (!label || !/^\d+$/.test(customPackUnits) || unitsPerCase < 1 || unitsPerCase > 10000) {
-      setError('Enter a case type name and a whole-number bottle count.'); return;
-    }
-    if ([...casePackTypes, ...newCasePackTypes].some(pack => pack.label.trim().toLocaleLowerCase() === label.toLocaleLowerCase())) {
-      setError('A case type with that name already exists.'); return;
+    if (!/^\d+$/.test(customPackUnits) || unitsPerCase < 1 || unitsPerCase > 10000) {
+      setError('Enter a whole-number bottle count.'); return;
     }
     const code = `CUSTOM_${randomUUID().replaceAll('-', '').toUpperCase()}`;
-    const pack = { id: code, code, label, unitsPerCase, family: 'custom' };
+    const pack = { id: code, code, label: nextCustomCaseCode, unitsPerCase, family: 'custom' };
     setNewCasePackTypes(current => [...current, pack]);
     setCasePackIds(current => [...current, pack.id]);
-    setCustomPackLabel(''); setCustomPackUnits(''); setError('');
+    setCustomPackUnits(''); setError('');
+  };
+
+  const removeCustomCaseType = packId => {
+    setNewCasePackTypes(current => current.filter(pack => pack.id !== packId));
+    setCasePackIds(current => current.filter(id => id !== packId));
+    setStockByCasePack(current => {
+      const next = { ...current };
+      delete next[packId];
+      return next;
+    });
+    setCasePrices(current => {
+      const next = { ...current };
+      delete next[packId];
+      return next;
+    });
+    setError('');
   };
 
   const confirmDeleteProduct = () => confirmAction({
@@ -234,8 +257,8 @@ export function InventoryScreen() {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search products or suppliers"
-                placeholderTextColor={theme.colors.textLight}
+                placeholder="Search products"
+                placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search inventory by product or supplier"
                 returnKeyType="search"
                 style={styles.searchInput}
@@ -317,7 +340,7 @@ export function InventoryScreen() {
               {addingProduct ? (
                 <>
                   <Text style={styles.fieldLabel}>Product name</Text>
-                  <TextInput value={productName} onChangeText={value => { setProductName(value); setError(''); }} placeholder="e.g. Mucho Red Horse" placeholderTextColor={theme.colors.textLight} accessibilityLabel="Product name" style={styles.fieldInput} />
+                  <TextInput value={productName} onChangeText={value => { setProductName(value); setError(''); }} placeholder="Product name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Product name" style={styles.fieldInput} />
                   <Text style={[styles.fieldLabel, styles.priceLabel]}>Supplier</Text>
                   <View style={styles.caseTypeOptions}>
                     {[['existing', 'Existing supplier'], ['new', 'New supplier']].map(([mode, label]) => (
@@ -328,7 +351,7 @@ export function InventoryScreen() {
                     ))}
                   </View>
                   {supplierMode === 'existing' ? <>
-                    <TextInput value={supplierSearch} onChangeText={setSupplierSearch} placeholder="Search saved suppliers" accessibilityLabel="Search saved suppliers" style={styles.fieldInput} />
+                    <TextInput value={supplierSearch} onChangeText={setSupplierSearch} placeholder="Search suppliers" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search saved suppliers" style={styles.fieldInput} />
                     {selectedSupplier ? <Text style={styles.helperText}>Selected: {selectedSupplier.name}</Text> : null}
                     <ScrollView style={{ maxHeight: 160 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                       <View style={styles.caseTypeOptions}>
@@ -340,29 +363,38 @@ export function InventoryScreen() {
                     </ScrollView>
                     {!matchingSuppliers.length ? <Text style={styles.helperText}>No suppliers found. Try another search or choose New supplier.</Text> : null}
                   </> : <>
-                    <TextInput value={supplierName} onChangeText={value => { setSupplierName(value); setError(''); }} placeholder="Enter new supplier name" placeholderTextColor={theme.colors.textLight} accessibilityLabel="Supplier name" style={styles.fieldInput} />
+                    <TextInput value={supplierName} onChangeText={value => { setSupplierName(value); setError(''); }} placeholder="Supplier name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Supplier name" style={styles.fieldInput} />
                     <Text style={styles.helperText}>The new supplier will be saved with this product.</Text>
                   </>}
 
                 </>
               ) : null}
+              <View style={styles.sectionDivider} />
               <Text style={[styles.fieldLabel, styles.priceLabel]}>Case types and prices</Text>
               <Text style={styles.helperText}>Select the case types sold for this product. Add or remove types here; past records stay available.</Text>
               <View style={styles.caseTypeOptions}>
                 {casePackOptions.map(pack => {
                   const selected = selectedCasePackIds.includes(pack.id);
+                  const isNewCustomType = newCasePackTypes.some(newPack => newPack.id === pack.id);
                   return (
-                    <Pressable
-                      key={pack.id}
-                      onPress={() => setCasePackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selected }}
-                      aria-checked={selected}
-                      style={[styles.caseTypeChip, selected && styles.caseTypeChipSelected]}
-                    >
-                      {selected && <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />}
-                      <Text style={[styles.caseTypeText, selected && styles.caseTypeTextSelected]}>{pack.label}</Text>
-                    </Pressable>
+                    <View key={pack.id} style={styles.caseTypeOption}>
+                      <Pressable
+                        onPress={() => setCasePackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: selected }}
+                        aria-checked={selected}
+                        style={[styles.caseTypeChip, selected && styles.caseTypeChipSelected]}
+                      >
+                        {selected && <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />}
+                        <Text style={[styles.caseTypeText, selected && styles.caseTypeTextSelected]}>{casePackDisplay(pack)}</Text>
+                      </Pressable>
+                      {isNewCustomType ? (
+                        <Pressable onPress={() => removeCustomCaseType(pack.id)} accessibilityRole="button" accessibilityLabel={`Remove case type ${pack.label}`} style={styles.removeCaseTypeButton}>
+                          <MaterialIcons name="close" size={16} color={theme.colors.danger} accessible={false} />
+                          <Text style={styles.removeCaseTypeLabel}>Remove</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
                   );
                 })}
               </View>
@@ -370,7 +402,7 @@ export function InventoryScreen() {
                 const pack = casePackOptions.find(option => option.id === id);
                 return (
                   <View key={id} style={styles.casePriceRow}>
-                    <Text style={styles.casePriceLabel}>{pack.label}</Text>
+                    <Text style={styles.casePriceLabel}>{casePackDisplay(pack)}</Text>
                     <View style={styles.caseInputRow}>
                       <View style={styles.caseInputGroup}>
                         <Text style={styles.caseInputLabel}>Quantity (cases)</Text>
@@ -378,19 +410,21 @@ export function InventoryScreen() {
                           value={String(stockByCasePack[id] ?? '')}
                           onChangeText={value => { setStockByCasePack(current => ({ ...current, [id]: value })); setError(''); }}
                           keyboardType="decimal-pad"
-                          placeholder="e.g. 10"
-                          accessibilityLabel={`${pack.label} quantity in cases`}
+                          placeholder="0"
+                          placeholderTextColor={theme.colors.placeholder}
+                          accessibilityLabel={`${casePackDisplay(pack)} quantity in cases`}
                           style={styles.fieldInput}
                         />
                       </View>
                       <View style={styles.caseInputGroup}>
-                        <Text style={styles.caseInputLabel}>Selling price per case (₱)</Text>
-                        <TextInput
+                        <Text style={[styles.caseInputLabel, styles.priceInputLabel]}>Selling price per case</Text>
+                        <PesoInput
                           value={String(casePrices[id] ?? '')}
                           onChangeText={value => { setCasePrices(current => ({ ...current, [id]: value })); setError(''); }}
                           keyboardType="decimal-pad"
-                          placeholder="e.g. 1200"
-                          accessibilityLabel={`${pack.label} selling price per case in pesos`}
+                          placeholder="0"
+                          placeholderTextColor={theme.colors.placeholder}
+                          accessibilityLabel={`${casePackDisplay(pack)} selling price per case in pesos`}
                           style={styles.fieldInput}
                         />
                       </View>
@@ -398,22 +432,17 @@ export function InventoryScreen() {
                   </View>
                 );
               })}
-              <Text style={styles.fieldLabel}>Add custom case type</Text>
-              <Text style={styles.helperText}>Enter a name and the number of bottles in one case.</Text>
-              <View style={styles.caseInputRow}>
-                <View style={styles.caseInputGroup}>
-                  <Text style={styles.caseInputLabel}>Case type name</Text>
-                  <TextInput value={customPackLabel} onChangeText={setCustomPackLabel} placeholder="e.g. Family case" accessibilityLabel="Custom case type name" style={styles.fieldInput} />
-                </View>
-                <View style={styles.caseInputGroup}>
-                  <Text style={styles.caseInputLabel}>Bottles per case</Text>
-                  <TextInput value={customPackUnits} onChangeText={value => setCustomPackUnits(value.replace(/[^0-9]/g, ''))} placeholder="e.g. 18" accessibilityLabel="Custom bottles per case" keyboardType="number-pad" maxLength={5} style={styles.fieldInput} />
-                </View>
+              <Text style={styles.fieldLabel}>Add case type {nextCustomCaseCode}</Text>
+              <Text style={styles.helperText}>Enter the number of bottles in one case.</Text>
+              <View style={styles.customCaseInputGroup}>
+                <Text style={styles.caseInputLabel}>Bottles per case</Text>
+                <TextInput value={customPackUnits} onChangeText={value => setCustomPackUnits(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Custom bottles per case" keyboardType="number-pad" maxLength={5} style={styles.fieldInput} />
               </View>
-              <Pressable onPress={addCustomCaseType} accessibilityRole="button" accessibilityLabel="Add custom case type" style={[styles.caseTypeChip, styles.addCaseTypeButton]}><MaterialIcons name="add" size={18} color={theme.colors.primary} /><Text style={styles.caseTypeText}>Add type</Text></Pressable>
+              <Pressable onPress={addCustomCaseType} accessibilityRole="button" accessibilityLabel="Add custom case type" style={[styles.caseTypeChip, styles.addCaseTypeButton]}><MaterialIcons name="add" size={18} color={theme.colors.primary} /><Text style={styles.caseTypeText}>Add type {nextCustomCaseCode}</Text></Pressable>
               {!selectedCasePackIds.length ? <Text style={styles.helperText}>Select at least one case type.</Text> : null}
+              <View style={styles.sectionDivider} />
               <Text style={styles.fieldLabel}>Stock count reason</Text>
-              <TextInput value={stockReason} onChangeText={setStockReason} placeholder="e.g. Physical count correction" accessibilityLabel="Stock count reason" style={styles.fieldInput} />
+              <TextInput value={stockReason} onChangeText={setStockReason} placeholder="Reason" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Stock count reason" style={styles.fieldInput} />
               <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock separately for each case type. Use half-case steps.' : 'Stock and reservations stay separate for each case type.'}</Text>
               {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
             </ScrollView>
@@ -480,9 +509,9 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
           const packAvailable = stock.totalStock - stock.reservedStock;
           const packState = STATUS[stockState(packAvailable)];
           return (
-            <View key={pack.id} style={styles.caseStockSummary} accessibilityLabel={`${pack.label}: ${packState.label}, ${packAvailable} cases available`}>
+            <View key={pack.id} style={styles.caseStockSummary} accessibilityLabel={`${casePackDisplay(pack)}: ${packState.label}, ${packAvailable} cases available`}>
               <View style={styles.caseStockSummaryHeading}>
-                <Text style={styles.caseStockSummaryName}>{pack.label}</Text>
+                <Text style={styles.caseStockSummaryName}>{casePackDisplay(pack)}</Text>
                 <View style={[styles.caseTypeHealthBadge, { backgroundColor: packState.background }]}>
                   <MaterialIcons name={packState.icon} size={14} color={packState.color} accessible={false} />
                   <Text style={[styles.caseTypeHealthLabel, { color: packState.color }]}>{packState.label}</Text>
@@ -556,6 +585,9 @@ const styles = StyleSheet.create({
   fieldInput: { minHeight: 48, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
   helperText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: theme.spacing.xs },
   caseTypeOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.xs, marginVertical: theme.spacing.sm },
+  caseTypeOption: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  removeCaseTypeButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: theme.spacing.xs, borderRadius: 9, backgroundColor: theme.colors.dangerSoft },
+  removeCaseTypeLabel: { color: theme.colors.danger, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   caseTypeChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   caseTypeChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
   caseTypeText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
@@ -564,7 +596,10 @@ const styles = StyleSheet.create({
   casePriceLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   caseInputRow: { flexDirection: 'row', gap: theme.spacing.sm },
   caseInputGroup: { flex: 1, gap: theme.spacing.xs },
+  customCaseInputGroup: { gap: theme.spacing.xs },
+  sectionDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
   caseInputLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
+  priceInputLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   addCaseTypeButton: { alignSelf: 'flex-start', marginTop: theme.spacing.sm },
   caseStockList: { gap: theme.spacing.xs, marginVertical: theme.spacing.md },
   caseStockSummary: { padding: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.surfaceMuted },

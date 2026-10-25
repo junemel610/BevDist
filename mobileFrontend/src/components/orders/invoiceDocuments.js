@@ -1,5 +1,6 @@
 import * as XLSX from '@redoper1/xlsx-js-style';
 import { refundAmount, caseLineAmount } from './containerReturns.js';
+import { casePackDisplay } from './casePacks.js';
 
 const peso = amount => Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const quantity = amount => Number(amount ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 });
@@ -18,7 +19,7 @@ export function invoiceHtml(order, invoice) {
   const itemRows = order.items.map(item => {
     const price = Number(item.casePrice ?? item.unitPrice) || 0;
     const lineTotal = caseLineAmount(item.quantity, price);
-    const caseType = item.packLabel || (item.unitsPerCase ? `${item.unitsPerCase} bottles/case` : 'Historical invoice line');
+    const caseType = item.unitsPerCase ? casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase }) : item.packLabel || 'Historical invoice line';
     return `<tr>
       <td>${escapeHtml(item.productName)}</td>
       <td>${escapeHtml(caseType)}</td>
@@ -103,7 +104,7 @@ export function invoiceWorkbook(order, invoice) {
       const price = Number(item.casePrice ?? item.unitPrice) || 0;
       return [
         item.productName,
-        item.packLabel || (item.unitsPerCase ? `${item.unitsPerCase} bottles/case` : 'Historical invoice line'),
+        item.unitsPerCase ? casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase }) : item.packLabel || 'Historical invoice line',
         Number(item.quantity) || 0,
         price,
         caseLineAmount(item.quantity || 0, price),

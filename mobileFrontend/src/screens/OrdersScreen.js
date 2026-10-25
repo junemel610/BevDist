@@ -23,7 +23,7 @@ import { ContainerReturnEditor } from '../components/orders/ContainerReturnEdito
 import { prepareContainerReturns, refundAmount, caseLineAmount } from '../components/orders/containerReturns';
 import { invoiceEditorProducts } from '../components/orders/pendingInvoice';
 import { invoiceSummary } from '../components/dashboard/salesSummary';
-import { availableCases, casePacksForProduct, invoiceCaseItem, caseQuantityInputError } from '../components/orders/casePacks';
+import { availableCases, casePackDisplay, casePacksForProduct, invoiceCaseItem, caseQuantityInputError } from '../components/orders/casePacks';
 import { groupOpenCustomerBalances } from '../components/balances/customerAccounts';
 import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
@@ -149,8 +149,8 @@ export function OrdersScreen({ navigation, route }) {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search by invoice or customer"
-                placeholderTextColor={theme.colors.textLight}
+                placeholder="Search invoices"
+                placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search invoices by invoice number or customer"
                 returnKeyType="search"
                 style={styles.searchInput}
@@ -494,9 +494,9 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
           </View>
           {isNewCustomer ? (
             <View style={styles.newCustomerFields}>
-              <TextInput value={newCustomer.name} onChangeText={value => onChangeNewCustomer('name', value)} placeholder="Customer name (required)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer name, required" returnKeyType="next" style={styles.customerInput} />
-              <TextInput value={newCustomer.contact} onChangeText={value => onChangeNewCustomer('contact', value)} placeholder="Contact number (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer contact number, optional" keyboardType="phone-pad" style={styles.customerInput} />
-              <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address (optional)" placeholderTextColor={theme.colors.textLight} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
+              <TextInput value={newCustomer.name} onChangeText={value => onChangeNewCustomer('name', value)} placeholder="Customer name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer name, required" returnKeyType="next" style={styles.customerInput} />
+              <TextInput value={newCustomer.contact} onChangeText={value => onChangeNewCustomer('contact', value)} placeholder="Contact" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer contact number, optional" keyboardType="phone-pad" style={styles.customerInput} />
+              <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
             </View>
           ) : customers.map(option => {
             const selected = option.id === customer?.id;
@@ -557,7 +557,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                   return (
                     <View key={pack.id} style={styles.caseQuantityRow}>
                       <View style={styles.packLabelBlock}>
-                        <Text style={styles.packLabel}>{pack.label} · {formatPeso(pack.casePrice)} per case</Text>
+                        <Text style={styles.packLabel}>{casePackDisplay(pack)} · {formatPeso(pack.casePrice)} per case</Text>
                         <Text style={styles.infoSecondary}>{maxCases} cases available</Text>
                         {!!quantityError && <Text accessibilityRole="alert" style={styles.quantityError}>{quantityError}</Text>}
                       </View>
@@ -566,7 +566,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                           onPress={() => onChangeQuantity(product.id, pack.id, Math.max(0, quantity - 0.5))}
                           disabled={!quantity}
                           accessibilityRole="button"
-                          accessibilityLabel={`Remove half a ${pack.label} case of ${product.name}`}
+                          accessibilityLabel={`Remove half a ${casePackDisplay(pack)} case of ${product.name}`}
                           style={[styles.quantityButton, !quantity && styles.quantityButtonDisabled]}
                         >
                           <MaterialIcons name="remove" size={18} color={quantity ? theme.colors.primary : theme.colors.textLight} accessible={false} />
@@ -575,14 +575,14 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                           value={String(cart[`${product.id}:${pack.id}`] ?? '0')}
                           onChangeText={value => onChangeQuantity(product.id, pack.id, value)}
                           selectTextOnFocus keyboardType="decimal-pad"
-                          accessibilityLabel={`${product.name}, ${pack.label}, quantity in cases`}
+                          accessibilityLabel={`${product.name}, ${casePackDisplay(pack)}, quantity in cases`}
                           style={[styles.quantityEntry, quantityError && styles.quantityEntryError]}
                         />
                         <Pressable
                           onPress={() => onChangeQuantity(product.id, pack.id, quantity + 0.5)}
                           disabled={quantity + 0.5 > maxCases}
                           accessibilityRole="button"
-                          accessibilityLabel={`Add half a ${pack.label} case of ${product.name}`}
+                          accessibilityLabel={`Add half a ${casePackDisplay(pack)} case of ${product.name}`}
                           style={[styles.quantityButton, quantity + 0.5 > maxCases && styles.quantityButtonDisabled]}
                         >
                           <MaterialIcons name="add" size={18} color={quantity + 0.5 <= maxCases ? theme.colors.primary : theme.colors.textLight} accessible={false} />
@@ -631,6 +631,7 @@ function OrderDetailModal({ onPay, order, onClose, onShowInvoice, onEdit, onMark
           <Text style={styles.infoSecondary}>{order.customer.contact}</Text>
           {!!order.customer.address && <Text style={styles.infoSecondary}>{order.customer.address}</Text>}
         </View>
+        <View style={styles.sectionDivider} />
         <View style={styles.infoGroup}>
           <Text style={styles.sectionLabel}>Invoice</Text>
           <View style={styles.infoLine}>
@@ -654,18 +655,20 @@ function OrderDetailModal({ onPay, order, onClose, onShowInvoice, onEdit, onMark
             <Text style={styles.infoValue}>{formatPeso(order.remainingBalance)}</Text>
           </View>
         </View>
+        <View style={styles.sectionDivider} />
         <View>
           <Text style={styles.sectionLabel}>Items</Text>
           {order.items.map((item, index) => (
             <View key={`${item.productId}-${index}`} style={styles.itemRow}>
               <View style={styles.itemDescription}>
                 <Text style={styles.itemName}>{item.productName}</Text>
-                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
+                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
               </View>
               <Text style={styles.itemAmount}>{formatPeso(item.quantity * (item.casePrice ?? item.unitPrice))}</Text>
             </View>
           ))}
         </View>
+        <View style={styles.sectionDivider} />
         <DeliveryBadge order={order} />
         <View style={styles.grandTotalRow}>
           <Text style={styles.grandTotalLabel}>Grand total</Text>
@@ -731,18 +734,20 @@ function InvoiceModal({ onPay, order, balance, onClose, onExportPdf, onExportExc
           {!!order.customer.address && <Text style={styles.infoSecondary}>{order.customer.address}</Text>}
         </View>
 
+        <View style={styles.sectionDivider} />
         <Text style={styles.sectionLabel}>Invoice items</Text>
         {order.items.map((item, index) => (
           <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
             <View style={styles.itemDescription}>
               <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${item.packLabel} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
+              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${item.quantity} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
             </View>
             <Text style={styles.itemAmount}>{formatPeso(item.quantity * (item.casePrice ?? item.unitPrice))}</Text>
           </View>
         ))}
 
         {(order.containerReturns || []).length > 0 && <View>
+          <View style={styles.sectionDivider} />
           <Text style={styles.sectionLabel}>Returned containers</Text>
           {order.containerReturns.map((entry, index) => <View key={entry.id || index} style={styles.invoiceItem}>
             <View style={styles.itemDescription}><Text style={styles.itemName}>{entry.type}</Text>
@@ -872,7 +877,8 @@ const styles = StyleSheet.create({
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: theme.colors.onPrimaryOverlay },
   modalBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
   createOrderBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
-  createSection: { gap: theme.spacing.sm },
+  createSection: { gap: theme.spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md },
+  sectionDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
   createSectionTitle: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text, marginBottom: theme.spacing.xs },
   customerMode: { flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.xs },
   customerModeButton: { minHeight: 46, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
