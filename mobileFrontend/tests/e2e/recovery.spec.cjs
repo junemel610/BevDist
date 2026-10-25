@@ -81,7 +81,7 @@ test('duplicate submissions are rejected while the original save is still pendin
   expect((await data.snapshot()).customers.filter(c => c.name === name)).toHaveLength(1);
 });
 
-test('failed profile refresh and failed sign-out preserve the session for retry', async ({ page }) => {
+test('profile refresh can retry and failed server sign-out still returns to login', async ({ page }) => {
   await signIn(page); await tab(page, 'Profile');
   await page.route(`${apiURL}/app-data`, route => route.abort('connectionfailed'), { times: 1 });
   await page.getByRole('button', { name: 'Refresh records' }).click();
@@ -89,9 +89,6 @@ test('failed profile refresh and failed sign-out preserve the session for retry'
   await page.getByRole('button', { name: 'Refresh records' }).click();
   await expect(activeText(page, 'Could not refresh. Check your connection and try again.')).not.toBeVisible();
   await page.route(`${apiURL}/auth/logout`, route => route.abort('connectionfailed'), { times: 1 });
-  await confirm(page, () => page.getByRole('button', { name: 'Sign out' }).click());
-  await expect(activeText(page, 'Could not sign out. Check your connection and try again.')).toBeVisible();
-  await expect(activeText(page, 'Signed in as')).toBeVisible();
   await confirm(page, () => page.getByRole('button', { name: 'Sign out' }).click());
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 });

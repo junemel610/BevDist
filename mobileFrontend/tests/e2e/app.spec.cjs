@@ -105,7 +105,7 @@ test('inventory editing changes case stock and zero-stock deletion archives the 
   await page.getByLabel('Search inventory by product or supplier').fill(data.product.name);
   await page.getByRole('button', { name: `Edit ${data.product.name} inventory` }).click();
   await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill('0');
-  await page.getByLabel('A · 12 bottles/case price per case in pesos', { exact: true }).fill('120');
+  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('120');
   await page.getByLabel('Stock count reason', { exact: true }).fill('E2E physical count');
   await confirm(page, () => page.getByRole('button', { name: 'Save changes' }).click());
   await expect(page.getByLabel('Close inventory editor')).not.toBeVisible();
@@ -126,7 +126,7 @@ test('supplier orders persist half-case receipts and open their details', async 
   await page.getByRole('button', { name: /Add product/ }).click();
   await page.getByRole('button', { name: new RegExp(data.product.name) }).click();
   await page.getByLabel(`${data.product.name} quantity in cases`, { exact: true }).fill('0.5');
-  await page.getByLabel(`${data.product.name} cost per case in pesos`, { exact: true }).fill('80');
+  await page.getByLabel(`${data.product.name} supplier cost per case in pesos`, { exact: true }).fill('80');
   await confirm(page, () => page.getByRole('button', { name: 'Save supplier order' }).click());
   const details = page.getByRole('button', { name: new RegExp(`View ${data.supplierName} supplier order`) });
   await expect(details).toBeVisible();

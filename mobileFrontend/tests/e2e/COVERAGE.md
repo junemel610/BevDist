@@ -1,6 +1,6 @@
 # Browser functionality checklist
 
-The suite contains **40 scenarios**, each run on desktop Chromium and Pixel 7 browser emulation: **80 browser checks**. These cover the current web app workflows below. This is a feature checklist, not a claim that every possible input, browser or device behavior has been exhausted.
+The suite contains **48 scenarios**, each run on desktop Chromium and Pixel 7 browser emulation: **96 browser checks**. These cover the current web app workflows below. This is a feature checklist, not a claim that every possible input, browser or device behavior has been exhausted.
 
 | Screen / function | Browser checks | Spec |
 | --- | --- | --- |
@@ -21,12 +21,12 @@ The suite contains **40 scenarios**, each run on desktop Chromium and Pixel 7 br
 | Balances | Paid/cancelled/unpaid/overdue filters and selected indicators; grouped customer invoices, historical balances, search and clear | `payments-dashboard` |
 | GCash | Separate GCash stack, persisted receipt/invoice visible, back navigation from credit stack | `app` |
 | Customer profiles | Create, required name, edit contact/address, cancel confirmation, persist updates, scroll through a virtualized customer list | `app`, `payments-dashboard` |
-| Product creation | A/B/C and both Mucho case types; independent price and opening count; missing fields, duplicate name, invalid price/count, close without save | `inventory` |
+| Product creation | A/B/C, both Mucho types and custom case types; editable whole-number bottles per case; independent selling price and opening count; add/remove a type; missing fields, duplicate name, invalid price/count, close without save | `inventory`, `product-entry` |
 | Inventory editing | Quantity/price labels, reason required, invalid/reserved stock limits, atomic stale-count rejection and refresh | `app`, `inventory` |
 | Stock presentation | Per-case Low stock labels, In stock / Low stock / Out of stock and supplier filters, search, clear and empty result | `inventory` |
 | Product deletion | Confirmed zero-stock archive, refuse stocked/reserved product, preserve completed invoice snapshots/history | `app`, `inventory` |
 | Supplier drafts | Select supplier, picker close, add/remove lines, empty and quarter-case rejection, reject mixed valid/invalid lines, confirm/cancel supplier switch before clearing draft | `suppliers` |
-| Supplier receipts | Multi-product half-case receipt, confirmation cancellation, all four return types deduct credit, separate case stock, recent receipt opens/closes details | `app`, `suppliers` |
+| Supplier receipts | Existing/new supplier, multiple new products in one receipt with no returns, manual return credits, multi-product half-case receipt, confirmation cancellation, all four return types deduct credit, separate case stock, recent receipt opens/closes details | `app`, `suppliers`, `product-entry` |
 | Feedback | Top stock notification, current stock message actions, dismiss and View stock navigation | `invoices` |
 | Excel export | Actual browser download, XLSX filename, parse downloaded workbook, customer/invoice/product/case/refund values and merged layout | `exports` |
 | PDF / print | Invoice-only print window with formatted table, actual Chromium PDF bytes, no app tabs in print window, blocked-popup error leaves preview usable | `exports` |
@@ -42,9 +42,10 @@ Spec names above omit `.spec.cjs`. Files and scenario counts:
 | `inventory.spec.cjs` | 6 |
 | `invoices.spec.cjs` | 10 |
 | `payments-dashboard.spec.cjs` | 6 |
+| `product-entry.spec.cjs` | 8 |
 | `recovery.spec.cjs` | 6 |
 | `suppliers.spec.cjs` | 3 |
-| **Total** | **40** |
+| **Total** | **48** |
 
 ## What is real and what is injected
 

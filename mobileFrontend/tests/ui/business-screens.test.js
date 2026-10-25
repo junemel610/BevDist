@@ -78,7 +78,7 @@ test('inventory search filters products and Edit opens labelled stock/price fiel
   await render(<InventoryScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Edit Cola inventory' }));
   expect(screen.getByLabelText('A · 12 bottles/case quantity in cases')).toHaveDisplayValue('10');
-  expect(screen.getByLabelText('A · 12 bottles/case price per case in pesos')).toHaveDisplayValue('100');
+  expect(screen.getByLabelText('A · 12 bottles/case selling price per case in pesos')).toHaveDisplayValue('100');
   await fireEvent.changeText(screen.getByLabelText('Stock count reason'), 'Count correction');
   await userEvent.press(screen.getByRole('button', { name: 'Save changes' }));
   expect(app.updateProductInventory).not.toHaveBeenCalled();
@@ -129,7 +129,7 @@ test('dashboard shows payment methods and quick create opens the invoice modal r
 test('supplier order validates empty orders before creating a receipt', async () => {
   await render(<SupplierOrdersScreen />);
   await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
-  expect(screen.getByText('Add at least one product with a quantity and unit cost.')).toBeOnTheScreen();
+  expect(screen.getByText('Add at least one product line before saving.')).toBeOnTheScreen();
   expect(app.addRestockRecord).not.toHaveBeenCalled();
 });
 
@@ -166,11 +166,11 @@ test('supplier order accepts half cases, confirms saving and opens historical de
   await userEvent.press(screen.getByRole('button', { name: 'Add product' }));
   await userEvent.press(screen.getByRole('button', { name: /Cola/ }));
   await fireEvent.changeText(screen.getByLabelText('Cola quantity in cases'), '0.5');
-  await fireEvent.changeText(screen.getByLabelText('Cola cost per case in pesos'), '80');
+  await fireEvent.changeText(screen.getByLabelText('Cola supplier cost per case in pesos'), '80');
   await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
   expect(app.addRestockRecord).not.toHaveBeenCalled();
   await confirm();
-  expect(app.addRestockRecord).toHaveBeenCalledWith('Supplier One', [expect.objectContaining({ quantity: 0.5, unitCost: 80, packId: 'A' })], []);
+  expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], [expect.objectContaining({ quantity: 0.5, unitCost: 80, packId: 'A' })], [], []);
   await userEvent.press(screen.getByRole('button', { name: 'View Supplier One supplier order from 2026-10-24' }));
   expect(screen.getByText('Historic Cola')).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Close supplier order details' }));

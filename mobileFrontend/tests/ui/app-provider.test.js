@@ -92,11 +92,11 @@ test('duplicate submissions are blocked and busy resets after completion', async
   expect(api.customersAPI.create).toHaveBeenCalledTimes(1);
 });
 
-test('failed logout preserves the current authenticated session', async () => {
+test('failed server logout still clears the local authenticated session', async () => {
   const { result } = await signedIn();
   api.authAPI.logout.mockRejectedValueOnce(new Error('Offline'));
-  await act(async () => { await expect(result.current.logout()).rejects.toThrow('Offline'); });
-  expect(result.current.isLoggedIn).toBe(true);
+  await act(async () => { await result.current.logout(); });
+  expect(result.current.isLoggedIn).toBe(false);
   expect(result.current.busy).toBe(false);
 });
 

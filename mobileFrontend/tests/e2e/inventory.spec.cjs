@@ -11,11 +11,12 @@ for (const [kind, packs] of [['standard', [['A', 'A · 12 bottles/case'], ['B', 
     await page.getByRole('button', { name: 'Add product' }).click();
     const name = `${kind} Beverage ${randomUUID().slice(0, 8)}`;
     await page.getByLabel('Product name', { exact: true }).fill(name);
-    await page.getByLabel('Supplier name', { exact: true }).fill(data.supplierName);
-    for (const [index, [id, label]] of packs.entries()) {
-      await page.getByRole('checkbox', { name: new RegExp(kind === 'Mucho' ? `Mucho ${id.split('_')[1]}` : label) }).click();
+    await page.getByLabel('Search saved suppliers', { exact: true }).fill(data.supplierName);
+    await page.getByRole('radio', { name: `Select supplier ${data.supplierName}`, exact: true }).click();
+    for (const [index, [, label]] of packs.entries()) {
+      await page.getByRole('checkbox', { name: new RegExp(label) }).click();
       await page.getByLabel(`${label} quantity in cases`, { exact: true }).fill(String(index + 0.5));
-      await page.getByLabel(`${label} price per case in pesos`, { exact: true }).fill(String((index + 1) * 100));
+      await page.getByLabel(`${label} selling price per case in pesos`, { exact: true }).fill(String((index + 1) * 100));
     }
     await confirm(page, () => page.getByRole('button', { name: 'Add product' }).last().click());
     await expect(page.getByLabel('Close inventory editor')).not.toBeVisible();
@@ -56,7 +57,7 @@ test('stale inventory counts fail atomically and refresh loads the new physical 
   const update = await request.put(`${apiURL}/products/${product.id}`, { headers: data.headers, data: { name: product.name, supplierId: product.supplierId, stockReason: 'Concurrent count', packs: [{ packId: 'A', casePrice: 100, totalStock: 21, expectedStock: 20 }] } });
   expect(update.ok()).toBeTruthy();
   await page.getByLabel('Stock count reason', { exact: true }).fill('Stale count');
-  await page.getByLabel('A · 12 bottles/case price per case in pesos', { exact: true }).fill('999');
+  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('999');
   await rejectedSave(page, () => page.getByRole('button', { name: 'Save changes' }).click(), /refresh|stock.*changed/i);
   expect((await data.snapshot()).products.find(p => p.id === data.product.id).casePrices.A).toBe(100);
   await page.getByLabel('Close inventory editor').click();
@@ -92,15 +93,16 @@ test('new product form validates required fields, duplicate names and invalid ca
   await save.click();
   await expect(activeText(page, 'Product name and supplier are required.')).toBeVisible();
   await page.getByLabel('Product name', { exact: true }).fill(data.product.name);
-  await page.getByLabel('Supplier name', { exact: true }).fill(data.supplierName);
+  await page.getByLabel('Search saved suppliers', { exact: true }).fill(data.supplierName);
+    await page.getByRole('radio', { name: `Select supplier ${data.supplierName}`, exact: true }).click();
   await save.click();
   await expect(activeText(page, 'A product with this name already exists.')).toBeVisible();
   await page.getByLabel('Product name', { exact: true }).fill(`New ${data.product.name}`);
   await page.getByRole('checkbox', { name: /A · 12 bottles/ }).click();
   await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill('0.25');
-  await page.getByLabel('A · 12 bottles/case price per case in pesos', { exact: true }).fill('0');
+  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('0');
   await save.click();
-  await expect(activeText(page, 'Enter stock in half-case steps and a price greater than ₱0 for each selected case type.')).toBeVisible();
+  await expect(activeText(page, 'Enter stock in half-case steps and a numeric selling price greater than ₱0 for each selected case type.')).toBeVisible();
   await page.getByLabel('Close inventory editor').click();
   expect((await data.snapshot()).products.some(p => p.name === `New ${data.product.name}`)).toBe(false);
 });

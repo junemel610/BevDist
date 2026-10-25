@@ -14,17 +14,17 @@ test('supplier order validates empty/quarter-case lines and product picker can c
   await signIn(page); await tab(page, 'Orders');
   await page.getByRole('button', { name: new RegExp(data.supplierName) }).click();
   await page.getByRole('button', { name: 'Save supplier order' }).click();
-  await expect(activeText(page, 'Add at least one product with a quantity and unit cost.')).toBeVisible();
+  await expect(activeText(page, 'Add at least one product line before saving.')).toBeVisible();
   await page.getByRole('button', { name: /Add product/ }).click();
   await page.getByLabel('Close product list').click();
   await addLine(page, data.product.name);
   await page.getByLabel(`${data.product.name} quantity in cases`, { exact: true }).fill('0.25');
-  await page.getByLabel(`${data.product.name} cost per case in pesos`, { exact: true }).fill('100');
+  await page.getByLabel(`${data.product.name} supplier cost per case in pesos`, { exact: true }).fill('100');
   await addLine(page, second);
   await page.getByLabel(`${second} quantity in cases`, { exact: true }).fill('1');
-  await page.getByLabel(`${second} cost per case in pesos`, { exact: true }).fill('100');
+  await page.getByLabel(`${second} supplier cost per case in pesos`, { exact: true }).fill('100');
   await page.getByRole('button', { name: 'Save supplier order' }).click();
-  await expect(activeText(page, 'Add at least one product with a quantity and unit cost.')).toBeVisible();
+  await expect(activeText(page, 'Enter a half-case quantity and purchase cost for every product line.')).toBeVisible();
   await page.getByRole('button', { name: new RegExp(`Remove ${data.product.name}`) }).click();
   await page.getByRole('button', { name: new RegExp(`Remove ${second}`) }).click();
   await expect(activeText(page, 'No products added')).toBeVisible();
@@ -39,11 +39,14 @@ test('multi-product supplier receipts deduct all four returned-case credits and 
   await page.getByRole('button', { name: /Add product/ }).click();
   await page.getByRole('button').filter({ has: page.getByText(new RegExp(`^${data.product.name} · `)) }).click();
   await page.getByLabel(`${data.product.name} quantity in cases`, { exact: true }).fill('1');
-  await page.getByLabel(`${data.product.name} cost per case in pesos`, { exact: true }).fill('100');
+  await page.getByLabel(`${data.product.name} supplier cost per case in pesos`, { exact: true }).fill('100');
   await addLine(page, secondName);
   await page.getByLabel(`${secondName} quantity in cases`, { exact: true }).fill('0.5');
-  await page.getByLabel(`${secondName} cost per case in pesos`, { exact: true }).fill('200');
-  for (const type of ['A', 'B', 'C', 'D']) await page.getByLabel(`Case Type ${type} returned case quantity`, { exact: true }).fill('0.5');
+  await page.getByLabel(`${secondName} supplier cost per case in pesos`, { exact: true }).fill('200');
+  for (const [type, price] of [['A',15], ['B',20], ['C',18], ['D',12]]) {
+    await page.getByRole('button', { name: `Add half case of Case Type ${type}`, exact: true }).click();
+    await page.getByLabel(`Case Type ${type} return credit per case`, { exact: true }).fill(String(price));
+  }
   await confirm(page, () => page.getByRole('button', { name: 'Save supplier order' }).click(), false);
   expect((await data.snapshot()).restockRecords.some(r => r.supplier === data.supplierName)).toBe(false);
   await confirm(page, () => page.getByRole('button', { name: 'Save supplier order' }).click());

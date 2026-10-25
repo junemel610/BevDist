@@ -48,3 +48,22 @@ test('inventory sends original counts and updated prices/stock in one request', 
   assert.deepEqual(calls[1], ['cancel', 'invoice', 'Cancelled by operator']);
   assert.deepEqual(await live.load(), { orders: [], products: [] });
 });
+
+test('supplier receipt sends saved IDs or inline drafts and retains retry keys after an uncertain response', async () => {
+  const { api, live, calls } = setup();
+  const items = [{ productId: 'product', packId: 'A', quantity: 0.5, unitCost: 40, productName: 'UI-only' }];
+  await live.restock({ id: 'supplier', name: 'Saved' }, items, []);
+  assert.deepEqual(calls[0][1], { supplierId: 'supplier', items: [{ productId: 'product', packId: 'A', quantity: 0.5, unitCost: 40 }], newProducts: [], returnedCases: [], newCasePackTypes: [], requestKey: 'key-1' });
+  const requests = [];
+  api.supplierOrdersAPI.create = async input => { requests.push(input); if (requests.length === 1) throw new Error('Response lost'); return { data: { id: 'receipt' } }; };
+  const supplier = { name: 'New', contact: '123', address: 'Depot' };
+  const products = [{ name: 'Drink', packs: [{ packId: 'A', casePrice: 100, quantity: 0.5, unitCost: 40 }] }];
+  const returns = [{ type: 'A', quantity: 0.5, creditPerUnit: 10 }];
+  await assert.rejects(live.restock(supplier, [], returns, products));
+  await live.restock(supplier, [], returns, products);
+  assert.deepEqual(requests[0], requests[1]);
+  assert.deepEqual(requests[1].newSupplier, supplier);
+  assert.deepEqual(requests[1].newProducts, products);
+  assert.deepEqual(requests[1].returnedCases, returns);
+  assert.equal(requests[1].supplierId, undefined);
+});

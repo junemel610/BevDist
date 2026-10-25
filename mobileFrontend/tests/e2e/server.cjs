@@ -39,4 +39,4 @@ async function start() {
   process.once('SIGTERM', () => { void close(); });
   process.once('SIGINT', () => { void close(); });
 }
-start().catch(error => { console.error('E2E setup failed:', error.message); void close(1); });
+start().catch(error => { console.error('E2E setup failed:', error.code || error.message || error.name, error.stack); void close(1); });

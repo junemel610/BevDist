@@ -1,6 +1,6 @@
 # Automated feature coverage
 
-Verified 2026-10-24: **249 passing tests** (67 frontend unit, 39 component/provider/export, 63 backend checks including nested cases, and 80 Playwright browser checks). ESLint and TypeScript checks pass. This is a regression baseline across the current feature set, not proof that every possible input or device behavior is covered.
+Verified 2026-10-25: **302 passing checks** (68 frontend unit, 48 component/provider/export, 90 backend checks including nested cases, and 96 Playwright browser checks). ESLint and TypeScript checks pass. This is a regression baseline across the current feature set, not proof that every possible input or device behavior is covered.
 
 ## Run everything
 
@@ -39,8 +39,8 @@ npm run test:db
 | Invoices | Typed quantities, half-case steps, insufficient stock, confirmation, live edits, preserved prices/returns, delivery independent of payment, immutable completed invoices, cancellation and reservation release | F `typed-case-quantity`, `case-packs`, `pending-invoice`, `order-lifecycle`, `ui/business-screens`; B invoice workflows |
 | Payments | Initial amount zero, zero rejected, Cash/GCash/Bank Transfer, oldest first, partial/full payments, excess credit, concurrent receipts, idempotency, separate invoice balances | F `payment-ledger`, `balance-utils`, `customer-accounts`, `ui/business-screens`, `ui/app-provider`; B payment / concurrency / Bank Transfer tests |
 | Customer profiles / credits | Name validation, save confirmation, searchable credit list, navigation to credits, grouping/identity and credit deductions | F `customer-profiles`, `customer-credits`, `customer-accounts`, `ui/business-screens`; B customer/catalog and invoice flows |
-| Inventory | A/B/C/Mucho 6/Mucho 12 stock separation, reservations, physical deduction at delivery, thresholds, labels, filters/search, count reason, stale counts, product archiving/deletion confirmation, concurrent last-half-case reservations | F `inventory-utils`, `case-packs`, `ui/business-screens`; B catalog / inventory / concurrency / five-pack tests |
-| Supplier orders | Empty form validation, half-case entry, save confirmation, recent-order details, per-pack stock receipt, return credits, idempotency, supplier ownership and rollback | F `supplier-order-utils`, `ui/business-screens`; B supplier receipt / ownership tests |
+| Inventory | A/B/C/Mucho 6/Mucho 12 and custom case types; numeric bottle count, per-type stock/price, add/remove a type, reservations, physical deduction at delivery, thresholds, filters/search, reason, stale counts, archive/delete confirmation, concurrent edits | F `inventory-utils`, `case-packs`, `ui/product-entry`, `ui/business-screens`; B catalog / inventory / concurrency / custom-pack tests |
+| Supplier orders | Existing/new supplier search, new supplier and multiple new products, no-return receipts, optional manual return credits, half-case entry, purchase-cost vs selling-price labels, confirmation, recent-order details, per-pack stock, idempotency, ownership and rollback | F `supplier-order-utils`, `ui/product-entry`, `ui/business-screens`; B supplier receipt / ownership / inline validation tests |
 | Returned containers | Editable type/quantity/rate, rounding and total deduction, reject invalid steps/negative rates/excessive deductions/below-settlement totals, explicit clear vs preserve on edit | F `container-returns`, `ui/business-screens`; B invoice / invalid-input tests |
 | Dashboard | Expected vs actual vs outstanding reconciliation with SQL, partial payments, excess/cancel exclusions, separate daily payment methods, Manila dates, chart calculations, quick-create route | F `dashboard-*`, `daily-payment-methods`, `business-date`, `ui/business-screens`; B DTO / Bank Transfer / timezone tests |
 | GCash page | Cash excluded, GCash amounts/excess displayed, oldest-first persisted allocations mapped to DTOs | F `ui/business-screens`; B GCash allocation test |
@@ -53,15 +53,15 @@ Unit file names in the table omit `.test.mjs`; UI file names omit `.test.js`.
 
 ## Browser end-to-end checks
 
-Forty scenarios run twice: desktop Chromium and Pixel 7 browser emulation. They use the real navigation container, production web export, Express API and PostgreSQL. The [browser functionality checklist](mobileFrontend/tests/e2e/COVERAGE.md) maps every current screen to its covered workflows: lifecycle changes, all five case packs, CRUD forms, filters, payments, returned containers, exports, and save/session recovery.
+Forty-eight scenarios run twice: desktop Chromium and Pixel 7 browser emulation. They use the real navigation container, production web export, Express API and PostgreSQL. The [browser functionality checklist](mobileFrontend/tests/e2e/COVERAGE.md) maps every current screen to its covered workflows: lifecycle changes, standard, Mucho and custom case packs, multi-product receipts with or without returns, CRUD forms, filters, payments, exports, and save/session recovery.
 
 Playwright starts isolated loopback servers and creates/drops its own `bevdist_e2e_*` database. It does not reuse a developer server. Failure screenshots/traces and an HTML report are saved under ignored `mobileFrontend/dist/`. See [Playwright setup and UI runner](mobileFrontend/tests/e2e/README.md) for commands, isolation details, restart requirements and remaining limits.
 
 ## Measured coverage and limits
 
-The Jest-only report covers the configured screen, context, API, component and utility JavaScript files: **72.86% lines, 70.49% statements, 67.74% functions, 57.28% branches**. Open `mobileFrontend/dist/test-coverage/ui/index.html` after running coverage. Generated reports live under ignored `dist/`.
+The Jest-only report covers the configured screen, context, API, component and utility JavaScript files: **77.47% lines, 75.24% statements, 73.16% functions, 61.73% branches**. Open `mobileFrontend/dist/test-coverage/ui/index.html` after running coverage. Generated reports live under ignored `dist/`.
 
-These percentages do not include execution from the separate 67 Node unit tests or backend tests. They are not a combined full-stack coverage percentage. Unit tests also cover retained pure demo helpers; provider and HTTP tests separately cover live persisted operations.
+These percentages do not include execution from the separate 68 Node unit tests or backend tests. They are not a combined full-stack coverage percentage. Unit tests also cover retained pure demo helpers; provider and HTTP tests separately cover live persisted operations.
 
 Component tests use real screen components but mock HTTP, icons, safe-area metrics, chart drawing and native print/share/storage. They do not launch the app, exercise the real navigation container, inspect screenshots or measure scrolling performance. Chart calculations and quick-action route arguments are covered, but chart drawing and real navigation still need device checks. Type checking covers TypeScript files; JavaScript screens are linted.
 
