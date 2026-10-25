@@ -21,7 +21,7 @@ The suite contains **48 scenarios**, each run on desktop Chromium and Pixel 7 br
 | Balances | Paid/cancelled/unpaid/overdue filters and selected indicators; grouped customer invoices, historical balances, search and clear | `payments-dashboard` |
 | GCash | Separate GCash stack, persisted receipt/invoice visible, back navigation from credit stack | `app` |
 | Customer profiles | Create, required name, edit contact/address, cancel confirmation, persist updates, scroll through a virtualized customer list | `app`, `payments-dashboard` |
-| Product creation | A/B/C, both Mucho types and custom case types; editable whole-number bottles per case; independent selling price and opening count; add/remove a type; missing fields, duplicate name, invalid price/count, close without save | `inventory`, `product-entry` |
+| Product creation | A/B/C, both Mucho types and custom case types; alphabet-only type names with bottle-count display; editable whole-number bottles per case; independent selling price and opening count; undo a newly added type before saving and remove an unused saved type; missing fields, duplicate name, invalid price/count, close without save | `inventory`, `product-entry` |
 | Inventory editing | Quantity/price labels, reason required, invalid/reserved stock limits, atomic stale-count rejection and refresh | `app`, `inventory` |
 | Stock presentation | Per-case Low stock labels, In stock / Low stock / Out of stock and supplier filters, search, clear and empty result | `inventory` |
 | Product deletion | Confirmed zero-stock archive, refuse stocked/reserved product, preserve completed invoice snapshots/history | `app`, `inventory` |

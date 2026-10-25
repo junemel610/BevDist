@@ -61,16 +61,16 @@ export function DashboardScreen({ navigation }) {
             </View>
             <View style={styles.salesValues}>
               <View style={styles.salesMetric}>
-                <Text style={styles.cardLabel}>Total expected</Text>
+                <Text style={styles.cardLabel}>Total Expected Sales</Text>
                 <Text style={styles.expectedValue}>{formatPeso(sales.expected)}</Text>
               </View>
               <View style={styles.salesDivider} />
               <View style={styles.salesMetric}>
-                <Text style={styles.cardLabel}>Actual sales</Text>
+                <Text style={styles.cardLabel}>Actual Sales</Text>
                 <Text style={styles.actualValue}>{formatPeso(sales.actual)}</Text>
               </View>
             </View>
-            <Text style={styles.salesHint}>Actual sales counts cash payments applied to invoices.</Text>
+            <Text style={styles.salesHint}>Actual Sales counts cash payments applied to invoices.</Text>
           </View>
 
           <View style={styles.metrics}>
