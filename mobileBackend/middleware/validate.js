@@ -8,7 +8,7 @@ const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(va
 const item = value => value && uuid(value.productId) && text(value.packId) && quantity(value.quantity);
 const returned = value => value && (!value.returnTypeId || uuid(value.returnTypeId)) && text(value.type) && quantity(value.quantity);
 const customPack = value => value && typeof value.code === 'string' && /^CUSTOM_[A-Z0-9_]{4,60}$/.test(value.code)
-  && text(value.label) && value.label.length <= 100 && Number.isInteger(Number(value.unitsPerCase))
+  && typeof value.label === 'string' && /^[A-Z]+$/.test(value.label) && Number.isInteger(Number(value.unitsPerCase))
   && Number(value.unitsPerCase) > 0 && Number(value.unitsPerCase) <= 10000;
 const customPacks = value => list(value ?? [], customPack)
   && new Set((value ?? []).map(pack => pack.code)).size === (value ?? []).length;

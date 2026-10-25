@@ -22,6 +22,7 @@ async function lockProduct(client, id) {
 
 async function ensureCustomCaseTypes(client, caseTypes = []) {
   for (const type of [...caseTypes].sort((a, b) => a.code.localeCompare(b.code))) {
+    if (!/^[A-Z]+$/.test(type.label)) throw new HttpError(400, 'Custom case type name must be a letter.');
     const result = await client.query(`INSERT INTO case_pack_types(code,label,units_per_case,family)
       VALUES ($1,$2,$3,'custom') ON CONFLICT (code) DO UPDATE SET is_active=true
       WHERE case_pack_types.family='custom' AND case_pack_types.label=EXCLUDED.label

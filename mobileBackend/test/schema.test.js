@@ -24,7 +24,7 @@ before(async () => {
   const url = new URL(process.env.DATABASE_URL);
   url.pathname = `/${database}`;
   pool = createPool(url.href);
-  assert.equal((await migrate(pool)).length, 4);
+  assert.equal((await migrate(pool)).length, 5);
   actor = (await one("INSERT INTO app_users(username,password_hash) VALUES ('test-user','test-only-hash') RETURNING id")).id;
 });
 
@@ -58,6 +58,9 @@ const pay = (f, amountReceived, extra = {}) => recordPayment(pool, {
 test('migrations are repeatable and only catalogs are seeded', async () => {
   assert.deepEqual(await migrate(pool), []);
   assert.equal((await one('SELECT count(*) AS count FROM case_pack_types')).count, '5');
+  assert.deepEqual((await pool.query("SELECT code,label FROM case_pack_types WHERE code IN ('A','B','C') ORDER BY code")).rows, [
+    { code: 'A', label: 'A' }, { code: 'B', label: 'B' }, { code: 'C', label: 'C' },
+  ]);
   assert.equal((await one('SELECT count(*) AS count FROM returned_case_types')).count, '0');
 });
 
@@ -356,22 +359,22 @@ test('custom case types persist through product inventory and invoice snapshots'
   const code = `CUSTOM_${randomUUID().replaceAll('-', '').toUpperCase()}`;
   const [product, secondProduct] = await Promise.all([
     saveProduct(pool, null, { name: 'Custom pack drink', supplierId: f.supplier, stockReason: 'Opening count',
-      newCasePackTypes: [{ code, label: 'Family case', unitsPerCase: 18 }],
+      newCasePackTypes: [{ code, label: 'D', unitsPerCase: 18 }],
       packs: [{ packId: code, casePrice: 777, totalStock: 2 }] }, actor),
     saveProduct(pool, null, { name: 'Second custom drink', supplierId: f.supplier, stockReason: 'Opening count',
-      newCasePackTypes: [{ code, label: 'Family case', unitsPerCase: 18 }],
+      newCasePackTypes: [{ code, label: 'D', unitsPerCase: 18 }],
       packs: [{ packId: code, casePrice: 800, totalStock: 1 }] }, actor),
   ]);
   const snapshot = await loadAppData(pool);
   assert.equal(snapshot.casePackTypes.find(pack => pack.id === code).unitsPerCase, 18);
-  assert.equal(snapshot.products.find(item => item.id === product.id).casePacks[0].label, 'Family case');
+  assert.equal(snapshot.products.find(item => item.id === product.id).casePacks[0].label, 'D');
   assert.equal(snapshot.products.find(item => item.id === secondProduct.id).casePackIds[0], code);
   const id = await createInvoice(pool, { customerId: f.customer, items: [{ productId: product.id, packId: code, quantity: 0.5 }], dueDate, requestKey: randomUUID() }, actor);
   const item = await one('SELECT pack_label_snapshot,units_per_case_snapshot FROM invoice_items WHERE invoice_id=$1', [id]);
-  assert.equal(item.pack_label_snapshot, 'Family case');
+  assert.equal(item.pack_label_snapshot, 'D');
   assert.equal(item.units_per_case_snapshot, 18);
   const removable = await saveProduct(pool, null, { name: 'Removable custom pack', supplierId: f.supplier,
-    stockReason: 'Opening count', newCasePackTypes: [{ code, label: 'Family case', unitsPerCase: 18 }],
+    stockReason: 'Opening count', newCasePackTypes: [{ code, label: 'D', unitsPerCase: 18 }],
     packs: [{ packId: code, casePrice: 800, totalStock: 0 }] }, actor);
   await saveProduct(pool, removable.id, { name: 'Removable custom pack', supplierId: f.supplier, stockReason: 'Remove unused pack',
     packs: [{ packId: 'A', casePrice: 100, totalStock: 0, expectedStock: 0 }] }, actor);

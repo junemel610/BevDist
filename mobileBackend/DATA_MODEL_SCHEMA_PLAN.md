@@ -34,7 +34,7 @@ All entity IDs are UUIDs. Foreign keys preserve relationships; financial history
 | `customers` | Name, contact, address; parent of invoices/payments/credit |
 | `suppliers` | Name, contact, address; default supplier for products and actual supplier on each receipt |
 | `products` | Name, supplier ID, active flag |
-| `case_pack_types` | A/12, B/24, C/6, MUCHO_6/6, MUCHO_12/12; explicit associations, never inferred from product names |
+| `case_pack_types` | Alphabetic `label` is the case name; `units_per_case` is separate. Display as `{label} · {units_per_case} bottles per case`; Mucho variants and custom types use the same name/count model. Explicit product associations are never inferred from product names. |
 | `product_case_packs` | Composite key `(product_id, pack_code)`, direct case price, per-pack low-stock threshold |
 | `returned_case_types` | Optional configurable return labels and default refund rates; no guessed values seeded |
 | `invoices` | Invoice number, customer ID and printed customer snapshots, due date, delivery/cancellation timestamps, actor, request key/hash |
