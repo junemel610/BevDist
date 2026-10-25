@@ -7,13 +7,17 @@ export const CASE_PACKS = [
 ];
 
 export function casePackOptionsForProduct(product) {
+  const custom = [
+    ...(product?.casePackTypes?.filter(pack => pack.family === 'custom') || []),
+    ...(product?.casePacks?.filter(pack => pack.family === 'custom') || []),
+  ].filter((pack, index, all) => all.findIndex(candidate => candidate.id === pack.id) === index);
   return String(product?.name).toLowerCase().includes('mucho')
-    ? CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO'))
-    : CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO'));
+    ? [...CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO')), ...custom]
+    : [...CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO')), ...custom];
 }
 
 export function casePacksForProduct(product) {
-  const options = product?.casePackIds?.length ? CASE_PACKS : casePackOptionsForProduct(product);
+  const options = casePackOptionsForProduct(product);
   const selectedIds = product?.casePackIds?.length ? product.casePackIds : options.map(pack => pack.id);
   return options.filter(pack => selectedIds.includes(pack.id)).map(pack => ({
     ...pack,

@@ -15,6 +15,10 @@ async function loadAppData(pool) {
     const customers = await rows('SELECT id,name,contact,address FROM customers WHERE is_active ORDER BY name,id');
     const products = await rows(`SELECT p.*,s.name AS supplier FROM products p JOIN suppliers s ON s.id=p.supplier_id WHERE p.is_active ORDER BY p.name,p.id`);
     const packs = group(await rows('SELECT * FROM inventory_stock WHERE is_active ORDER BY pack_code'), 'product_id');
+    const casePackTypes = await rows('SELECT code,label,units_per_case,family FROM case_pack_types WHERE is_active ORDER BY code');
+    const casePackTypeByCode = Object.fromEntries(casePackTypes.map(type => [type.code, {
+      id: type.code, code: type.code, label: type.label, unitsPerCase: Number(type.units_per_case), family: type.family,
+    }]));
     const invoices = await rows(`SELECT *, (created_at AT TIME ZONE 'Asia/Manila')::date::text AS date, due_date::text AS due
       FROM invoice_summary ORDER BY created_at DESC,id`);
     const items = group(await rows('SELECT * FROM invoice_items WHERE is_active ORDER BY created_at,id'), 'invoice_id');
@@ -39,10 +43,12 @@ async function loadAppData(pool) {
     });
     return {
       customers,
+      casePackTypes: casePackTypes.map(type => casePackTypeByCode[type.code]),
       suppliers: await rows('SELECT id,name,contact,address FROM suppliers WHERE is_active ORDER BY name,id'),
       products: products.map(row => ({
         id: row.id, name: row.name, supplierId: row.supplier_id, supplier: row.supplier,
         casePackIds: (packs[row.id] || []).map(pack => pack.pack_code),
+        casePacks: (packs[row.id] || []).map(pack => ({ ...casePackTypeByCode[pack.pack_code], casePrice: Number(pack.case_price) })),
         casePrices: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, Number(pack.case_price)])),
         stockByCasePack: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, {
           totalStock: Number(pack.total_stock_cases), reservedStock: Number(pack.reserved_stock_cases),

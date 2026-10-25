@@ -20,7 +20,20 @@ async function lockProduct(client, id) {
   await client.query('SELECT pack_code FROM product_case_packs WHERE product_id=$1 ORDER BY pack_code FOR UPDATE', [id]);
 }
 
-async function saveProduct(pool, id, { name, supplierId, supplierName, packs, stockReason }, actorId) {
+async function ensureCustomCaseTypes(client, caseTypes = []) {
+  for (const type of [...caseTypes].sort((a, b) => a.code.localeCompare(b.code))) {
+    const result = await client.query(`INSERT INTO case_pack_types(code,label,units_per_case,family)
+      VALUES ($1,$2,$3,'custom') ON CONFLICT (code) DO UPDATE SET is_active=true
+      WHERE case_pack_types.family='custom' AND case_pack_types.label=EXCLUDED.label
+        AND case_pack_types.units_per_case=EXCLUDED.units_per_case
+      RETURNING code`, [type.code, type.label.trim(), type.unitsPerCase]);
+    if (!result.rowCount) {
+      throw new HttpError(409, `Case type code ${type.code} is already used by a different case type`);
+    }
+  }
+}
+
+async function saveProduct(pool, id, { name, supplierId, supplierName, packs, stockReason, newCasePackTypes = [] }, actorId) {
   return transaction(pool, async client => {
     if (!supplierId) {
       const supplier = await client.query(`INSERT INTO suppliers(name) VALUES ($1)
@@ -30,6 +43,7 @@ async function saveProduct(pool, id, { name, supplierId, supplierName, packs, st
     }
     const supplier = await client.query('SELECT id FROM suppliers WHERE id=$1 AND is_active FOR SHARE', [supplierId]);
     if (!supplier.rowCount) throw new HttpError(404, 'Supplier not found');
+    await ensureCustomCaseTypes(client, newCasePackTypes);
     const creating = !id;
     if (id) {
       await lockProduct(client, id);
@@ -93,4 +107,4 @@ async function adjustStock(pool, productId, input, actorId) {
   });
 }
 
-module.exports = { saveCustomer, saveSupplier, saveProduct, archiveProduct, adjustStock };
+module.exports = { saveCustomer, saveSupplier, saveProduct, archiveProduct, adjustStock, ensureCustomCaseTypes };

@@ -7,7 +7,7 @@ import { createLiveData } from '../api/liveData';
 import { availableStock, stockState } from '../components/inventory/inventoryUtils';
 import { PAYMENT_METHOD } from '../types';
 
-const emptyData = () => ({ products: [], suppliers: [], customers: [], orders: [], restockRecords: [], balances: [], paymentTransactions: [], payments: [], customerCredits: {} });
+const emptyData = () => ({ products: [], suppliers: [], customers: [], casePackTypes: [], orders: [], restockRecords: [], balances: [], paymentTransactions: [], payments: [], customerCredits: {} });
 const AppContext = createContext();
 
 export function AppProvider({ children }) {
@@ -122,10 +122,12 @@ export function AppProvider({ children }) {
     const applied = receipt.allocations.reduce((sum, a) => sum + a.amountApplied, 0);
     return { applied, excess: Math.round((receipt.amountReceived - applied) * 100) / 100 };
   }, [mutate]);
-  const addRestockRecord = useCallback(async (supplierName, items, returnedCases) => {
-    const supplier = suppliers.find(s => s.name === supplierName);
-    if (!supplier) throw new Error('Choose a saved supplier. Add a product with its supplier in Inventory first.');
-    await mutate(() => live.current.restock(supplier.id, items, returnedCases));
+  const addRestockRecord = useCallback(async (supplierOrDraft, items, returnedCases, newProducts = [], newCasePackTypes = []) => {
+    const supplier = typeof supplierOrDraft === 'string'
+      ? suppliers.find(entry => entry.name === supplierOrDraft)
+      : supplierOrDraft;
+    if (!supplier?.id && !supplier?.name) throw new Error('Choose or add a supplier before saving the receipt.');
+    await mutate(() => live.current.restock(supplier, items, returnedCases, newProducts, newCasePackTypes));
   }, [mutate, suppliers]);
   const addProduct = useCallback(async profile => {
     const { result, snapshot } = await mutate(() => live.current.saveProduct(null, profile));

@@ -34,13 +34,23 @@ export function createLiveData(api, randomUUID) {
     transition: (id, status) => status === 'cancelled' ? api.invoicesAPI.cancel(id, 'Cancelled by operator') : api.invoicesAPI.deliver(id),
     payment: (customer, amountReceived, method) => keyed('payment', { customerId: customer.id || customer.customerId, amountReceived, method },
       ({ customerId, ...input }) => api.paymentsAPI.create(customerId, input)),
-    restock: (supplierId, items, returnedCases) => keyed('supplier-order', { supplierId, items, returnedCases }, input => api.supplierOrdersAPI.create(input)),
+    restock: (supplier, items, returnedCases, newProducts = [], newCasePackTypes = []) => {
+      const input = {
+        ...(supplier.id ? { supplierId: supplier.id } : { newSupplier: { name: supplier.name, contact: supplier.contact, address: supplier.address } }),
+        items: items.map(({ productId, packId, quantity, unitCost }) => ({ productId, packId, quantity, unitCost })),
+        newProducts,
+        returnedCases,
+        newCasePackTypes,
+      };
+      return keyed('supplier-order', input, payload => api.supplierOrdersAPI.create(payload));
+    },
     saveProduct: (id, profile, original) => {
       const input = {
         name: profile.name || original?.name,
         supplierId: profile.supplierId || original?.supplierId,
         supplierName: profile.supplier,
         stockReason: profile.stockReason,
+        newCasePackTypes: profile.newCasePackTypes || [],
         packs: profile.casePackIds.map(packId => ({
           packId, casePrice: Number(profile.casePrices[packId]),
           lowStockThreshold: original?.stockByCasePack?.[packId]?.lowStockThreshold ?? 15,

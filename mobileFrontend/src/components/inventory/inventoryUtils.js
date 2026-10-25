@@ -31,8 +31,8 @@ export function filterInventoryProducts(products, { search = '', supplier = 'All
 export function isValidInventoryUpdate(product, stockByCasePack, casePackIds, casePrices) {
   const options = casePackOptionsForProduct(product);
   const validPacks = Array.isArray(casePackIds) && casePackIds.length > 0 && new Set(casePackIds).size === casePackIds.length
-    && casePackIds.every(id => options.some(pack => pack.id === id
-      && Number.isFinite(Number(casePrices[id])) && Number(casePrices[id]) > 0));
+    && casePackIds.every(id => options.some(pack => pack.id === id)
+      && /^\d+(\.\d{1,2})?$/.test(String(casePrices[id])) && Number(casePrices[id]) > 0);
   return validPacks && casePackIds.every(id => {
     const stock = stockByCasePack[id] || {};
     const current = stockForCasePack(product, id);
@@ -56,8 +56,8 @@ export function createProductProfile(products, profile, makeId = () => `p${Date.
   const normalizedStock = Object.fromEntries(casePackIds.map(id => [id, {
     totalStock: Number(stockByCasePack[id]?.totalStock), reservedStock: 0,
   }]));
-  if (!isValidInventoryUpdate({ name, reservedStock: 0, casePackIds: [] }, normalizedStock, casePackIds, normalizedCasePrices)) {
-    return { product: null, error: 'Enter stock in half-case steps and a price greater than ₱0 for each selected case type.' };
+  if (!isValidInventoryUpdate({ name, reservedStock: 0, casePackIds: [], casePackTypes: profile.casePackTypes }, normalizedStock, casePackIds, casePrices)) {
+    return { product: null, error: 'Enter stock in half-case steps and a numeric selling price greater than ₱0 for each selected case type.' };
   }
   return {
     product: { id: makeId(), name, supplier, stockByCasePack: normalizedStock, casePackIds, casePrices: normalizedCasePrices },
