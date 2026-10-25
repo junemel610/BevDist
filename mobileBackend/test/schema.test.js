@@ -24,7 +24,7 @@ before(async () => {
   const url = new URL(process.env.DATABASE_URL);
   url.pathname = `/${database}`;
   pool = createPool(url.href);
-  assert.equal((await migrate(pool)).length, 3);
+  assert.equal((await migrate(pool)).length, 4);
   actor = (await one("INSERT INTO app_users(username,password_hash) VALUES ('test-user','test-only-hash') RETURNING id")).id;
 });
 
@@ -350,6 +350,51 @@ test('inventory form saves stock and prices atomically and rejects stale counts'
   assert.equal(Number((await one('SELECT count(*) FROM suppliers')).count), count);
 });
 
+test('custom case types persist through product inventory and invoice snapshots', async () => {
+  const { saveProduct } = require('../services/catalogService');
+  const f = await fixture(0);
+  const code = `CUSTOM_${randomUUID().replaceAll('-', '').toUpperCase()}`;
+  const [product, secondProduct] = await Promise.all([
+    saveProduct(pool, null, { name: 'Custom pack drink', supplierId: f.supplier, stockReason: 'Opening count',
+      newCasePackTypes: [{ code, label: 'Family case', unitsPerCase: 18 }],
+      packs: [{ packId: code, casePrice: 777, totalStock: 2 }] }, actor),
+    saveProduct(pool, null, { name: 'Second custom drink', supplierId: f.supplier, stockReason: 'Opening count',
+      newCasePackTypes: [{ code, label: 'Family case', unitsPerCase: 18 }],
+      packs: [{ packId: code, casePrice: 800, totalStock: 1 }] }, actor),
+  ]);
+  const snapshot = await loadAppData(pool);
+  assert.equal(snapshot.casePackTypes.find(pack => pack.id === code).unitsPerCase, 18);
+  assert.equal(snapshot.products.find(item => item.id === product.id).casePacks[0].label, 'Family case');
+  assert.equal(snapshot.products.find(item => item.id === secondProduct.id).casePackIds[0], code);
+  const id = await createInvoice(pool, { customerId: f.customer, items: [{ productId: product.id, packId: code, quantity: 0.5 }], dueDate, requestKey: randomUUID() }, actor);
+  const item = await one('SELECT pack_label_snapshot,units_per_case_snapshot FROM invoice_items WHERE invoice_id=$1', [id]);
+  assert.equal(item.pack_label_snapshot, 'Family case');
+  assert.equal(item.units_per_case_snapshot, 18);
+  const removable = await saveProduct(pool, null, { name: 'Removable custom pack', supplierId: f.supplier,
+    stockReason: 'Opening count', newCasePackTypes: [{ code, label: 'Family case', unitsPerCase: 18 }],
+    packs: [{ packId: code, casePrice: 800, totalStock: 0 }] }, actor);
+  await saveProduct(pool, removable.id, { name: 'Removable custom pack', supplierId: f.supplier, stockReason: 'Remove unused pack',
+    packs: [{ packId: 'A', casePrice: 100, totalStock: 0, expectedStock: 0 }] }, actor);
+  assert.deepEqual((await loadAppData(pool)).products.find(entry => entry.id === removable.id).casePackIds, ['A']);
+});
+
+test('concurrent stale inventory editors cannot overwrite each other', async () => {
+  const { saveProduct } = require('../services/catalogService');
+  const f = await fixture(5);
+  const initial = { name: 'Concurrent count', supplierId: f.supplier, stockReason: 'Count', packs: [
+    { packId: 'A', casePrice: 100, totalStock: 5, expectedStock: 5 },
+    { packId: 'B', casePrice: 200, totalStock: 5, expectedStock: 5 },
+    { packId: 'C', casePrice: 50, totalStock: 5, expectedStock: 5 },
+  ] };
+  const changes = [4, 3.5].map(totalStock => saveProduct(pool, f.product, {
+    ...initial, packs: initial.packs.map(pack => pack.packId === 'A' ? { ...pack, totalStock } : pack),
+  }, actor));
+  const results = await Promise.allSettled(changes);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.status === 'rejected').length, 1);
+  assert.ok([3.5, 4].includes(Number((await one("SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code='A'", [f.product])).total_stock_cases)));
+});
+
 test('mobile API helpers complete a persisted business flow without demo IDs', async () => {
   const mobile = async file => import(pathToFileURL(path.resolve(__dirname, '../../mobileFrontend/src/api', file)));
   const api = await mobile('index.js');
@@ -381,7 +426,7 @@ test('mobile API helpers complete a persisted business flow without demo IDs', a
     await live.editInvoice(next.data.id, [{ productId: product.id, packId: 'B', quantity: 1 }]);
     snapshot = await live.load();
     assert.equal(snapshot.balances.find(b => b.orderId === next.data.id).remainingBalance, 180);
-    await live.restock(product.supplierId, [{ productId: product.id, packId: 'C', quantity: 0.5, unitCost: 20 }], []);
+    await live.restock({ id: product.supplierId }, [{ productId: product.id, packId: 'C', quantity: 0.5, unitCost: 20 }], []);
     snapshot = await live.load();
     assert.equal(snapshot.products.find(p => p.id === product.id).stockByCasePack.C.totalStock, 1.5);
     const withReturns = await live.createOrder(customer, [{ productId: product.id, packId: 'C', quantity: 0.5 }], [{ type: 'Empty crate', quantity: 0.5, refundPerCase: 10 }]);
@@ -554,3 +599,117 @@ test('supplier orders cannot restock another supplier’s product and roll back 
   assert.equal((await one('SELECT count(*) AS count FROM supplier_orders WHERE request_key=$1', [requestKey])).count, '0');
   assert.equal(Number((await one("SELECT total_stock_cases FROM inventory_stock WHERE product_id=$1 AND pack_code='A'", [f.product])).total_stock_cases), 2);
 });
+
+test('inline supplier and multi-pack products persist atomically and replay exactly once', async () => {
+  const name = `Inline ${randomUUID()}`;
+  const input = { requestKey: randomUUID(), newSupplier: { name, contact: '09123', address: 'Warehouse' }, newProducts: [
+    { name: 'Cola', packs: [{ packId: 'A', casePrice: 100, quantity: 2, unitCost: 60 }, { packId: 'B', casePrice: 200, quantity: 0.5, unitCost: 100 }] },
+    { name: 'Mucho', packs: [{ packId: 'MUCHO_6', casePrice: 150, quantity: 1, unitCost: 80 }] },
+  ], returnedCases: [{ type: 'Case Type A', quantity: 0.5, creditPerUnit: 20 }] };
+  const id = await receiveSupplierOrder(pool, input, actor);
+  assert.equal(await receiveSupplierOrder(pool, input, actor), id);
+  const snapshot = await loadAppData(pool), supplier = snapshot.suppliers.find(s => s.name === name);
+  assert.equal(supplier.contact, '09123');
+  assert.equal(supplier.address, 'Warehouse');
+  const products = snapshot.products.filter(p => p.supplierId === supplier.id);
+  assert.equal(products.length, 2);
+  assert.equal(products.find(p => p.name === 'Cola').stockByCasePack.A.totalStock, 2);
+  assert.equal(products.find(p => p.name === 'Cola').stockByCasePack.B.totalStock, 0.5);
+  assert.equal(products.find(p => p.name === 'Mucho').stockByCasePack.MUCHO_6.totalStock, 1);
+  assert.equal(snapshot.restockRecords.filter(r => r.id === id).length, 1);
+  assert.equal(snapshot.restockRecords.find(r => r.id === id).netCost, 240);
+  await assert.rejects(receiveSupplierOrder(pool, { ...input, returnedCases: [] }, actor), /Request key reused/);
+});
+
+test('existing supplier receives existing and new product lines in the same receipt', async () => {
+  const f = await fixture(1);
+  const id = await receiveSupplierOrder(pool, { supplierId: f.supplier, requestKey: randomUUID(),
+    items: [{ productId: f.product, packId: 'C', quantity: 0.5, unitCost: 20 }],
+    newProducts: [{ name: 'New drink', packs: [{ packId: 'A', casePrice: 80, quantity: 1.5, unitCost: 40 }] }],
+  }, actor);
+  const snapshot = await loadAppData(pool);
+  assert.equal(snapshot.products.find(p => p.id === f.product).stockByCasePack.C.totalStock, 1.5);
+  assert.equal(snapshot.products.find(p => p.supplierId === f.supplier && p.name === 'New drink').stockByCasePack.A.totalStock, 1.5);
+  assert.equal(snapshot.restockRecords.find(r => r.id === id).netCost, 70);
+});
+
+test('invalid inline receipt rolls back new supplier, products, packs and stock together', async t => {
+  for (const mode of ['unknown pack', 'excess return credit', 'duplicate product']) await t.test(mode, async () => {
+    const name = `Rollback ${randomUUID()}`, requestKey = randomUUID();
+    const product = { name: 'New drink', packs: [{ packId: 'A', casePrice: 100, quantity: 0.5, unitCost: 40 }] };
+    const input = { requestKey, newSupplier: { name }, newProducts: [product] };
+    if (mode === 'unknown pack') input.newProducts.push({ name: 'Bad drink', packs: [{ packId: 'UNKNOWN', casePrice: 20, quantity: 1, unitCost: 10 }] });
+    if (mode === 'excess return credit') input.returnedCases = [{ type: 'A', quantity: 1, creditPerUnit: 21 }];
+    if (mode === 'duplicate product') input.newProducts.push({ ...product, name: 'new drink' });
+    await assert.rejects(receiveSupplierOrder(pool, input, actor));
+    assert.equal((await one('SELECT count(*) AS count FROM suppliers WHERE name=$1', [name])).count, '0');
+    assert.equal((await one('SELECT count(*) AS count FROM supplier_orders WHERE request_key=$1', [requestKey])).count, '0');
+  });
+});
+
+test('concurrent identical inline receipts return one receipt and one stock movement', async () => {
+  const input = { requestKey: randomUUID(), newSupplier: { name: `Concurrent ${randomUUID()}` },
+    newProducts: [{ name: 'Drink', packs: [{ packId: 'A', casePrice: 100, quantity: 0.5, unitCost: 40 }] }],
+  };
+  const ids = await Promise.all([receiveSupplierOrder(pool, input, actor), receiveSupplierOrder(pool, input, actor)]);
+  assert.equal(ids[0], ids[1]);
+  const snapshot = await loadAppData(pool), supplier = snapshot.suppliers.find(s => s.name === input.newSupplier.name);
+  assert.equal(snapshot.products.filter(p => p.supplierId === supplier.id).length, 1);
+  assert.equal(snapshot.products.find(p => p.supplierId === supplier.id).stockByCasePack.A.totalStock, 0.5);
+});
+
+test('concurrent supplier receipts on shared products serialize stock updates without deadlock', async () => {
+  const f = await fixture(1);
+  const inputs = [
+    { supplierId: f.supplier, requestKey: randomUUID(), items: [
+      { productId: f.product, packId: 'A', quantity: 0.5, unitCost: 40 },
+      { productId: f.product, packId: 'B', quantity: 1, unitCost: 60 },
+    ] },
+    { supplierId: f.supplier, requestKey: randomUUID(), items: [
+      { productId: f.product, packId: 'B', quantity: 0.5, unitCost: 60 },
+      { productId: f.product, packId: 'A', quantity: 1, unitCost: 40 },
+    ] },
+  ];
+  const results = await Promise.allSettled(inputs.map(input => receiveSupplierOrder(pool, input, actor)));
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 2);
+  const stock = await pool.query('SELECT pack_code,total_stock_cases FROM inventory_stock WHERE product_id=$1 ORDER BY pack_code', [f.product]);
+  assert.deepEqual(stock.rows.map(row => [row.pack_code, Number(row.total_stock_cases)]), [['A', 2.5], ['B', 2.5], ['C', 1]]);
+});
+
+test('supplier HTTP validation rejects malformed inline drafts without persisting them', async t => withApi(async ({ request }) => {
+  const pack = { packId: 'A', casePrice: 100, quantity: 0.5, unitCost: 40 };
+  const variants = [
+    ['no supplier', { newSupplier: null }], ['both supplier choices', { supplierId: randomUUID() }],
+    ['blank supplier', { newSupplier: { name: ' ' } }], ['invalid contact', { newSupplier: { name: 'Valid', contact: 123 } }],
+    ['no lines', { newProducts: [] }], ['wrong products shape', { newProducts: {} }],
+    ['blank product', { newProducts: [{ name: '', packs: [pack] }] }],
+    ['no packs', { newProducts: [{ name: 'Drink', packs: [] }] }],
+    ...[
+      ['quarter case', { quantity: 0.25 }], ['negative quantity', { quantity: -1 }], ['zero quantity', { quantity: 0 }],
+      ['zero sale price', { casePrice: 0 }], ['negative cost', { unitCost: -1 }], ['too many decimals', { casePrice: 1.001 }],
+    ].map(([name, change]) => [name, { newProducts: [{ name: 'Drink', packs: [{ ...pack, ...change }] }] }]),
+    ['duplicate packs', { newProducts: [{ name: 'Drink', packs: [pack, pack] }] }],
+    ['invalid return rate', { returnedCases: [{ type: 'A', quantity: 0.5, creditPerUnit: -1 }] }],
+  ];
+  for (const [name, change] of variants) await t.test(name, async () => {
+    const supplierName = `Invalid ${randomUUID()}`;
+    const input = { requestKey: randomUUID(), newSupplier: { name: supplierName }, newProducts: [{ name: 'Drink', packs: [pack] }], ...change };
+    const response = await request('/supplier-orders', 'POST', input);
+    assert.equal(response.status, 400, await response.text());
+    assert.equal((await one('SELECT count(*) AS count FROM supplier_orders WHERE request_key=$1', [input.requestKey])).count, '0');
+    assert.equal((await one('SELECT count(*) AS count FROM suppliers WHERE name=$1', [supplierName])).count, '0');
+  });
+  const response = await request('/supplier-orders', 'POST', { requestKey: randomUUID(), newSupplier: { name: `HTTP ${randomUUID()}` }, newProducts: [{ name: 'Drink', packs: [pack] }] });
+  assert.equal(response.status, 201, response.status === 201 ? '' : await response.text());
+  const multiName = `Pepsi ${randomUUID()}`;
+  const multiple = await request('/supplier-orders', 'POST', {
+    requestKey: randomUUID(), newSupplier: { name: multiName }, returnedCases: [],
+    newProducts: ['Pepsi Cola', 'Pepsi Zero', 'Pepsi Water'].map((name, index) => ({
+      name: `${name} ${index}`, packs: [{ packId: 'A', casePrice: 1800, quantity: 0.5, unitCost: 1200 + index * 100 }],
+    })),
+  });
+  assert.equal(multiple.status, 201, multiple.status === 201 ? '' : await multiple.text());
+  const saved = await loadAppData(pool), supplier = saved.suppliers.find(entry => entry.name === multiName);
+  assert.equal(saved.products.filter(product => product.supplierId === supplier.id).length, 3);
+  assert.deepEqual(saved.restockRecords.find(record => record.supplierId === supplier.id).returnedCases, []);
+}));

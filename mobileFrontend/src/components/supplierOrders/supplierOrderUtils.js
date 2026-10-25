@@ -1,8 +1,8 @@
 export const RETURNED_CASE_TYPES = [
-  { type: 'Case Type A', creditPerUnit: 15 },
-  { type: 'Case Type B', creditPerUnit: 20 },
-  { type: 'Case Type C', creditPerUnit: 18 },
-  { type: 'Case Type D', creditPerUnit: 12 },
+  { type: 'Case Type A' },
+  { type: 'Case Type B' },
+  { type: 'Case Type C' },
+  { type: 'Case Type D' },
 ];
 
 const roundMoney = amount => Math.round((amount + Number.EPSILON) * 100) / 100;

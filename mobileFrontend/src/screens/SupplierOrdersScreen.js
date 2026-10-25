@@ -15,18 +15,28 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { hasValidSupplierOrderItems, RETURNED_CASE_TYPES, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
-import { casePacksForProduct } from '../components/orders/casePacks';
+import { casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
 import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export function SupplierOrdersScreen() {
-  const { products, suppliers: savedSuppliers, restockRecords, addRestockRecord } = useApp();
+  const { products, suppliers: savedSuppliers, casePackTypes = [], restockRecords, addRestockRecord } = useApp();
   const [selectedSupplier, setSupplier] = useState('');
+  const [supplierDraft, setSupplierDraft] = useState(null);
+  const [supplierEditorVisible, setSupplierEditorVisible] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ name: '', contact: '', address: '' });
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [productEditorVisible, setProductEditorVisible] = useState(false);
+  const [productName, setProductName] = useState('');
+  const [selectedPackIds, setSelectedPackIds] = useState([]);
+  const [casePrices, setCasePrices] = useState({});
+  const [newProducts, setNewProducts] = useState([]);
   const [items, setItems] = useState([]);
-  const [returnedCases, setReturnedCases] = useState(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: '' })));
+  const [returnedCases, setReturnedCases] = useState(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: 0, creditPerUnit: '' })));
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -40,11 +50,15 @@ export function SupplierOrdersScreen() {
   }, [notice]);
 
   const suppliers = useMemo(() => savedSuppliers.map(entry => entry.name), [savedSuppliers]);
-  const supplier = suppliers.includes(selectedSupplier) ? selectedSupplier : suppliers[0] || '';
-  const supplierProducts = useMemo(() => products.filter(product => product.supplier === supplier), [products, supplier]);
+  const filteredSuppliers = suppliers.filter(name => name.toLocaleLowerCase().includes(supplierSearch.trim().toLocaleLowerCase()));
+  const savedSupplier = savedSuppliers.find(entry => entry.name === selectedSupplier) || savedSuppliers[0] || null;
+  const supplierRecord = supplierDraft || savedSupplier;
+  const supplier = supplierRecord?.name || '';
+  const supplierProducts = useMemo(() => supplierDraft ? [] : products.filter(product => product.supplierId === supplierRecord?.id), [products, supplierDraft, supplierRecord?.id]);
   const availableProducts = supplierProducts.flatMap(product => casePacksForProduct(product).map(pack => ({ product, pack })))
     .filter(({ product, pack }) => !items.some(item => item.productId === product.id && item.packId === pack.id));
-  const numericReturns = returnedCases.map(item => ({ ...item, quantity: Number(item.quantity) || 0 }));
+  const filteredProducts = availableProducts.filter(({ product, pack }) => `${product.name} ${pack.label}`.toLocaleLowerCase().includes(productSearch.trim().toLocaleLowerCase()));
+  const numericReturns = returnedCases.map(item => ({ ...item, quantity: Number(item.quantity) || 0, creditPerUnit: Number(item.creditPerUnit) || 0 }));
   const totals = supplierOrderTotals(items.map(item => ({
     ...item,
     quantity: Number(item.quantity) || 0,
@@ -52,10 +66,12 @@ export function SupplierOrdersScreen() {
   })), numericReturns);
 
   const changeSupplier = nextSupplier => {
-    if (nextSupplier === supplier) return;
+    if (nextSupplier === supplier && !supplierDraft) return;
     const apply = () => {
+      setSupplierDraft(null);
       setSupplier(nextSupplier);
       setItems([]);
+      setNewProducts([]);
       setError('');
     };
     if (items.length) {
@@ -71,38 +87,124 @@ export function SupplierOrdersScreen() {
     setError('');
   };
 
+  const startNewSupplier = () => {
+    setSupplierForm({ name: '', contact: '', address: '' });
+    setSupplierEditorVisible(true);
+    setError('');
+  };
+
+  const saveSupplierDraft = () => {
+    const name = supplierForm.name.trim();
+    if (!name) { setError('Enter a supplier name.'); return; }
+    if (savedSuppliers.some(entry => entry.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      setError('A supplier with this name already exists. Select it from the saved suppliers.');
+      return;
+    }
+    const apply = () => {
+      setItems([]);
+      setNewProducts([]);
+      setSupplierDraft({ ...supplierForm, name });
+      setSupplier('');
+      setSupplierEditorVisible(false);
+      setError('');
+    };
+    if (items.length) confirmAction({ title: 'Change supplier?', message: 'Changing suppliers will clear the products in this order.', confirmLabel: 'Change supplier', onConfirm: apply });
+    else apply();
+  };
+
+  const saveNewProductDraft = () => {
+    const name = productName.trim();
+    if (!name) { setError('Enter a product name.'); return; }
+    const duplicate = [...supplierProducts, ...newProducts].some(product => product.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (duplicate) { setError('This supplier already has a product with that name. Choose the saved product instead.'); return; }
+    if (!selectedPackIds.length) { setError('Select at least one case type.'); return; }
+    if (selectedPackIds.some(packId => !/^\d+(\.\d{1,2})?$/.test(String(casePrices[packId])) || !(Number(casePrices[packId]) > 0))) { setError('Enter a numeric selling price for every selected case type.'); return; }
+    const key = `new-product-${Date.now()}`;
+    const packs = casePackOptionsForProduct({ name, casePackTypes }).filter(pack => selectedPackIds.includes(pack.id));
+    if (!packs.length) { setError('The selected case types do not match this product name. Review the case types.'); return; }
+    const product = { key, name, packs: packs.map(pack => ({ ...pack, casePrice: Number(casePrices[pack.id]) })) };
+    setNewProducts(current => [...current, product]);
+    setItems(current => [...current, ...product.packs.map(pack => ({
+      rowKey: `${key}:${pack.id}`, newProductKey: key, productName: name,
+      packId: pack.id, packLabel: pack.label, casePrice: pack.casePrice, quantity: '', unitCost: '',
+    }))]);
+    setProductEditorVisible(false);
+    setPickerVisible(false);
+    setProductName('');
+    setSelectedPackIds([]);
+    setCasePrices({});
+    setError('');
+  };
+
+  const removeItem = rowKey => {
+    const removed = items.find(item => item.rowKey === rowKey);
+    setItems(current => current.filter(item => item.rowKey !== rowKey));
+    if (removed?.newProductKey) {
+      const remainingPacks = items.filter(item => item.newProductKey === removed.newProductKey && item.rowKey !== rowKey);
+      setNewProducts(current => current.flatMap(product => {
+        if (product.key !== removed.newProductKey) return [product];
+        if (!remainingPacks.length) return [];
+        return [{ ...product, packs: product.packs.filter(pack => pack.id !== removed.packId) }];
+      }));
+    }
+  };
+
   const updateItem = (rowKey, field, value) => {
     setItems(current => current.map(item => item.rowKey === rowKey ? { ...item, [field]: value } : item));
     setError('');
   };
 
-  const updateReturnQuantity = (type, quantity) => {
-    setReturnedCases(current => current.map(item => item.type === type ? { ...item, quantity } : item));
+  const adjustReturnedCase = (type, delta) => {
+    setReturnedCases(current => current.map(item => item.type === type
+      ? { ...item, quantity: Math.max(0, Math.round((Number(item.quantity) + delta) * 2) / 2) }
+      : item));
+  };
+
+  const updateReturnPrice = (type, creditPerUnit) => {
+    setReturnedCases(current => current.map(item => item.type === type ? { ...item, creditPerUnit } : item));
   };
 
   const saveOrder = () => {
-    if (!supplier) { setError('Add a product and supplier in Inventory first.'); return; }
+    if (!supplierRecord) { setError('Choose a supplier or add a new one.'); return; }
+    if (!items.length) { setError('Add at least one product line before saving.'); return; }
     const orderItems = items.map(item => ({
       ...item,
       quantity: Number(item.quantity) || 0,
       unitCost: Number(item.unitCost) || 0,
-    })).filter(item => item.quantity > 0 && item.unitCost > 0);
+    }));
     if (!hasValidSupplierOrderItems(orderItems)) {
-      setError('Add at least one product with a quantity and unit cost.');
+      setError('Enter a half-case quantity and purchase cost for every product line.');
       return;
     }
 
+    const existingItems = orderItems.filter(item => !item.newProductKey);
+    const newProductPayload = newProducts.map(product => ({
+      name: product.name,
+      packs: product.packs.map(pack => {
+        const line = orderItems.find(item => item.newProductKey === product.key && item.packId === pack.id);
+        return { packId: pack.id, casePrice: pack.casePrice, quantity: line.quantity, unitCost: line.unitCost };
+      }),
+    }));
+
     const recordedReturns = numericReturns.filter(item => item.quantity > 0);
+    if (returnedCases.some(item => item.quantity > 0 && (!/^\d+(\.\d{1,2})?$/.test(String(item.creditPerUnit)) || Number(item.creditPerUnit) <= 0))) {
+      setError('Enter a credit price for each returned case type with a quantity.');
+      return;
+    }
     const productCost = orderItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
     const returnCredit = recordedReturns.reduce((sum, item) => sum + item.quantity * item.creditPerUnit, 0);
+    if (returnCredit > productCost) { setError('Return credits cannot exceed the product cost.'); return; }
     confirmAction({
       title: 'Save supplier order?',
       message: `${supplier}: ${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} · Net cost ${formatPeso(Math.max(0, productCost - returnCredit))}. Inventory stock will be updated.`,
       confirmLabel: 'Save order',
       onConfirm: async () => {
-        await addRestockRecord(supplier, orderItems, recordedReturns);
+        await addRestockRecord(supplierRecord, existingItems, recordedReturns, newProductPayload);
         setItems([]);
-        setReturnedCases(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: '' })));
+        setNewProducts([]);
+        setSupplierDraft(null);
+        setSupplier('');
+        setReturnedCases(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: 0, creditPerUnit: '' })));
         setError('');
         setNotice('Supplier order saved. Inventory updated.');
       },
@@ -115,7 +217,7 @@ export function SupplierOrdersScreen() {
         <View style={[styles.pageHeading, styles.pageHeadingBand]}>
           <View style={styles.headingCopy}>
             <Text accessibilityRole="header" style={styles.title}>Supplier order</Text>
-            <Text style={styles.subtitle}>Record deliveries in cases and returned-case credits.</Text>
+        <Text style={styles.subtitle}>Enter supplier purchase costs. Returned cases are optional.</Text>
           </View>
           <View style={styles.headingIcon}>
             <MaterialIcons name="local-shipping" size={23} color={theme.colors.onPrimary} accessible={false} />
@@ -123,10 +225,29 @@ export function SupplierOrdersScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Supplier</Text>
+          <View style={styles.sectionHeading}>
+            <View style={styles.headingCopy}>
+              <Text style={styles.sectionTitle}>Supplier</Text>
+              <Text style={styles.sectionHint}>{supplier || 'Choose or add a supplier'}</Text>
+            </View>
+            <Pressable onPress={startNewSupplier} accessibilityRole="button" accessibilityLabel="New supplier" style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+              <MaterialIcons name="person-add" size={18} color={theme.colors.primary} accessible={false} />
+              {!compact && <Text style={styles.secondaryButtonLabel}>New supplier</Text>}
+            </Pressable>
+          </View>
+          <View style={styles.searchBox}>
+            <MaterialIcons name="search" size={20} color={theme.colors.textLight} accessible={false} />
+            <TextInput
+              value={supplierSearch}
+              onChangeText={setSupplierSearch}
+              placeholder="Search suppliers"
+              accessibilityLabel="Search saved suppliers"
+              style={styles.searchInput}
+            />
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.supplierList}>
-            {suppliers.map(name => {
-              const selected = supplier === name;
+            {filteredSuppliers.map(name => {
+              const selected = !supplierDraft && supplier === name;
               return (
                 <Pressable
                   key={name}
@@ -141,7 +262,14 @@ export function SupplierOrdersScreen() {
                 </Pressable>
               );
             })}
+            {supplierDraft ? (
+              <View style={[styles.supplierChip, styles.supplierChipSelected]}>
+                <MaterialIcons name="check-circle" size={18} color={theme.colors.primary} accessible={false} />
+                <Text style={[styles.supplierLabel, styles.supplierLabelSelected]}>{supplierDraft.name} · new</Text>
+              </View>
+            ) : null}
           </ScrollView>
+          {filteredSuppliers.length === 0 && !supplierDraft ? <Text style={styles.historyEmpty}>No saved suppliers match. Add a new supplier to enter one manually.</Text> : null}
         </View>
 
         <View style={styles.section}>
@@ -151,10 +279,10 @@ export function SupplierOrdersScreen() {
               <Text style={styles.sectionHint}>{supplierProducts.length} products from {supplier}</Text>
             </View>
             <Pressable
-              onPress={() => setPickerVisible(true)}
-              disabled={!availableProducts.length}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.addButton, !availableProducts.length && styles.disabled, pressed && styles.pressed]}
+              onPress={() => { setProductSearch(''); setPickerVisible(true); }}
+              disabled={!supplierRecord}
+              accessibilityRole="button" accessibilityLabel="Add product"
+              style={({ pressed }) => [styles.addButton, !supplierRecord && styles.disabled, pressed && styles.pressed]}
             >
               <MaterialIcons name="add" size={20} color={theme.colors.onPrimary} accessible={false} />
               {!compact && <Text style={styles.addButtonLabel}>Add product</Text>}
@@ -165,7 +293,7 @@ export function SupplierOrdersScreen() {
             <View style={styles.emptyProducts}>
               <MaterialIcons name="add-shopping-cart" size={24} color={theme.colors.textLight} accessible={false} />
               <Text style={styles.emptyTitle}>No products added</Text>
-              <Text style={styles.emptyHint}>Add products from the selected supplier.</Text>
+              <Text style={styles.emptyHint}>Add an existing product or create one for this receipt.</Text>
             </View>
           ) : items.map(item => (
             <View key={item.rowKey} style={styles.orderItem}>
@@ -175,9 +303,9 @@ export function SupplierOrdersScreen() {
                 </View>
                 <View style={styles.itemNameBlock}>
                   <Text style={styles.itemName}>{item.productName}</Text>
-                  <Text style={styles.itemMeta}>{item.packLabel} · current stock: {stockForCasePack(products.find(product => product.id === item.productId), item.packId).totalStock} cases</Text>
+                  <Text style={styles.itemMeta}>{item.newProductKey ? `${item.packLabel} · new product; stock is added when saved` : `${item.packLabel} · current stock: ${stockForCasePack(products.find(product => product.id === item.productId), item.packId).totalStock} cases`}</Text>
                 </View>
-                <Pressable onPress={() => setItems(current => current.filter(row => row.rowKey !== item.rowKey))} accessibilityRole="button" accessibilityLabel={`Remove ${item.productName} ${item.packLabel}`} style={styles.removeButton}>
+                <Pressable onPress={() => removeItem(item.rowKey)} accessibilityRole="button" accessibilityLabel={`Remove ${item.productName} ${item.packLabel}`} style={styles.removeButton}>
                   <MaterialIcons name="delete-outline" size={21} color={theme.colors.danger} accessible={false} />
                 </Pressable>
               </View>
@@ -194,13 +322,13 @@ export function SupplierOrdersScreen() {
                   />
                 </View>
                 <View style={styles.itemField}>
-                  <Text style={styles.fieldLabel}>Cost per case</Text>
+                  <Text style={styles.fieldLabel}>Supplier cost per case (₱)</Text>
                   <TextInput
                     value={String(item.unitCost)}
                     onChangeText={value => updateItem(item.rowKey, 'unitCost', value)}
                     keyboardType="decimal-pad"
-                    placeholder="₱0.00"
-                    accessibilityLabel={`${item.productName} cost per case in pesos`}
+                    placeholder="Enter numbers, e.g. 950"
+                    accessibilityLabel={`${item.productName} supplier cost per case in pesos`}
                     style={styles.input}
                   />
                 </View>
@@ -223,19 +351,33 @@ export function SupplierOrdersScreen() {
           </View>
           {returnedCases.map(item => (
             <View key={item.type} style={styles.returnRow}>
-              <View style={styles.returnCopy}>
+              <View style={styles.returnHeading}>
                 <Text style={styles.returnName}>{item.type}</Text>
-                <Text style={styles.returnCredit}>{formatPeso(item.creditPerUnit)} credit / case</Text>
+                <View style={styles.returnPriceField}>
+                  <Text style={styles.fieldLabel}>Credit per case</Text>
+                  <TextInput
+                    value={String(item.creditPerUnit ?? '')}
+                    onChangeText={value => updateReturnPrice(item.type, value)}
+                    keyboardType="decimal-pad"
+                    placeholder="₱0.00"
+                    accessibilityLabel={`${item.type} return credit per case`}
+                    style={styles.returnPriceInput}
+                  />
+                </View>
               </View>
-              <TextInput
-                value={String(item.quantity)}
-                onChangeText={value => updateReturnQuantity(item.type, value)}
-                keyboardType="number-pad"
-                placeholder="0"
-                accessibilityLabel={`${item.type} returned case quantity`}
-                style={styles.returnInput}
-              />
-              <Text style={styles.returnAmount}>{formatPeso((Number(item.quantity) || 0) * item.creditPerUnit)}</Text>
+              <View style={styles.returnControls}>
+                <Text style={styles.returnCredit}>Quantity (half-case steps)</Text>
+                <View style={styles.returnStepper}>
+                  <Pressable onPress={() => adjustReturnedCase(item.type, -0.5)} accessibilityRole="button" accessibilityLabel={`Remove half case of ${item.type}`} disabled={!item.quantity} accessibilityState={{ disabled: !item.quantity }} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
+                    <MaterialIcons name="remove" size={20} color={theme.colors.primary} accessible={false} />
+                  </Pressable>
+                  <Text accessibilityLabel={`${item.quantity} cases returned`} style={styles.stepValue}>{Number(item.quantity).toLocaleString('en-PH', { maximumFractionDigits: 1 })}</Text>
+                  <Pressable onPress={() => adjustReturnedCase(item.type, 0.5)} accessibilityRole="button" accessibilityLabel={`Add half case of ${item.type}`} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
+                    <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
+                  </Pressable>
+                </View>
+                <Text style={styles.returnAmount}>{formatPeso((Number(item.quantity) || 0) * (Number(item.creditPerUnit) || 0))}</Text>
+              </View>
             </View>
           ))}
           <View style={styles.creditTotal}>
@@ -301,8 +443,26 @@ export function SupplierOrdersScreen() {
                 <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
               </Pressable>
             </View>
+            <View style={styles.searchBox}>
+              <MaterialIcons name="search" size={20} color={theme.colors.textLight} accessible={false} />
+              <TextInput
+                value={productSearch}
+                onChangeText={setProductSearch}
+                placeholder="Search products or case type"
+                accessibilityLabel="Search products"
+                style={styles.searchInput}
+              />
+            </View>
             <ScrollView>
-              {availableProducts.length ? availableProducts.map(({ product, pack }) => (
+              <Pressable onPress={() => { setError(''); setProductName(''); setSelectedPackIds([]); setCasePrices({}); setPickerVisible(false); setProductEditorVisible(true); }} accessibilityRole="button" style={({ pressed }) => [styles.createProductOption, pressed && styles.pressed]}>
+                <MaterialIcons name="add-box" size={20} color={theme.colors.primary} accessible={false} />
+                <View style={styles.headingCopy}>
+                  <Text style={styles.optionName}>Create a new product</Text>
+                  <Text style={styles.optionMeta}>Add case types, selling prices, and received stock</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={21} color={theme.colors.primary} accessible={false} />
+              </Pressable>
+              {filteredProducts.length ? filteredProducts.map(({ product, pack }) => (
                 <Pressable key={`${product.id}:${pack.id}`} onPress={() => addProduct(product, pack)} accessibilityRole="button" style={({ pressed }) => [styles.productOption, pressed && styles.pressed]}>
                   <View style={styles.itemIcon}>
                     <MaterialIcons name="local-drink" size={19} color={theme.colors.primary} accessible={false} />
@@ -313,11 +473,68 @@ export function SupplierOrdersScreen() {
                   </View>
                   <MaterialIcons name="add-circle-outline" size={21} color={theme.colors.primary} accessible={false} />
                 </Pressable>
-              )) : (
-                <Text style={styles.historyEmpty}>All {supplierProducts.length ? 'supplier products are already added.' : 'products are already included.'}</Text>
-              )}
+              )) : null}
+              {!filteredProducts.length ? <Text style={styles.historyEmpty}>No matching products. You can create a new product above.</Text> : null}
             </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      <Modal visible={supplierEditorVisible} transparent animationType="slide" onRequestClose={() => setSupplierEditorVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <ScrollView style={styles.formSheet} keyboardShouldPersistTaps="handled">
+            <View style={styles.pickerHeading}>
+              <Text style={styles.pickerTitle}>New supplier</Text>
+              <Pressable onPress={() => setSupplierEditorVisible(false)} accessibilityRole="button" accessibilityLabel="Close new supplier form" style={styles.closeButton}>
+                <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
+              </Pressable>
+            </View>
+            <Text style={styles.fieldLabel}>Supplier name *</Text>
+            <TextInput value={supplierForm.name} onChangeText={name => setSupplierForm(current => ({ ...current, name }))} placeholder="Supplier name" style={styles.input} accessibilityLabel="New supplier name" />
+            <Text style={styles.fieldLabel}>Contact (optional)</Text>
+            <TextInput value={supplierForm.contact} onChangeText={contact => setSupplierForm(current => ({ ...current, contact }))} placeholder="Phone or contact person" style={styles.input} accessibilityLabel="New supplier contact" />
+            <Text style={styles.fieldLabel}>Address (optional)</Text>
+            <TextInput value={supplierForm.address} onChangeText={address => setSupplierForm(current => ({ ...current, address }))} placeholder="Supplier address" style={styles.input} accessibilityLabel="New supplier address" />
+            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+            <Pressable onPress={saveSupplierDraft} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
+              <Text style={styles.saveLabel}>Use supplier in this order</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={productEditorVisible} transparent animationType="slide" onRequestClose={() => setProductEditorVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <ScrollView style={styles.formSheet} keyboardShouldPersistTaps="handled">
+            <View style={styles.pickerHeading}>
+              <View style={styles.headingCopy}>
+                <Text style={styles.pickerTitle}>New product</Text>
+                <Text style={styles.sectionHint}>Supplier: {supplier}</Text>
+              </View>
+              <Pressable onPress={() => setProductEditorVisible(false)} accessibilityRole="button" accessibilityLabel="Close new product form" style={styles.closeButton}>
+                <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
+              </Pressable>
+            </View>
+            <Text style={styles.fieldLabel}>Product name *</Text>
+            <TextInput value={productName} onChangeText={setProductName} placeholder="Product name" style={styles.input} accessibilityLabel="New product name" />
+            <Text style={styles.fieldLabel}>Case types and selling price per case *</Text>
+            {casePackOptionsForProduct({ name: productName, casePackTypes }).map(pack => {
+              const selected = selectedPackIds.includes(pack.id);
+              return (
+                <View key={pack.id} style={styles.newProductPack}>
+                  <Pressable onPress={() => setSelectedPackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} aria-checked={selected} style={styles.packChoice}>
+                    <MaterialIcons name={selected ? 'check-box' : 'check-box-outline-blank'} size={21} color={selected ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                    <Text style={styles.optionName}>{pack.label}</Text>
+                  </Pressable>
+                  {selected ? <TextInput value={casePrices[pack.id] || ''} onChangeText={value => setCasePrices(current => ({ ...current, [pack.id]: value }))} placeholder="Numbers only, e.g. 1200" keyboardType="decimal-pad" accessibilityLabel={`${pack.label} selling price per case in pesos`} style={[styles.input, styles.priceInput]} /> : null}
+                </View>
+              );
+            })}
+            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+            <Pressable onPress={saveNewProductDraft} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
+              <Text style={styles.saveLabel}>Add product lines</Text>
+            </Pressable>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -396,6 +613,8 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
   sectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   sectionHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
+  searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.surface },
+  searchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: theme.fontSize.sm },
   supplierList: { gap: theme.spacing.sm, paddingTop: theme.spacing.sm, paddingBottom: 2 },
   supplierChip: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   supplierChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
@@ -420,12 +639,17 @@ const styles = StyleSheet.create({
   input: { minHeight: 48, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
   lineTotal: { minWidth: 72, alignItems: 'flex-end', paddingBottom: 12 },
   lineTotalValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  returnRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  returnCopy: { flex: 1 },
+  returnRow: { paddingVertical: theme.spacing.sm, gap: theme.spacing.xs, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  returnHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  returnPriceField: { width: 150 },
+  returnPriceInput: { minHeight: 42, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.sm },
+  returnControls: { flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  returnStepper: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
+  stepButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
+  stepValue: { minWidth: 44, color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, textAlign: 'center' },
   returnName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   returnCredit: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
-  returnInput: { width: 62, minHeight: 48, textAlign: 'center', paddingHorizontal: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
-  returnAmount: { width: 76, color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, textAlign: 'right' },
+  returnAmount: { minWidth: 76, color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, textAlign: 'right' },
   creditTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   creditTotalLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotalValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
@@ -462,6 +686,13 @@ const styles = StyleSheet.create({
   creditValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   detailSummary: { gap: theme.spacing.xs, marginTop: theme.spacing.sm, padding: theme.spacing.md, borderRadius: 11, backgroundColor: theme.colors.background },
   pickerHeading: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md },
+  formSheet: { width: '100%', maxWidth: 620, maxHeight: '90%', alignSelf: 'center', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
+  secondaryButton: { minHeight: 44, minWidth: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
+  secondaryButtonLabel: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  createProductOption: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  newProductPack: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  packChoice: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  priceInput: { width: 160, minHeight: 44 },
   pickerTitle: { color: theme.colors.text, fontSize: theme.fontSize.xl, fontWeight: theme.fontWeight.bold },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   productOption: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
