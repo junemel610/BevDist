@@ -129,8 +129,8 @@ export function BalancesScreen({ navigation }) {
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Search customer or invoice"
-                placeholderTextColor={theme.colors.textLight}
+                placeholder="Search balances"
+                placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search balances by customer or invoice number"
                 returnKeyType="search"
                 style={styles.searchInput}

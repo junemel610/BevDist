@@ -19,6 +19,7 @@ const theme = {
     surface: '#ffffff',
     text: '#0f172a',
     textLight: '#475569',
+    placeholder: '#94a3b8',
     border: '#e2e8f0',
     overlay: 'rgba(0, 0, 0, 0.5)',
   },

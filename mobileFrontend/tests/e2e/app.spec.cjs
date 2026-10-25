@@ -34,7 +34,7 @@ test('quick create validates cases, applies container refunds and persists an in
   await page.getByRole('button', { name: /Create Invoice/ }).click();
   await expect(page.getByLabel('Close create invoice', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(data.customer.name) }).click();
-  const quantity = page.getByLabel(`${data.product.name}, A · 12 bottles/case, quantity in cases`, { exact: true });
+  const quantity = page.getByLabel(`${data.product.name}, A · 12 bottles per case, quantity in cases`, { exact: true });
   await quantity.fill('0.25');
   await expect(page.getByText('Use half-case steps: 0.5, 1, 1.5…', { exact: true })).toBeVisible();
   await quantity.fill('21');
@@ -104,8 +104,8 @@ test('inventory editing changes case stock and zero-stock deletion archives the 
   await tab(page, 'Stock');
   await page.getByLabel('Search inventory by product or supplier').fill(data.product.name);
   await page.getByRole('button', { name: `Edit ${data.product.name} inventory` }).click();
-  await page.getByLabel('A · 12 bottles/case quantity in cases', { exact: true }).fill('0');
-  await page.getByLabel('A · 12 bottles/case selling price per case in pesos', { exact: true }).fill('120');
+  await page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true }).fill('0');
+  await page.getByLabel('A · 12 bottles per case selling price per case in pesos', { exact: true }).fill('120');
   await page.getByLabel('Stock count reason', { exact: true }).fill('E2E physical count');
   await confirm(page, () => page.getByRole('button', { name: 'Save changes' }).click());
   await expect(page.getByLabel('Close inventory editor')).not.toBeVisible();

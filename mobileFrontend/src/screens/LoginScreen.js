@@ -72,11 +72,11 @@ export function LoginScreen() {
               <Text style={styles.label}>Username</Text>
               <TextInput
                 style={[styles.input, usernameError && styles.inputError]}
-                placeholder="Enter your username"
+                placeholder="Username"
                 value={username}
                 onChangeText={value => { setUsername(value); setUsernameError(''); }}
                 editable={!loading}
-                placeholderTextColor={theme.colors.textLight}
+                placeholderTextColor={theme.colors.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
                 accessibilityLabel="Username"
@@ -89,12 +89,12 @@ export function LoginScreen() {
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={[styles.input, passwordError && styles.inputError]}
-                placeholder="Enter your password"
+                placeholder="Password"
                 value={password}
                 onChangeText={value => { setPassword(value); setPasswordError(''); }}
                 secureTextEntry
                 editable={!loading}
-                placeholderTextColor={theme.colors.textLight}
+                placeholderTextColor={theme.colors.placeholder}
                 autoCapitalize="none"
                 accessibilityLabel="Password"
                 returnKeyType="done"

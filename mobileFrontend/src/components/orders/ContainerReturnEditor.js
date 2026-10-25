@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
+import { PesoInput } from '../ui/PesoInput';
 
 export function ContainerReturnEditor({ rows, onChange, error }) {
   const update = (index, field, value) => onChange(rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
@@ -15,11 +16,11 @@ export function ContainerReturnEditor({ rows, onChange, error }) {
           <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
         </Pressable>
       </View>
-      <TextInput value={row.type} onChangeText={value => update(index, 'type', value)} accessibilityLabel={`Return type, row ${index + 1}`} placeholder="e.g. A — empty cases" style={styles.input} />
+      <TextInput value={row.type} onChangeText={value => update(index, 'type', value)} accessibilityLabel={`Return type, row ${index + 1}`} placeholder="Type" placeholderTextColor={theme.colors.placeholder} style={styles.input} />
       <Text style={styles.label}>Quantity (cases)</Text>
       <TextInput value={String(row.quantity)} onChangeText={value => update(index, 'quantity', value)} keyboardType="decimal-pad" accessibilityLabel={`Returned cases, row ${index + 1}`} style={styles.input} />
-      <Text style={styles.label}>Refund per case (₱)</Text>
-      <TextInput value={String(row.refundPerCase)} onChangeText={value => update(index, 'refundPerCase', value)} keyboardType="decimal-pad" accessibilityLabel={`Refund per case, row ${index + 1}`} placeholder="0.00" style={styles.input} />
+      <Text style={styles.label}>Refund per case</Text>
+      <PesoInput value={String(row.refundPerCase)} onChangeText={value => update(index, 'refundPerCase', value)} keyboardType="decimal-pad" accessibilityLabel={`Refund per case, row ${index + 1}`} placeholder="0" placeholderTextColor={theme.colors.placeholder} style={styles.input} />
     </View>)}
     <Pressable disabled={rows.length >= 100} accessibilityRole="button" onPress={() => onChange([...rows, { type: '', quantity: '0.5', refundPerCase: '' }])} style={styles.add}>
       <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} /><Text style={styles.addText}>Add returned case type</Text>

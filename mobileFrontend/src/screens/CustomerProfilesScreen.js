@@ -100,10 +100,12 @@ export function CustomerProfilesScreen() {
                 <MaterialIcons name="close" size={21} color={theme.colors.textLight} accessible={false} />
               </Pressable>
             </View>
-            <TextInput value={draft.name} onChangeText={name => { setDraft(current => ({ ...current, name })); setError(''); }} placeholder="Customer name (required)" accessibilityLabel="Customer name, required" style={styles.input} />
-            <TextInput value={draft.contact || ''} onChangeText={contact => setDraft(current => ({ ...current, contact }))} placeholder="Contact number" accessibilityLabel="Customer contact number" keyboardType="phone-pad" style={styles.input} />
-            <TextInput value={draft.address || ''} onChangeText={address => setDraft(current => ({ ...current, address }))} placeholder="Address" accessibilityLabel="Customer address" style={styles.input} />
+            <View style={styles.sectionDivider} />
+            <TextInput value={draft.name} onChangeText={name => { setDraft(current => ({ ...current, name })); setError(''); }} placeholder="Customer name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Customer name, required" style={styles.input} />
+            <TextInput value={draft.contact || ''} onChangeText={contact => setDraft(current => ({ ...current, contact }))} placeholder="Contact number" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Customer contact number" keyboardType="phone-pad" style={styles.input} />
+            <TextInput value={draft.address || ''} onChangeText={address => setDraft(current => ({ ...current, address }))} placeholder="Address" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Customer address" style={styles.input} />
             {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+            <View style={styles.sectionDivider} />
             <Pressable onPress={save} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
               <Text style={styles.saveText}>Save profile</Text>
             </Pressable>
@@ -139,6 +141,7 @@ const styles = StyleSheet.create({
   scrim: { flex: 1, justifyContent: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.overlay },
   dialog: { gap: theme.spacing.md, padding: theme.spacing.lg, borderRadius: 14, backgroundColor: theme.colors.surface },
   dialogHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border },
   dialogTitle: { color: theme.colors.text, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   input: { minHeight: 52, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, fontSize: theme.fontSize.base },

@@ -16,7 +16,7 @@ export function CustomerCreditsScreen() {
       ListHeaderComponent={<View style={styles.header}>
         <Text style={styles.total}>{peso(rows.reduce((sum, row) => sum + row.amount, 0))} available credit</Text>
         <Text style={styles.help}>Extra payments automatically apply to each customer’s next invoice.</Text>
-        <TextInput value={search} onChangeText={setSearch} placeholder="Search customer" accessibilityLabel="Search customer credits" style={styles.search} />
+        <TextInput value={search} onChangeText={setSearch} placeholder="Search customer" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search customer credits" style={styles.search} />
       </View>}
       renderItem={({ item }) => <View style={styles.row}><Text style={styles.name}>{item.name}</Text><Text style={styles.amount}>{peso(item.amount)}</Text></View>}
       ListEmptyComponent={<Text style={styles.help}>{search ? 'No matching customers.' : 'No customer credit available.'}</Text>}
