@@ -32,8 +32,15 @@ export function CustomerProfilesScreen() {
   };
 
   const save = () => {
-    if (!draft.name.trim()) {
+    const name = draft.name.trim();
+    if (!name) {
       setError('Enter a customer name.');
+      return;
+    }
+    const duplicate = customers.find(customer => customer.id !== editor?.id
+      && customer.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (duplicate) {
+      setError(`${duplicate.name} already exists. Edit that customer profile instead.`);
       return;
     }
     confirmAction({
