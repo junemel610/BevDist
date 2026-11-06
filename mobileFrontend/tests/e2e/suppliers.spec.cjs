@@ -30,7 +30,7 @@ test('supplier order validates empty/quarter-case lines and product picker can c
   await expect(activeText(page, 'No products added')).toBeVisible();
 });
 
-test('multi-product supplier receipts deduct all four returned-case credits and show historical details', async ({ page, request }) => {
+test('multi-product supplier receipts deduct named returned-case credits and show historical details', async ({ page, request }) => {
   const data = await business(request), saved = (await data.snapshot()).products.find(p => p.id === data.product.id);
   const secondName = `Second ${data.product.name}`;
   await data.post('/products', { name: secondName, supplierId: saved.supplierId, packs: [{ packId: 'B', casePrice: 200 }] });
@@ -43,9 +43,12 @@ test('multi-product supplier receipts deduct all four returned-case credits and 
   await addLine(page, secondName);
   await page.getByLabel(`${secondName} quantity in cases`, { exact: true }).fill('0.5');
   await page.getByLabel(`${secondName} supplier cost per case in pesos`, { exact: true }).fill('200');
-  for (const [type, price] of [['A',15], ['B',20], ['C',18], ['D',12]]) {
-    await page.getByRole('button', { name: `Add half case of Case Type ${type}`, exact: true }).click();
-    await page.getByLabel(`Case Type ${type} return credit per case`, { exact: true }).fill(String(price));
+  for (const [index, [name, price]] of [['Bottle crate',15], ['Water jug',20], ['Soda crate',18], ['Beer crate',12]].entries()) {
+    const line = index + 1;
+    await page.getByRole('button', { name: /Add return line/ }).click();
+    await page.getByLabel(`Return line ${line} container or item`, { exact: true }).fill(name);
+    await page.getByRole('button', { name: `Increase quantity for return line ${line}`, exact: true }).click();
+    await page.getByLabel(`Return line ${line} refund per case in pesos`, { exact: true }).fill(String(price));
   }
   await confirm(page, () => page.getByRole('button', { name: 'Save supplier order' }).click(), false);
   expect((await data.snapshot()).restockRecords.some(r => r.supplier === data.supplierName)).toBe(false);
@@ -56,6 +59,7 @@ test('multi-product supplier receipts deduct all four returned-case credits and 
   const snapshot = await data.snapshot(), receipt = snapshot.restockRecords.find(r => r.supplier === data.supplierName);
   expect(receipt).toMatchObject({ totalProductCost: 200, totalReturnedCredit: 32.5, netCost: 167.5 });
   expect(receipt.returnedCases).toHaveLength(4);
+  expect(receipt.returnedCases.map(item => item.type).sort()).toEqual(['Beer crate', 'Bottle crate', 'Soda crate', 'Water jug']);
   expect(snapshot.products.find(p => p.name === secondName).stockByCasePack.B.totalStock).toBe(0.5);
   await page.getByLabel('Close supplier order details').click();
 });

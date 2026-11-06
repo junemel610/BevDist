@@ -17,9 +17,8 @@ async function stockForm() {
   await render(<InventoryScreen />);
   await press('Add product');
   await fill('Product name', 'New Cola');
-  await fireEvent.press(screen.getByRole('checkbox', { name: /A · 12 bottles/ }));
-  await fill('A · 12 bottles per case quantity in cases', '0.5');
-  await fill('A · 12 bottles per case selling price per case in pesos', '120');
+  await fill('Case quantity in cases', '0.5');
+  await fill('Case selling price per case in pesos', '120');
 }
 const saveProduct = () => fireEvent.press(screen.getAllByRole('button', { name: 'Add product', exact: true }).at(-1));
 async function receiptLine() {
@@ -33,7 +32,7 @@ async function receiptLine() {
 test('price entry shows a peso prefix and uses a short numeric hint', async () => {
   await stockForm();
   expect(screen.getAllByText('₱').length).toBeGreaterThan(0);
-  const price = screen.getByLabelText('A · 12 bottles per case selling price per case in pesos');
+  const price = screen.getByLabelText('Case selling price per case in pesos');
   expect(price.props.placeholder).toBe('0');
   expect(price.props.placeholderTextColor).toBe('#94a3b8');
 });
@@ -53,7 +52,7 @@ test('stock supplier search includes suppliers without products and saves their 
   await saveProduct();
   expect(app.addProduct).not.toHaveBeenCalled();
   await confirm();
-  expect(app.addProduct).toHaveBeenCalledWith(expect.objectContaining({ supplierId: 'supplier-2', supplier: 'Empty Supplier', casePackIds: ['A'] }));
+  expect(app.addProduct).toHaveBeenCalledWith(expect.objectContaining({ supplierId: 'supplier-2', supplier: 'Empty Supplier', casePackIds: ['B'] }));
 });
 
 test('stock supplier modes prevent a hidden saved selection from overriding a new supplier', async () => {
@@ -92,27 +91,13 @@ test('empty supplier catalog starts manual entry and reopening clears an abandon
   expect(app.addProduct).not.toHaveBeenCalled();
 });
 
-test('stock product editor assigns the next alphabetic case name and its bottle count', async () => {
+test('stock product editor keeps the single generic case unit', async () => {
   await stockForm();
   await fireEvent.press(screen.getByRole('radio', { name: 'Select supplier Supplier One' }));
-  expect(screen.getByText('Bottles per case')).toBeOnTheScreen();
-  expect(screen.getByText('Add case type D')).toBeOnTheScreen();
-  await fill('Custom bottles per case', '18 bottles');
-  expect(screen.getByLabelText('Custom bottles per case').props.value).toBe('18');
-  await press('Add custom case type');
-  expect(screen.getAllByText('D · 18 bottles per case').length).toBeGreaterThan(0);
-  await press('Remove case type D');
-  expect(screen.queryByText('D · 18 bottles per case')).toBeNull();
-  expect(screen.getByText('Add case type D')).toBeOnTheScreen();
-  await fill('Custom bottles per case', '18');
-  await press('Add custom case type');
-  await fill('D · 18 bottles per case quantity in cases', '0.5');
-  await fill('D · 18 bottles per case selling price per case in pesos', '750');
+  expect(screen.getAllByText('Case').length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Add case type/)).toBeNull();
   await saveProduct(); await confirm();
-  expect(app.addProduct).toHaveBeenCalledWith(expect.objectContaining({
-    casePackIds: expect.arrayContaining(['A', expect.stringMatching(/^CUSTOM_[A-F0-9]{32}$/)]),
-    newCasePackTypes: [expect.objectContaining({ label: 'D', unitsPerCase: 18 })],
-  }));
+  expect(app.addProduct).toHaveBeenCalledWith(expect.objectContaining({ casePackIds: ['B'] }));
 });
 
 test('opening and closing a new supplier preserves the receipt draft', async () => {
@@ -128,43 +113,44 @@ test('opening and closing a new supplier preserves the receipt draft', async () 
   expect(app.addRestockRecord).not.toHaveBeenCalled();
 });
 
-test('new supplier plus multi-pack product stays local, and removing one pack preserves the other', async () => {
+test('new supplier and single-pack product are saved together with a supplier receipt', async () => {
   await render(<SupplierOrdersScreen />);
   await press('New supplier'); await fill('New supplier name', 'New Depot'); await press('Use supplier in this order');
   await press('Add product'); await fireEvent.press(screen.getByRole('button', { name: /Create a new product/ }));
   await fill('New product name', 'New Drink');
-  for (const label of ['A · 12 bottles per case', 'B · 24 bottles per case']) {
-    await fireEvent.press(screen.getByRole('checkbox', { name: label }));
-    await fill(`${label} selling price per case in pesos`, '100');
-  }
+  await fill('Case selling price per case in pesos', '100');
   await press('Add product lines');
   expect(app.addRestockRecord).not.toHaveBeenCalled();
-  await press('Remove New Drink A · 12 bottles per case');
   await fill('New Drink quantity in cases', '0.5'); await fill('New Drink supplier cost per case in pesos', '40');
   await press('Save supplier order'); await confirm();
   expect(app.addRestockRecord).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Depot' }), [], [], [{ name: 'New Drink', packs: [{ packId: 'B', casePrice: 100, quantity: 0.5, unitCost: 40 }] }]);
 });
 
-test('return steppers stop at zero and require a valid manual price without exceeding purchase cost', async () => {
+test('return lines can be named, use half-case controls and validate refund per case', async () => {
   await receiptLine();
-  expect(screen.getByRole('button', { name: 'Remove half case of Case Type A' })).toBeDisabled();
-  await press('Add half case of Case Type A');
+  await press('Add return line');
+  expect(screen.getByRole('button', { name: 'Decrease quantity for return line 1' })).toBeDisabled();
+  await press('Increase quantity for return line 1');
   await press('Save supplier order');
-  expect(screen.getByText('Enter a credit price for each returned case type with a quantity.')).toBeOnTheScreen();
+  expect(screen.getByText('Enter a name for each returned container or item.')).toBeOnTheScreen();
+  await fill('Return line 1 container or item', 'Bottle crate');
+  await press('Save supplier order');
+  expect(screen.getByText('Enter a refund per case for each returned item.')).toBeOnTheScreen();
   for (const price of ['-1', '1.001', 'abc', '0']) {
-    await fill('Case Type A return credit per case', price); await press('Save supplier order');
+    await fill('Return line 1 refund per case in pesos', price); await press('Save supplier order');
     expect(confirmAction).not.toHaveBeenCalled();
   }
-  await fill('Case Type A return credit per case', '201'); await press('Save supplier order');
+  await fill('Return line 1 refund per case in pesos', '201'); await press('Save supplier order');
   expect(screen.getByText('Return credits cannot exceed the product cost.')).toBeOnTheScreen();
-  await fill('Case Type A return credit per case', '20'); await press('Save supplier order'); await confirm();
-  expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], expect.any(Array), [{ type: 'Case Type A', quantity: 0.5, creditPerUnit: 20 }], []);
+  await fill('Return line 1 refund per case in pesos', '20'); await press('Save supplier order'); await confirm();
+  expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], expect.any(Array), [{ type: 'Bottle crate', quantity: 0.5, creditPerUnit: 20 }], []);
 });
 
-test('zero-quantity returns do not require prices or create credits', async () => {
+test('empty return lines do not require a name or price and can be removed', async () => {
   await receiptLine();
-  await press('Add half case of Case Type A'); await press('Remove half case of Case Type A');
-  await fill('Case Type B return credit per case', '99');
+  await press('Add return line');
+  await fill('Return line 1 refund per case in pesos', '99');
+  await press('Remove return line 1');
   await press('Save supplier order'); await confirm();
   expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], expect.any(Array), [], []);
 });

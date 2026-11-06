@@ -15,15 +15,16 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { PesoInput } from '../components/ui/PesoInput';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
-import { hasValidSupplierOrderItems, RETURNED_CASE_TYPES, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
+import { hasValidSupplierOrderItems, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
 import { casePackDisplay, casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
+import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export function SupplierOrdersScreen() {
-  const { products, suppliers: savedSuppliers, casePackTypes = [], restockRecords, addRestockRecord } = useApp();
+  const { products, suppliers: savedSuppliers, restockRecords, addRestockRecord } = useApp();
   const [selectedSupplier, setSupplier] = useState('');
   const [supplierDraft, setSupplierDraft] = useState(null);
   const [supplierEditorVisible, setSupplierEditorVisible] = useState(false);
@@ -31,11 +32,11 @@ export function SupplierOrdersScreen() {
   const [supplierSearch, setSupplierSearch] = useState('');
   const [productEditorVisible, setProductEditorVisible] = useState(false);
   const [productName, setProductName] = useState('');
-  const [selectedPackIds, setSelectedPackIds] = useState([]);
+  const selectedPackIds = ['B'];
   const [casePrices, setCasePrices] = useState({});
   const [newProducts, setNewProducts] = useState([]);
   const [items, setItems] = useState([]);
-  const [returnedCases, setReturnedCases] = useState(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: 0, creditPerUnit: '' })));
+  const [returnedCases, setReturnedCases] = useState([]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [error, setError] = useState('');
@@ -65,6 +66,9 @@ export function SupplierOrdersScreen() {
     quantity: Number(item.quantity) || 0,
     unitCost: Number(item.unitCost) || 0,
   })), numericReturns);
+  const todayLabel = new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila', day: '2-digit', month: 'short', year: 'numeric',
+  }).format(new Date());
 
   const changeSupplier = nextSupplier => {
     if (nextSupplier === supplier && !supplierDraft) return;
@@ -118,11 +122,11 @@ export function SupplierOrdersScreen() {
     if (!name) { setError('Enter a product name.'); return; }
     const duplicate = [...supplierProducts, ...newProducts].some(product => product.name.toLocaleLowerCase() === name.toLocaleLowerCase());
     if (duplicate) { setError('This supplier already has a product with that name. Choose the saved product instead.'); return; }
-    if (!selectedPackIds.length) { setError('Select at least one case type.'); return; }
-    if (selectedPackIds.some(packId => !/^\d+(\.\d{1,2})?$/.test(String(casePrices[packId])) || !(Number(casePrices[packId]) > 0))) { setError('Enter a numeric selling price for every selected case type.'); return; }
+    if (selectedPackIds.length !== 1 || selectedPackIds[0] !== 'B') { setError('Choose the case unit.'); return; }
+    if (selectedPackIds.some(packId => !/^\d+(\.\d{1,2})?$/.test(String(casePrices[packId])) || !(Number(casePrices[packId]) > 0))) { setError('Enter a numeric selling price per case.'); return; }
     const key = `new-product-${Date.now()}`;
-    const packs = casePackOptionsForProduct({ name, casePackTypes }).filter(pack => selectedPackIds.includes(pack.id));
-    if (!packs.length) { setError('The selected case types do not match this product name. Review the case types.'); return; }
+    const packs = casePackOptionsForProduct({ name }).filter(pack => selectedPackIds.includes(pack.id));
+    if (!packs.length) { setError('Choose the case unit.'); return; }
     const product = { key, name, packs: packs.map(pack => ({ ...pack, casePrice: Number(casePrices[pack.id]) })) };
     setNewProducts(current => [...current, product]);
     setItems(current => [...current, ...product.packs.map(pack => ({
@@ -132,7 +136,6 @@ export function SupplierOrdersScreen() {
     setProductEditorVisible(false);
     setPickerVisible(false);
     setProductName('');
-    setSelectedPackIds([]);
     setCasePrices({});
     setError('');
   };
@@ -155,14 +158,21 @@ export function SupplierOrdersScreen() {
     setError('');
   };
 
-  const adjustReturnedCase = (type, delta) => {
-    setReturnedCases(current => current.map(item => item.type === type
+  const addReturnedCase = () => {
+    setReturnedCases(current => [...current, { rowKey: `return-${Date.now()}-${current.length}`, type: '', quantity: 0, creditPerUnit: '' }]);
+  };
+
+  const removeReturnedCase = rowKey => setReturnedCases(current => current.filter(item => item.rowKey !== rowKey));
+
+  const adjustReturnedCase = (rowKey, delta) => {
+    setReturnedCases(current => current.map(item => item.rowKey === rowKey
       ? { ...item, quantity: Math.max(0, Math.round((Number(item.quantity) + delta) * 2) / 2) }
       : item));
   };
 
-  const updateReturnPrice = (type, creditPerUnit) => {
-    setReturnedCases(current => current.map(item => item.type === type ? { ...item, creditPerUnit } : item));
+  const updateReturnedCase = (rowKey, field, value) => {
+    setReturnedCases(current => current.map(item => item.rowKey === rowKey ? { ...item, [field]: value } : item));
+    setError('');
   };
 
   const saveOrder = () => {
@@ -187,9 +197,13 @@ export function SupplierOrdersScreen() {
       }),
     }));
 
-    const recordedReturns = numericReturns.filter(item => item.quantity > 0);
+    const recordedReturns = numericReturns.filter(item => item.quantity > 0).map(({ rowKey, ...item }) => item);
+    if (returnedCases.some(item => item.quantity > 0 && !item.type.trim())) {
+      setError('Enter a name for each returned container or item.');
+      return;
+    }
     if (returnedCases.some(item => item.quantity > 0 && (!/^\d+(\.\d{1,2})?$/.test(String(item.creditPerUnit)) || Number(item.creditPerUnit) <= 0))) {
-      setError('Enter a credit price for each returned case type with a quantity.');
+      setError('Enter a refund per case for each returned item.');
       return;
     }
     const productCost = orderItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
@@ -205,7 +219,7 @@ export function SupplierOrdersScreen() {
         setNewProducts([]);
         setSupplierDraft(null);
         setSupplier('');
-        setReturnedCases(RETURNED_CASE_TYPES.map(item => ({ ...item, quantity: 0, creditPerUnit: '' })));
+        setReturnedCases([]);
         setError('');
         setNotice('Supplier order saved. Inventory updated.');
       },
@@ -218,18 +232,29 @@ export function SupplierOrdersScreen() {
         <View style={[styles.pageHeading, styles.pageHeadingBand]}>
           <View style={styles.headingCopy}>
             <Text accessibilityRole="header" style={styles.title}>Supplier order</Text>
-        <Text style={styles.subtitle}>Enter supplier purchase costs. Returned cases are optional.</Text>
+            <Text style={styles.subtitle}>Record products received and returned cases.</Text>
           </View>
           <View style={styles.headingIcon}>
             <MaterialIcons name="local-shipping" size={23} color={theme.colors.onPrimary} accessible={false} />
           </View>
         </View>
 
+        <View style={styles.orderMeta}>
+          <View>
+            <Text style={styles.metaCaption}>ORDER NO.</Text>
+            <Text style={styles.metaValue}>Assigned when saved</Text>
+          </View>
+          <View style={styles.metaDate}>
+            <Text style={styles.metaCaption}>DATE</Text>
+            <Text style={styles.metaValue}>{todayLabel}</Text>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <View style={styles.sectionHeading}>
             <View style={styles.headingCopy}>
-              <Text style={styles.sectionTitle}>Supplier</Text>
-              <Text style={styles.sectionHint}>{supplier || 'Choose or add a supplier'}</Text>
+              <Text style={styles.sectionTitle}>Supplier details</Text>
+              <Text style={styles.sectionHint}>{supplier || 'Select an existing supplier or add a new one.'}</Text>
             </View>
             <Pressable onPress={startNewSupplier} accessibilityRole="button" accessibilityLabel="New supplier" style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
               <MaterialIcons name="person-add" size={18} color={theme.colors.primary} accessible={false} />
@@ -278,7 +303,7 @@ export function SupplierOrdersScreen() {
           <View style={styles.sectionHeading}>
             <View style={styles.headingCopy}>
               <Text style={styles.sectionTitle}>Products</Text>
-              <Text style={styles.sectionHint}>{supplierProducts.length} products from {supplier}</Text>
+              <Text style={styles.sectionHint}>{supplierProducts.length} {supplierProducts.length === 1 ? 'product' : 'products'} from {supplier || 'selected supplier'}</Text>
             </View>
             <Pressable
               onPress={() => { setProductSearch(''); setPickerVisible(true); }}
@@ -289,6 +314,11 @@ export function SupplierOrdersScreen() {
               <MaterialIcons name="add" size={20} color={theme.colors.onPrimary} accessible={false} />
               {!compact && <Text style={styles.addButtonLabel}>Add product</Text>}
             </Pressable>
+          </View>
+
+          <View style={styles.productTableHeader}>
+            <Text style={styles.tableHeading}>ITEMS RECEIVED</Text>
+            <Text style={styles.tableHint}>Quantity · Cost per case · Line total</Text>
           </View>
 
           {items.length === 0 ? (
@@ -305,14 +335,14 @@ export function SupplierOrdersScreen() {
                 </View>
                 <View style={styles.itemNameBlock}>
                   <Text style={styles.itemName}>{item.productName}</Text>
-                  <Text style={styles.itemMeta}>{item.newProductKey ? `${item.packLabel} · new product; stock is added when saved` : `${item.packLabel} · current stock: ${stockForCasePack(products.find(product => product.id === item.productId), item.packId).totalStock} cases`}</Text>
+                  <Text style={styles.itemMeta}>{item.newProductKey ? `${item.packLabel} · new product; stock is added when saved` : `${item.packLabel} · current stock: ${formatCaseQuantity(stockForCasePack(products.find(product => product.id === item.productId), item.packId).totalStock)} cases`}</Text>
                 </View>
                 <Pressable onPress={() => removeItem(item.rowKey)} accessibilityRole="button" accessibilityLabel={`Remove ${item.productName} ${item.packLabel}`} style={styles.removeButton}>
                   <MaterialIcons name="delete-outline" size={21} color={theme.colors.danger} accessible={false} />
                 </Pressable>
               </View>
               <View style={styles.fieldsRow}>
-                <View style={styles.itemField}>
+                <View style={[styles.itemField, styles.quantityField]}>
                   <Text style={styles.fieldLabel}>Quantity (cases)</Text>
                   <TextInput
                     value={String(item.quantity)}
@@ -324,7 +354,7 @@ export function SupplierOrdersScreen() {
                     style={styles.input}
                   />
                 </View>
-                <View style={styles.itemField}>
+                <View style={[styles.itemField, styles.costField]}>
                   <Text style={styles.fieldLabel}>Supplier cost per case</Text>
                   <PesoInput
                     value={String(item.unitCost)}
@@ -349,52 +379,70 @@ export function SupplierOrdersScreen() {
           <View style={styles.sectionHeading}>
             <View style={styles.headingCopy}>
               <Text style={styles.sectionTitle}>Returned cases</Text>
-              <Text style={styles.sectionHint}>Credits reduce the supplier order cost.</Text>
+              <Text style={styles.sectionHint}>Add returned containers or items. Their refund reduces the supplier order cost.</Text>
             </View>
             <MaterialIcons name="replay" size={21} color={theme.colors.textLight} accessible={false} />
           </View>
-          {returnedCases.map(item => (
-            <View key={item.type} style={styles.returnRow}>
+          {returnedCases.map((item, index) => (
+            <View key={item.rowKey} style={styles.returnRow}>
               <View style={styles.returnHeading}>
-                <Text style={styles.returnName}>{item.type}</Text>
+                <Text style={styles.returnName}>Return line {index + 1}</Text>
+                <Pressable onPress={() => removeReturnedCase(item.rowKey)} accessibilityRole="button" accessibilityLabel={`Remove return line ${index + 1}`} style={styles.removeButton}>
+                  <MaterialIcons name="delete-outline" size={21} color={theme.colors.danger} accessible={false} />
+                </Pressable>
+              </View>
+              <Text style={styles.fieldLabel}>What container or item?</Text>
+              <TextInput
+                value={item.type}
+                onChangeText={value => updateReturnedCase(item.rowKey, 'type', value)}
+                placeholder="e.g. Bottle crate"
+                placeholderTextColor={theme.colors.placeholder}
+                accessibilityLabel={`Return line ${index + 1} container or item`}
+                style={styles.input}
+              />
+              <View style={styles.returnEntryRow}>
+                <View style={styles.returnQuantityField}>
+                  <Text style={styles.fieldLabel}>Quantity (cases)</Text>
+                  <View style={styles.returnStepper}>
+                    <Pressable onPress={() => adjustReturnedCase(item.rowKey, -0.5)} accessibilityRole="button" accessibilityLabel={`Decrease quantity for return line ${index + 1}`} disabled={!item.quantity} accessibilityState={{ disabled: !item.quantity }} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
+                      <MaterialIcons name="remove" size={20} color={theme.colors.primary} accessible={false} />
+                    </Pressable>
+                    <Text accessibilityLabel={`${formatCaseQuantity(item.quantity)} cases returned`} style={styles.stepValue}>{formatCaseQuantity(item.quantity)}</Text>
+                    <Pressable onPress={() => adjustReturnedCase(item.rowKey, 0.5)} accessibilityRole="button" accessibilityLabel={`Increase quantity for return line ${index + 1}`} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
+                      <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
+                    </Pressable>
+                  </View>
+                </View>
                 <View style={styles.returnPriceField}>
-                  <Text style={styles.fieldLabel}>Credit per case</Text>
+                  <Text style={styles.fieldLabel}>Refund per case</Text>
                   <PesoInput
                     value={String(item.creditPerUnit ?? '')}
-                    onChangeText={value => updateReturnPrice(item.type, value)}
+                    onChangeText={value => updateReturnedCase(item.rowKey, 'creditPerUnit', value)}
                     keyboardType="decimal-pad"
                     placeholder="0"
                     placeholderTextColor={theme.colors.placeholder}
-                    accessibilityLabel={`${item.type} return credit per case`}
+                    accessibilityLabel={`Return line ${index + 1} refund per case in pesos`}
                     style={styles.returnPriceInput}
                   />
-                </View>
-              </View>
-              <View style={styles.returnControls}>
-                <Text style={styles.returnCredit}>Quantity (half-case steps)</Text>
-                <View style={styles.returnStepper}>
-                  <Pressable onPress={() => adjustReturnedCase(item.type, -0.5)} accessibilityRole="button" accessibilityLabel={`Remove half case of ${item.type}`} disabled={!item.quantity} accessibilityState={{ disabled: !item.quantity }} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
-                    <MaterialIcons name="remove" size={20} color={theme.colors.primary} accessible={false} />
-                  </Pressable>
-                  <Text accessibilityLabel={`${item.quantity} cases returned`} style={styles.stepValue}>{Number(item.quantity).toLocaleString('en-PH', { maximumFractionDigits: 1 })}</Text>
-                  <Pressable onPress={() => adjustReturnedCase(item.type, 0.5)} accessibilityRole="button" accessibilityLabel={`Add half case of ${item.type}`} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
-                    <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
-                  </Pressable>
                 </View>
                 <Text style={styles.returnAmount}>{formatPeso((Number(item.quantity) || 0) * (Number(item.creditPerUnit) || 0))}</Text>
               </View>
             </View>
           ))}
+          <Pressable onPress={addReturnedCase} accessibilityRole="button" style={({ pressed }) => [styles.addReturnButton, pressed && styles.pressed]}>
+            <MaterialIcons name="add" size={19} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.addReturnLabel}>Add return line</Text>
+          </Pressable>
           <View style={styles.creditTotal}>
-            <Text style={styles.creditTotalLabel}>Return credits</Text>
+            <Text style={styles.creditTotalLabel}>Total return refund</Text>
             <Text style={styles.creditTotalValue}>−{formatPeso(totals.returnCredit)}</Text>
           </View>
         </View>
 
         <View style={styles.summarySection}>
-          <Text style={styles.sectionTitle}>Order summary</Text>
-          <SummaryLine label="Product cost" amount={totals.productCost} />
-          <SummaryLine label="Return credits" amount={totals.returnCredit} negative />
+          <Text style={styles.sectionTitle}>Order total</Text>
+          <SummaryLine label="Products received" amount={totals.productCost} />
+          <SummaryLine label="Returned case credits" amount={totals.returnCredit} negative />
           <View style={styles.netRow}>
             <Text style={styles.netLabel}>Net cost</Text>
             <Text style={styles.netValue}>{formatPeso(totals.netCost)}</Text>
@@ -460,11 +508,11 @@ export function SupplierOrdersScreen() {
               />
             </View>
             <ScrollView>
-              <Pressable onPress={() => { setError(''); setProductName(''); setSelectedPackIds([]); setCasePrices({}); setPickerVisible(false); setProductEditorVisible(true); }} accessibilityRole="button" style={({ pressed }) => [styles.createProductOption, pressed && styles.pressed]}>
+              <Pressable onPress={() => { setError(''); setProductName(''); setCasePrices({}); setPickerVisible(false); setProductEditorVisible(true); }} accessibilityRole="button" style={({ pressed }) => [styles.createProductOption, pressed && styles.pressed]}>
                 <MaterialIcons name="add-box" size={20} color={theme.colors.primary} accessible={false} />
                 <View style={styles.headingCopy}>
                   <Text style={styles.optionName}>Create a new product</Text>
-                  <Text style={styles.optionMeta}>Add case types, selling prices, and received stock</Text>
+                  <Text style={styles.optionMeta}>Set the case price and received stock</Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={21} color={theme.colors.primary} accessible={false} />
               </Pressable>
@@ -475,7 +523,7 @@ export function SupplierOrdersScreen() {
                   </View>
                   <View style={styles.headingCopy}>
                     <Text style={styles.optionName}>{product.name} · {casePackDisplay(pack)}</Text>
-                    <Text style={styles.optionMeta}>{stockForCasePack(product, pack.id).totalStock} cases in stock</Text>
+                    <Text style={styles.optionMeta}>{formatCaseQuantity(stockForCasePack(product, pack.id).totalStock)} cases in stock</Text>
                   </View>
                   <MaterialIcons name="add-circle-outline" size={21} color={theme.colors.primary} accessible={false} />
                 </Pressable>
@@ -523,19 +571,18 @@ export function SupplierOrdersScreen() {
             </View>
             <Text style={styles.fieldLabel}>Product name *</Text>
             <TextInput value={productName} onChangeText={setProductName} placeholder="Product name" placeholderTextColor={theme.colors.placeholder} style={styles.input} accessibilityLabel="New product name" />
-            <Text style={styles.fieldLabel}>Case types and selling price per case *</Text>
-            {casePackOptionsForProduct({ name: productName, casePackTypes }).map(pack => {
-              const selected = selectedPackIds.includes(pack.id);
+            <Text style={styles.fieldLabel}>Unit and selling price per case *</Text>
+            {casePackOptionsForProduct({ name: productName }).map(pack => {
               return (
                 <View key={pack.id} style={styles.newProductPack}>
-                  <Pressable onPress={() => setSelectedPackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} aria-checked={selected} style={styles.packChoice}>
-                    <MaterialIcons name={selected ? 'check-box' : 'check-box-outline-blank'} size={21} color={selected ? theme.colors.primary : theme.colors.textLight} accessible={false} />
+                  <View style={styles.packChoice}>
+                    <MaterialIcons name="check-circle" size={21} color={theme.colors.primary} accessible={false} />
                     <Text style={styles.optionName}>{casePackDisplay(pack)}</Text>
-                  </Pressable>
-                  {selected ? <View style={styles.priceEditor}>
+                  </View>
+                  <View style={styles.priceEditor}>
                     <Text style={styles.sellingPriceLabel}>Selling price / case</Text>
                     <PesoInput value={casePrices[pack.id] || ''} onChangeText={value => setCasePrices(current => ({ ...current, [pack.id]: value }))} placeholder="0" placeholderTextColor={theme.colors.placeholder} keyboardType="decimal-pad" accessibilityLabel={`${casePackDisplay(pack)} selling price per case in pesos`} style={[styles.input, styles.priceInput]} />
-                  </View> : null}
+                  </View>
                 </View>
               );
             })}
@@ -565,7 +612,7 @@ export function SupplierOrdersScreen() {
                 <View key={`${item.productId}-${index}`} style={styles.detailRow}>
                   <View style={styles.headingCopy}>
                     <Text style={styles.historySupplier}>{item.productName}</Text>
-                    <Text style={styles.historyMeta}>{item.packLabel ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ` : ''}{item.quantity} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
+                    <Text style={styles.historyMeta}>{item.packLabel ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ` : ''}{formatCaseQuantity(item.quantity)} {item.quantity === 1 ? 'case' : 'cases'} × {formatPeso(item.unitCost)} per case</Text>
                   </View>
                   <Text style={styles.detailAmount}>{formatPeso(item.quantity * item.unitCost)}</Text>
                 </View>
@@ -574,7 +621,7 @@ export function SupplierOrdersScreen() {
               <Text style={styles.detailSectionTitle}>Returned cases</Text>
               {selectedRecord?.returnedCases?.length ? selectedRecord.returnedCases.map((item, index) => (
                 <View key={`${item.type}-${index}`} style={styles.detailRow}>
-                  <Text style={styles.historySupplier}>{item.type} · {item.quantity} cases</Text>
+                  <Text style={styles.historySupplier}>{item.type} · {formatCaseQuantity(item.quantity)} cases</Text>
                   <Text style={styles.creditValue}>−{formatPeso(item.quantity * item.creditPerUnit)}</Text>
                 </View>
               )) : <Text style={styles.historyMeta}>No returned cases recorded.</Text>}
@@ -619,6 +666,10 @@ const styles = StyleSheet.create({
   pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
   title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
   subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, marginTop: theme.spacing.xs },
+  orderMeta: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
+  metaCaption: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, letterSpacing: 0.5 },
+  metaValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 4 },
+  metaDate: { alignItems: 'flex-end' },
   headingIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)' },
   section: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
@@ -637,30 +688,37 @@ const styles = StyleSheet.create({
   emptyProducts: { alignItems: 'center', paddingVertical: theme.spacing.xl, borderWidth: 1, borderColor: theme.colors.border, borderStyle: 'dashed', borderRadius: 12 },
   emptyTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: theme.spacing.sm },
   emptyHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
-  orderItem: { padding: theme.spacing.md, marginTop: theme.spacing.sm, borderRadius: 12, backgroundColor: theme.colors.background },
+  productTableHeader: { minHeight: 40, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs, borderBottomWidth: 1, borderBottomColor: theme.colors.border, marginTop: theme.spacing.xs },
+  tableHeading: { color: theme.colors.textLight, fontSize: 10, fontWeight: theme.fontWeight.bold, letterSpacing: 0.45 },
+  tableHint: { color: theme.colors.textLight, fontSize: 10 },
+  orderItem: { paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surface },
   orderItemHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   itemIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: theme.colors.primarySoft },
   itemNameBlock: { flex: 1 },
   itemName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   itemMeta: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
   removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  fieldsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
-  itemField: { flex: 1 },
+  fieldsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.sm, paddingLeft: 46 },
+  itemField: { flexGrow: 1, flexBasis: 120, minWidth: 110 },
+  quantityField: { maxWidth: 150 },
+  costField: { maxWidth: 190 },
   fieldLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginBottom: 5 },
   input: { minHeight: 48, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
   lineTotal: { minWidth: 72, alignItems: 'flex-end', paddingBottom: 12 },
   lineTotalValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   returnRow: { paddingVertical: theme.spacing.sm, gap: theme.spacing.xs, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  returnHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
-  returnPriceField: { width: 150 },
+  returnHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  returnEntryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
+  returnQuantityField: { flexGrow: 1, flexBasis: 160, minWidth: 150 },
+  returnPriceField: { flexGrow: 1, flexBasis: 130, maxWidth: 180 },
   returnPriceInput: { minHeight: 42, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.sm },
-  returnControls: { flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
   returnStepper: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
   stepButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
   stepValue: { minWidth: 44, color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, textAlign: 'center' },
   returnName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  returnCredit: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
   returnAmount: { minWidth: 76, color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, textAlign: 'right' },
+  addReturnButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
+  addReturnLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   creditTotalLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotalValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
