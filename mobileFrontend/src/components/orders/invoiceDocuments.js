@@ -1,9 +1,10 @@
 import * as XLSX from '@redoper1/xlsx-js-style';
 import { refundAmount, caseLineAmount } from './containerReturns.js';
 import { casePackDisplay } from './casePacks.js';
+import { formatCaseQuantity } from './caseQuantity.js';
 
 const peso = amount => Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const quantity = amount => Number(amount ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 });
+const quantity = amount => formatCaseQuantity(amount);
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -28,10 +29,13 @@ export function invoiceHtml(order, invoice) {
       <td class="number">₱${peso(lineTotal)}</td>
     </tr>`;
   }).join('');
-  const returnRows = (order.containerReturns || []).map(entry => `<tr>
-    <td>${escapeHtml(entry.type)}</td><td>Container refund</td>
-    <td class="number">${quantity(entry.quantity)}</td><td class="number">₱${peso(entry.refundPerCase)}</td>
-    <td class="number">−₱${peso(refundAmount(entry))}</td></tr>`).join('');
+  const returnRows = (order.containerReturns || []).map(entry => {
+    const deposit = entry.kind === 'deposit';
+    return `<tr>
+      <td>${escapeHtml(entry.type)}</td><td>${deposit ? 'Container deposit' : 'Container return'}</td>
+      <td class="number">${quantity(entry.quantity)}</td><td class="number">₱${peso(entry.amountPerCase ?? entry.refundPerCase)}</td>
+      <td class="number">${deposit ? '+' : '−'}₱${peso(refundAmount(entry))}</td></tr>`;
+  }).join('');
 
   return `<!DOCTYPE html>
   <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -65,10 +69,11 @@ export function invoiceHtml(order, invoice) {
       ${order.customer.address ? `<div class="muted">${escapeHtml(order.customer.address)}</div>` : ''}
     </div>
     <div class="label">Invoice items</div>
-    <table><thead><tr><th>Product</th><th>Case type</th><th class="number">Cases</th><th class="number">Price / refund per case</th><th class="number">Amount</th></tr></thead><tbody>${itemRows}${returnRows}</tbody></table>
+    <table><thead><tr><th>Product</th><th>Unit</th><th class="number">Cases</th><th class="number">Price / amount per case</th><th class="number">Amount</th></tr></thead><tbody>${itemRows}${returnRows}</tbody></table>
     <div class="summary">
       <div class="sumrow"><span>Subtotal</span><span>₱${peso(order.subtotal ?? order.grandTotal)}</span></div>
-      <div class="sumrow"><span>Container refunds</span><span>−₱${peso(order.containerRefundTotal || 0)}</span></div>
+      <div class="sumrow"><span>Container deposits</span><span>+₱${peso(order.containerDepositTotal || 0)}</span></div>
+      <div class="sumrow"><span>Container returns</span><span>−₱${peso(order.containerRefundTotal || 0)}</span></div>
       <div class="sumrow"><span>Payments and credit applied</span><span>−₱${peso(invoice.amountPaid)}</span></div>
       <div class="sumrow"><span>Remaining balance</span><span>₱${peso(invoice.remainingBalance)}</span></div>
       <div class="sumrow grand"><span>Grand total</span><span>₱${peso(order.grandTotal)}</span></div>
@@ -99,21 +104,27 @@ export function invoiceWorkbook(order, invoice) {
     [order.customer.address || '—', null, 'Balance due', null, invoice.remainingBalance],
     [],
     ['ITEMIZED CASES'],
-    ['Product', 'Case type', 'Quantity (cases)', 'Price / refund per case', 'Amount'],
+    ['Product', 'Unit', 'Quantity (cases)', 'Price / amount per case', 'Amount'],
     ...order.items.map(item => {
       const price = Number(item.casePrice ?? item.unitPrice) || 0;
       return [
         item.productName,
         item.unitsPerCase ? casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase }) : item.packLabel || 'Historical invoice line',
-        Number(item.quantity) || 0,
+        quantity(item.quantity),
         price,
         caseLineAmount(item.quantity || 0, price),
       ];
     }),
-    ...returnEntries.map(entry => [`Returned: ${entry.type}`, 'Container refund', Number(entry.quantity), Number(entry.refundPerCase), -refundAmount(entry)]),
+    ...returnEntries.map(entry => [
+      `${entry.kind === 'deposit' ? 'Deposit' : 'Returned'}: ${entry.type}`,
+      entry.kind === 'deposit' ? 'Container deposit' : 'Container return',
+      quantity(entry.quantity), Number(entry.amountPerCase ?? entry.refundPerCase),
+      (entry.kind === 'deposit' ? 1 : -1) * refundAmount(entry),
+    ]),
     [],
     ['Subtotal', null, null, null, Number(order.subtotal ?? order.grandTotal) || 0],
-    ['Container refunds', null, null, null, -(Number(order.containerRefundTotal) || 0)],
+    ['Container deposits', null, null, null, Number(order.containerDepositTotal) || 0],
+    ['Container returns', null, null, null, -(Number(order.containerRefundTotal) || 0)],
     ['Payments and credit applied', null, null, null, invoice.amountPaid],
     ['Remaining balance', null, null, null, invoice.remainingBalance],
     ['GRAND TOTAL', null, null, null, Number(order.grandTotal) || 0],

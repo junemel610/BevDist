@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { randomUUID } = require('node:crypto');
 const { username, password } = require('./settings.cjs');
-const { signIn, tab, confirm, business, preparePage } = require('./helpers.cjs');
+const { signIn, tab, confirm, business, preparePage, selectInvoiceProduct } = require('./helpers.cjs');
 
 test.beforeEach(preparePage);
 
@@ -34,14 +34,15 @@ test('quick create validates cases, applies container refunds and persists an in
   await page.getByRole('button', { name: /Create Invoice/ }).click();
   await expect(page.getByLabel('Close create invoice', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: new RegExp(data.customer.name) }).click();
-  const quantity = page.getByLabel(`${data.product.name}, A · 12 bottles per case, quantity in cases`, { exact: true });
+  await selectInvoiceProduct(page, data.product.name);
+  const quantity = page.getByLabel(`${data.product.name}, Case, quantity in cases`, { exact: true });
   await quantity.fill('0.25');
   await expect(page.getByText('Use half-case steps: 0.5, 1, 1.5…', { exact: true })).toBeVisible();
   await quantity.fill('21');
   await expect(page.getByText('Only 20 cases available.', { exact: true })).toBeVisible();
   await quantity.fill('1.5');
-  await page.getByRole('button', { name: 'Add returned case type' }).click();
-  await page.getByLabel('Return type, row 1', { exact: true }).fill('Empty A');
+  await page.getByRole('button', { name: 'Add deposit or return line' }).click();
+  await page.getByLabel('Container or item name, row 1', { exact: true }).fill('Empty A');
   await page.getByLabel('Refund per case, row 1', { exact: true }).fill('20');
   const save = () => page.getByRole('button', { name: 'Create invoice' }).last().click();
   await confirm(page, save, false);
@@ -52,7 +53,7 @@ test('quick create validates cases, applies container refunds and persists an in
   const invoice = snapshot.orders.find(o => o.customerId === data.customer.id);
   expect(invoice.grandTotal).toBe(140);
   expect(invoice.items[0].quantity).toBe(1.5);
-  expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.A).toMatchObject({ totalStock: 20, reservedStock: 1.5 });
+  expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.B).toMatchObject({ totalStock: 20, reservedStock: 1.5 });
   await page.reload();
   await signIn(page);
   await tab(page, 'Invoice');
@@ -82,7 +83,7 @@ test('oldest-first Bank Transfer, delivery and excess credit reconcile with pers
   await expect(page.getByLabel('Close invoice details', { exact: true })).not.toBeVisible();
   snapshot = await data.snapshot();
   expect(snapshot.orders.find(o => o.id === second.id)).toMatchObject({ status: 'pending', deliveryStatus: 'delivered' });
-  expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.A.totalStock).toBe(19);
+  expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.B.totalStock).toBe(19);
   await page.getByRole('button', { name: `View details for ${invoice.invoiceNumber}` }).click();
   await page.getByRole('button', { name: 'Record payment' }).click();
   await page.getByLabel('Payment received in pesos').fill('100');
@@ -104,12 +105,12 @@ test('inventory editing changes case stock and zero-stock deletion archives the 
   await tab(page, 'Stock');
   await page.getByLabel('Search inventory by product or supplier').fill(data.product.name);
   await page.getByRole('button', { name: `Edit ${data.product.name} inventory` }).click();
-  await page.getByLabel('A · 12 bottles per case quantity in cases', { exact: true }).fill('0');
-  await page.getByLabel('A · 12 bottles per case selling price per case in pesos', { exact: true }).fill('120');
+  await page.getByLabel('Case quantity in cases', { exact: true }).fill('0');
+  await page.getByLabel('Case selling price per case in pesos', { exact: true }).fill('120');
   await page.getByLabel('Stock count reason', { exact: true }).fill('E2E physical count');
   await confirm(page, () => page.getByRole('button', { name: 'Save changes' }).click());
   await expect(page.getByLabel('Close inventory editor')).not.toBeVisible();
-  expect((await data.snapshot()).products.find(p => p.id === data.product.id).casePrices.A).toBe(120);
+  expect((await data.snapshot()).products.find(p => p.id === data.product.id).casePrices.B).toBe(120);
   await page.getByRole('button', { name: `Edit ${data.product.name} inventory` }).click();
   await confirm(page, () => page.getByRole('button', { name: 'Delete' }).click());
   await expect(page.getByRole('button', { name: `Edit ${data.product.name} inventory` })).not.toBeVisible();
@@ -133,7 +134,7 @@ test('supplier orders persist half-case receipts and open their details', async 
   await details.click();
   await expect(page.getByRole('button', { name: 'Close supplier order details' })).toBeVisible();
   const snapshot = await data.snapshot();
-  expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.A.totalStock).toBe(20.5);
+  expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.B.totalStock).toBe(20.5);
 });
 
 test('customer profiles save through the browser and GCash history is reachable', async ({ page, request }) => {

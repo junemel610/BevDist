@@ -17,7 +17,7 @@ test('Excel action downloads a styled workbook with the selected customer, case 
   expect(download.suggestedFilename()).toBe(`invoice-${order.invoiceNumber}.xlsx`);
   const workbook = XLSX.readFile(await download.path(), { cellStyles: true }), sheet = workbook.Sheets[workbook.SheetNames[0]];
   const csv = XLSX.utils.sheet_to_csv(sheet);
-  for (const text of [data.customer.name, data.product.name, order.invoiceNumber, 'Empty A', '140', '1.5']) expect(csv).toContain(text);
+  for (const text of [data.customer.name, data.product.name, order.invoiceNumber, 'Empty A', '140', '1 1/2']) expect(csv).toContain(text);
   expect(sheet['!merges'].length).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Record payment', exact: true }).click();
   await expect(page.getByLabel('Payment received in pesos')).toHaveValue('0');

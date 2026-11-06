@@ -9,9 +9,19 @@ test('container returns use half cases, round each deduction, and reduce the tot
   const result = prepareContainerReturns([row, { ...row, type: 'B' }], 100);
   assert.equal(result.refund, 12.26);
   assert.equal(result.total, 87.74);
-  assert.deepEqual(result.entries[0], { type: 'A empty case', quantity: 0.5, refundPerCase: 12.25 });
+  assert.deepEqual(result.entries[0], { kind: 'return', type: 'A empty case', quantity: 0.5, amountPerCase: 12.25 });
   assert.equal(prepareContainerReturns([], 100).total, 100);
   assert.equal(prepareContainerReturns([{ ...row, quantity: 1.5, refundPerCase: '0.29' }], 100).refund, 0.44);
+});
+
+test('container deposits add to invoice totals while returns reduce them', () => {
+  const result = prepareContainerReturns([
+    { kind: 'deposit', type: 'Bottle crate', quantity: '1', amountPerCase: '30' },
+    { kind: 'return', type: 'Returned crate', quantity: '0.5', amountPerCase: '20' },
+  ], 100);
+  assert.equal(result.deposit, 30);
+  assert.equal(result.refund, 10);
+  assert.equal(result.total, 120);
 });
 
 test('invalid return rows, excessive deductions, and reductions below settlements are rejected', () => {

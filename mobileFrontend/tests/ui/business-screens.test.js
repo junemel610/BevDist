@@ -21,10 +21,67 @@ beforeEach(() => { app = appFixture(); navigation = navigationFixture(); useApp.
 const confirm = async () => act(async () => { await confirmAction.mock.calls.at(-1)[0].onConfirm(); });
 
 function invoiceScreen(params = {}) { return render(<OrdersScreen navigation={navigation} route={{ params }} />); }
+async function selectInvoiceProduct(name = 'Cola') {
+  await userEvent.press(screen.getByRole('button', { name: 'Select products' }));
+  await userEvent.press(screen.getByRole('button', { name: `Add ${name} to invoice` }));
+  await userEvent.press(screen.getByRole('button', { name: 'Done selecting products' }));
+}
+
+test('invoice product picker filters distributor catalogs and adds saved products to the draft', async () => {
+  await invoiceScreen({ openCreateInvoiceToken: 1 });
+  expect(screen.getByText('BevDist Distribution Co.')).toBeOnTheScreen();
+  expect(screen.getByText('INV:')).toBeOnTheScreen();
+  expect(screen.getByText('Assigned when saved')).toBeOnTheScreen();
+  expect(screen.getByText('QTY')).toBeOnTheScreen();
+  expect(screen.getByText('Price')).toBeOnTheScreen();
+  expect(screen.getByText('Grand total')).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Select products' }));
+  expect(screen.getByText('Coke Tall 8oz')).toBeOnTheScreen();
+  expect(screen.getAllByText(/Not in inventory yet/).length).toBeGreaterThan(0);
+  expect(screen.getByTestId('distributor-filters')).toHaveStyle({ flexWrap: 'wrap' });
+  expect(screen.getByRole('button', { name: 'Pepsi distributor filter' })).toHaveStyle({ borderRadius: 999, minHeight: 34 });
+  await userEvent.press(screen.getByRole('button', { name: 'Pepsi distributor filter' }));
+  expect(screen.getByText('Pepsi 8oz')).toBeOnTheScreen();
+  expect(screen.queryByText('Coke Tall 8oz')).toBeNull();
+  await userEvent.press(screen.getByRole('button', { name: 'Supplier One distributor filter' }));
+  await userEvent.press(screen.getByRole('button', { name: 'Add Cola to invoice' }));
+  await userEvent.press(screen.getByRole('button', { name: 'Done selecting products' }));
+  expect(screen.getByLabelText('Cola, Case, quantity in cases')).toHaveDisplayValue('0.5');
+});
+
+test('catalog product opens inventory setup prefilled with its name and distributor', async () => {
+  await invoiceScreen({ openCreateInvoiceToken: 1 });
+  await userEvent.press(screen.getByRole('button', { name: 'Select products' }));
+  await userEvent.press(screen.getByRole('button', { name: 'Add Coke Tall 8oz to inventory' }));
+  expect(navigation.navigate).toHaveBeenCalledWith('Inventory', expect.objectContaining({
+    screen: 'InventoryMain',
+    params: expect.objectContaining({ setupProduct: { name: 'Coke Tall 8oz', supplier: 'Coca-Cola' } }),
+  }));
+});
+
+test('inventory opens a catalog product setup with supplier prefilled', async () => {
+  await render(<InventoryScreen navigation={navigation} route={{ params: { setupProductToken: 10, setupProduct: { name: 'Coke Tall 8oz', supplier: 'Coca-Cola' } } }} />);
+  expect(await screen.findByLabelText('Product name')).toHaveDisplayValue('Coke Tall 8oz');
+  expect(await screen.findByLabelText('Supplier name')).toHaveDisplayValue('Coca-Cola');
+});
+
+test('unpriced saved catalog products must be priced before they can enter an invoice', async () => {
+  app.products[0].casePrices.B = null;
+  await invoiceScreen({ openCreateInvoiceToken: 1 });
+  await userEvent.press(screen.getByRole('button', { name: 'Select products' }));
+  expect(screen.getByText('Selling price not set · 8 available')).toBeOnTheScreen();
+  const setPrice = screen.getByRole('button', { name: 'Set price and stock for Cola in inventory' });
+  expect(setPrice).toBeOnTheScreen();
+  await userEvent.press(setPrice);
+  expect(navigation.navigate).toHaveBeenCalledWith('Inventory', expect.objectContaining({
+    params: expect.objectContaining({ setupProduct: expect.objectContaining({ productId: 'product-1' }) }),
+  }));
+});
 
 test('invoice quantity is typable, rejects quarter cases and overstock, and creates only after confirmation', async () => {
   await invoiceScreen({ openCreateInvoiceToken: 1 });
-  const input = screen.getByLabelText('Cola, A · 12 bottles per case, quantity in cases');
+  await selectInvoiceProduct();
+  const input = screen.getByLabelText('Cola, Case, quantity in cases');
   await fireEvent.changeText(input, '0.25');
   expect(screen.getByText('Use half-case steps: 0.5, 1, 1.5…')).toBeOnTheScreen();
   expect(screen.getAllByRole('button', { name: 'Create invoice', exact: true }).at(-1)).toBeDisabled();
@@ -34,7 +91,7 @@ test('invoice quantity is typable, rejects quarter cases and overstock, and crea
   await userEvent.press(screen.getAllByRole('button', { name: 'Create invoice', exact: true }).at(-1));
   expect(app.createOrder).not.toHaveBeenCalled();
   await confirm();
-  expect(app.createOrder).toHaveBeenCalledWith(app.customers[0], [expect.objectContaining({ quantity: 1.5, packId: 'A' })], []);
+  expect(app.createOrder).toHaveBeenCalledWith(app.customers[0], [expect.objectContaining({ quantity: 1.5, packId: 'B' })], []);
 });
 
 test('invoice details show delivery status and open a zero-valued oldest-first payment form', async () => {
@@ -74,11 +131,33 @@ test('customer editor validates name and confirms before saving a new profile', 
   expect(app.saveCustomer).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ben Store' }));
 });
 
+test('customer editor blocks a name that already belongs to another profile', async () => {
+  await render(<CustomerProfilesScreen />);
+  await userEvent.press(screen.getByRole('button', { name: 'Add customer' }));
+  await userEvent.type(screen.getByLabelText('Customer name, required'), ' ana STORE ');
+  await userEvent.press(screen.getByRole('button', { name: 'Save profile' }));
+  expect(screen.getByText('Ana Store already exists. Edit that customer profile instead.')).toBeOnTheScreen();
+  expect(confirmAction).not.toHaveBeenCalled();
+  expect(app.saveCustomer).not.toHaveBeenCalled();
+});
+
+test('invoice creation blocks a duplicate new customer and directs the user to existing profiles', async () => {
+  await invoiceScreen({ openCreateInvoiceToken: 1 });
+  await selectInvoiceProduct();
+  await userEvent.press(screen.getByRole('button', { name: 'New customer' }));
+  await userEvent.type(screen.getByLabelText('New customer name, required'), ' ana store ');
+  await fireEvent.changeText(screen.getByLabelText('Cola, Case, quantity in cases'), '0.5');
+  expect(screen.getByText('Ana Store already exists. Choose Existing customer and select this profile.')).toBeOnTheScreen();
+  expect(screen.getAllByRole('button', { name: 'Create invoice', exact: true }).at(-1)).toBeDisabled();
+  expect(app.saveCustomer).not.toHaveBeenCalled();
+  expect(app.createOrder).not.toHaveBeenCalled();
+});
+
 test('inventory search filters products and Edit opens labelled stock/price fields', async () => {
   await render(<InventoryScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Edit Cola inventory' }));
-  expect(screen.getByLabelText('A · 12 bottles per case quantity in cases')).toHaveDisplayValue('10');
-  expect(screen.getByLabelText('A · 12 bottles per case selling price per case in pesos')).toHaveDisplayValue('100');
+  expect(screen.getByLabelText('Case quantity in cases')).toHaveDisplayValue('10');
+  expect(screen.getByLabelText('Case selling price per case in pesos')).toHaveDisplayValue('100');
   await fireEvent.changeText(screen.getByLabelText('Stock count reason'), 'Count correction');
   await userEvent.press(screen.getByRole('button', { name: 'Save changes' }));
   expect(app.updateProductInventory).not.toHaveBeenCalled();
@@ -148,16 +227,22 @@ test('delivery and cancellation each require confirmation before changing an inv
   expect(app.updateOrderStatus).toHaveBeenLastCalledWith('invoice-1', 'cancelled');
 });
 
-test('invoice return rows allow editable types, quantities and refund rates', async () => {
+test('invoice deposit and return rows switch type and submit the chosen amount correctly', async () => {
   await invoiceScreen({ openCreateInvoiceToken: 1 });
-  await fireEvent.changeText(screen.getByLabelText('Cola, A · 12 bottles per case, quantity in cases'), '1');
-  await userEvent.press(screen.getByRole('button', { name: 'Add returned case type' }));
-  await fireEvent.changeText(screen.getByLabelText('Return type, row 1'), 'A empty case');
-  await fireEvent.changeText(screen.getByLabelText('Returned cases, row 1'), '0.5');
-  await fireEvent.changeText(screen.getByLabelText('Refund per case, row 1'), '20');
+  await selectInvoiceProduct();
+  await fireEvent.changeText(screen.getByLabelText('Cola, Case, quantity in cases'), '1');
+  await userEvent.press(screen.getByRole('button', { name: 'Add deposit or return line' }));
+  await fireEvent.changeText(screen.getByLabelText('Container or item name, row 1'), 'Bottle crate');
+  await userEvent.press(screen.getByRole('button', { name: 'Deposit, row 1' }));
+  await userEvent.press(screen.getByRole('button', { name: 'Add half a case to deposit or return row 1' }));
+  expect(screen.getByLabelText('Deposited cases, row 1')).toHaveDisplayValue('1');
+  await userEvent.press(screen.getByRole('button', { name: 'Remove half a case from deposit or return row 1' }));
+  await userEvent.press(screen.getByRole('button', { name: 'Add half a case to deposit or return row 1' }));
+  await fireEvent.changeText(screen.getByLabelText('Deposit per case, row 1'), '20');
+  expect(screen.getAllByText('₱120')).toHaveLength(2);
   await userEvent.press(screen.getAllByRole('button', { name: 'Create invoice', exact: true }).at(-1));
   await confirm();
-  expect(app.createOrder).toHaveBeenCalledWith(app.customers[0], expect.any(Array), [{ type: 'A empty case', quantity: 0.5, refundPerCase: 20 }]);
+  expect(app.createOrder).toHaveBeenCalledWith(app.customers[0], expect.any(Array), [{ kind: 'deposit', type: 'Bottle crate', quantity: 1, amountPerCase: 20 }]);
 });
 
 test('supplier order accepts half cases, confirms saving and opens historical details', async () => {
@@ -170,7 +255,7 @@ test('supplier order accepts half cases, confirms saving and opens historical de
   await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
   expect(app.addRestockRecord).not.toHaveBeenCalled();
   await confirm();
-  expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], [expect.objectContaining({ quantity: 0.5, unitCost: 80, packId: 'A' })], [], []);
+  expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], [expect.objectContaining({ quantity: 0.5, unitCost: 80, packId: 'B' })], [], []);
   await userEvent.press(screen.getByRole('button', { name: 'View Supplier One supplier order from 2026-10-24' }));
   expect(screen.getByText('Historic Cola')).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Close supplier order details' }));
@@ -178,7 +263,7 @@ test('supplier order accepts half cases, confirms saving and opens historical de
 });
 
 test('zero-stock products can be deleted only after explicit confirmation', async () => {
-  app.products[0].stockByCasePack.A = { totalStock: 0, reservedStock: 0 };
+  app.products[0].stockByCasePack.B = { totalStock: 0, reservedStock: 0 };
   await render(<InventoryScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Edit Cola inventory' }));
   await userEvent.press(screen.getByRole('button', { name: 'Delete', exact: true }));
@@ -198,7 +283,7 @@ test('invoice preview routes PDF and Excel actions to the selected invoice expor
 });
 
 test('inventory filters expose their selected state and search can be cleared', async () => {
-  app.products[0].stockByCasePack.A.totalStock = 30;
+  app.products[0].stockByCasePack.B.totalStock = 30;
   await render(<InventoryScreen />);
   await userEvent.press(screen.getByRole('button', { name: /^In stock/ }));
   expect(screen.getByRole('button', { name: /^In stock/, selected: true })).toBeOnTheScreen();

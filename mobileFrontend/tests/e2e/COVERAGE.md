@@ -1,6 +1,6 @@
 # Browser functionality checklist
 
-The suite contains **48 scenarios**, each run on desktop Chromium and Pixel 7 browser emulation: **96 browser checks**. These cover the current web app workflows below. This is a feature checklist, not a claim that every possible input, browser or device behavior has been exhausted.
+The suite contains **44 scenarios**, each run on desktop Chromium and Pixel 7 browser emulation: **88 browser checks**. These cover the current web app workflows below. This is a feature checklist, not a claim that every possible input, browser or device behavior has been exhausted.
 
 | Screen / function | Browser checks | Spec |
 | --- | --- | --- |
@@ -9,9 +9,9 @@ The suite contains **48 scenarios**, each run on desktop Chromium and Pixel 7 br
 | Navigation / Dashboard | Every main tab, quick-create opens modal directly, Supplier Orders / Outstanding Balances shortcuts, View All invoices | `app`, `payments-dashboard` |
 | Dashboard calculations | Expected invoice value, cash actual sales, daily Cash / GCash / Bank Transfer values reconcile after browser payment saves; chart headings and rendered SVGs | `payments-dashboard` |
 | Invoice creation | Existing and inline new customers, contact/address persistence, typed quantities, plus/minus half-case controls, empty cart, quarter-case and overstock rejection, confirmation cancellation, reload persistence | `app`, `invoices` |
-| Invoice case packs | A / B / C / Mucho 6 / Mucho 12 each ordered through the browser at 0.5 case; direct case price, case quantities and separate reserved stock verified in persisted data | `invoices` |
+| Invoice units | One generic case unit per product, half-case entry, direct per-product case price, and reserved stock verified in persisted data | `invoices` |
 | Pending invoices | Edit quantities, add follow-up products under the same invoice, preserve prior payment, cancel save, replace reservations, keep physical stock until delivery | `invoices` |
-| Container returns | Editable label, half-case quantity, refund rate, partial return, invalid step, reject total below settlements, replace a return, explicitly clear all returns | `app`, `invoices` |
+| Container deposits and returns | Switch adjustment type, deposits add to invoice, returns reduce invoice, half-case quantity, editable amount, invalid step, reject total below settlements, explicitly clear all rows | `app`, `invoices` |
 | Invoice cancellation | Confirm/cancel operation, release reservations, retain cancelled history, read-only cancelled details | `invoices` |
 | Delivery / completion | Delivery before final payment; full payment before delivery; completed means delivered and fully paid; stock deducted once; completed details lack mutation actions | `app`, `invoices` |
 | Invoice filters / search | Outstanding, fully paid, cancelled; search customer or invoice; no-match state and clear search | `invoices` |
@@ -21,7 +21,7 @@ The suite contains **48 scenarios**, each run on desktop Chromium and Pixel 7 br
 | Balances | Paid/cancelled/unpaid/overdue filters and selected indicators; grouped customer invoices, historical balances, search and clear | `payments-dashboard` |
 | GCash | Separate GCash stack, persisted receipt/invoice visible, back navigation from credit stack | `app` |
 | Customer profiles | Create, required name, edit contact/address, cancel confirmation, persist updates, scroll through a virtualized customer list | `app`, `payments-dashboard` |
-| Product creation | A/B/C, both Mucho types and custom case types; alphabet-only type names with bottle-count display; editable whole-number bottles per case; independent selling price and opening count; undo a newly added type before saving and remove an unused saved type; missing fields, duplicate name, invalid price/count, close without save | `inventory`, `product-entry` |
+| Product creation | Fixed generic Case unit per product; direct selling price and opening count; missing fields, duplicate name, invalid price/count, close without save | `inventory`, `product-entry` |
 | Inventory editing | Quantity/price labels, reason required, invalid/reserved stock limits, atomic stale-count rejection and refresh | `app`, `inventory` |
 | Stock presentation | Per-case Low stock labels, In stock / Low stock / Out of stock and supplier filters, search, clear and empty result | `inventory` |
 | Product deletion | Confirmed zero-stock archive, refuse stocked/reserved product, preserve completed invoice snapshots/history | `app`, `inventory` |
@@ -39,13 +39,13 @@ Spec names above omit `.spec.cjs`. Files and scenario counts:
 | --- | ---: |
 | `app.spec.cjs` | 6 |
 | `exports.spec.cjs` | 3 |
-| `inventory.spec.cjs` | 6 |
-| `invoices.spec.cjs` | 10 |
+| `inventory.spec.cjs` | 5 |
+| `invoices.spec.cjs` | 6 |
 | `payments-dashboard.spec.cjs` | 6 |
 | `product-entry.spec.cjs` | 8 |
 | `recovery.spec.cjs` | 6 |
 | `suppliers.spec.cjs` | 3 |
-| **Total** | **48** |
+| **Total** | **43** |
 
 ## What is real and what is injected
 

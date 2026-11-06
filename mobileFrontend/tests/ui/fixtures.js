@@ -1,7 +1,7 @@
 export function appFixture(overrides = {}) {
   const customer = { id: 'customer-1', name: 'Ana Store', contact: '09123456789', address: 'Pasig' };
-  const product = { id: 'product-1', name: 'Cola', supplier: 'Supplier One', supplierId: 'supplier-1', casePackIds: ['A'], casePrices: { A: 100 }, stockByCasePack: { A: { totalStock: 10, reservedStock: 2, lowStockThreshold: 15 } } };
-  const item = { productId: product.id, productName: product.name, packId: 'A', packLabel: 'A', unitsPerCase: 12, quantity: 2, stockQuantity: 2, casePrice: 100 };
+  const product = { id: 'product-1', name: 'Cola', supplier: 'Supplier One', supplierId: 'supplier-1', casePackIds: ['B'], casePrices: { B: 100 }, stockByCasePack: { B: { totalStock: 10, reservedStock: 2, lowStockThreshold: 15 } } };
+  const item = { productId: product.id, productName: product.name, packId: 'B', packLabel: 'Case', unitsPerCase: 1, quantity: 2, stockQuantity: 2, casePrice: 100 };
   const order = { id: 'invoice-1', orderNumber: 'INV-001', invoiceNumber: 'INV-001', customerId: customer.id, customer, items: [item], subtotal: 200, grandTotal: 200, containerRefundTotal: 0, containerReturns: [], status: 'pending', deliveryStatus: 'pending', date: '2026-10-24' };
   const balance = { id: order.id, orderId: order.id, customerId: customer.id, customerName: customer.name, invoiceNumber: order.invoiceNumber, totalAmount: 200, amountPaid: 50, appliedCredit: 0, remainingBalance: 150, dueDate: '2099-12-31', status: 'unpaid' };
   return {
