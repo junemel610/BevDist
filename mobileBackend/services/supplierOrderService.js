@@ -1,12 +1,17 @@
 const { HttpError } = require('../middleware/errors');
 const { createHash } = require('node:crypto');
 const { transaction } = require('../db/connection');
-const { ensureCustomCaseTypes } = require('./catalogService');
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 async function receiveSupplierOrder(pool, input, actorId) {
-  const { supplierId, newSupplier, items = [], newProducts = [], returnedCases = [], newCasePackTypes = [], requestKey } = input;
-  const requestHash = hash([supplierId, newSupplier, items, newProducts, returnedCases, newCasePackTypes, actorId]);
+  const { supplierId, newSupplier, items = [], newProducts = [], returnedCases = [], requestKey } = input;
+  if ([...items, ...newProducts.flatMap(product => product.packs || [])].some(item => item.packId !== 'B')) {
+    throw new HttpError(400, 'Supplier orders use the generic case unit.');
+  }
+  if ([...items, ...newProducts.flatMap(product => product.packs || [])].some(item => !(Number(item.quantity) > 0) || !Number.isInteger(Number(item.quantity) * 2))) {
+    throw new HttpError(400, 'Supplier order quantities must use half-case increments.');
+  }
+  const requestHash = hash([supplierId, newSupplier, items, newProducts, returnedCases, actorId]);
   return transaction(pool, async client => {
     // Serialize retries before creating any inline catalog records.
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [requestKey]);
@@ -24,7 +29,6 @@ async function receiveSupplierOrder(pool, input, actorId) {
     }
     const supplierLock = await client.query('SELECT id FROM suppliers WHERE id=$1 AND is_active FOR UPDATE', [resolvedSupplierId]);
     if (!supplierLock.rowCount) throw new HttpError(404, 'Supplier not found or archived');
-    await ensureCustomCaseTypes(client, newCasePackTypes);
     const receiptItems = [...items];
     for (const product of newProducts) {
       const duplicate = await client.query(`SELECT id FROM products

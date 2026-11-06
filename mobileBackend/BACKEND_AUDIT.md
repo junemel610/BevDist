@@ -42,11 +42,12 @@ These meeting notes are newer than the original BRD where the two conflict. Keep
 ### Case quantities and inventory
 
 - Use cases as the canonical inventory, reservation, invoice, and restock quantity. Do not expose loose-item counts as stock quantities.
-- Sales invoice lines must support multiple pack groups for one product and quantities in 0.5-case increments.
-- Initial pack definitions from the meeting: A = 12 bottles per case, B = 24 bottles per case, C = 6 bottles per case; Mucho Red Horse has 6-bottle and 12-bottle packs. Save a direct price for each case type; pack size must not calculate the price or convert stock balances into loose-item counts.
+- Each product uses one generic case unit. Quantities and prices stay per product case, with quantities in 0.5-case increments.
+- Current client catalog decision: use one generic case unit per product. The client knows whether a product contains 6, 12, or 24 bottles; the app does not ask or display that count. New quantities use half-case steps and display 0.5 as `1/2`.
+- Migration 009 labels the single internal B key as generic `Case` and resets the database quantity precision to half cases. Because the current catalog data is mock data, reset business records before applying this change; do not infer bottle conversions in the app.
 - Returned-case credits on supplier orders are a separate rule from the sales pack definitions. Preserve the four supplier return-case types from the BRD/prototype.
-- Inventory stock must be stored per product and case type (A/B/C or Mucho 6/12): each case type has its own total, reserved, and available case quantities. Reservations, completion deductions, cancellation releases, and supplier restocks must target the selected case type only.
-- Inventory responses should include total, reserved, and available case quantities for every case type. Low-stock feedback should report the affected case type and available cases.
+- Inventory stock, reservations, completion deductions, cancellation releases, and supplier receipts are stored per product in generic case units. B remains an internal compatibility key. Historical ledger entries keep their original pack codes for audit.
+- Inventory responses include total, reserved, and available quantities for each product's case unit. Low-stock feedback reports the product and cases remaining.
 - Supplier restock quantities and costs should be recorded per case; support 0.5-case increments where received quantities allow them.
 
 ### Payments and reports
@@ -69,7 +70,7 @@ Add these to the design before implementing backend routes:
 
 - `customers`: profile fields and timestamps.
 - `products`: supplier and low-stock threshold.
-- `product_case_packs`: product/pack label, item count per case, direct price per case, total stock, reserved stock, and active flag; available stock is total minus reserved. Seed the meeting's A/B/C and Mucho pack sizes only after product associations are confirmed.
+- `product_case_packs`: one active generic case association per product, direct selling price per case, total stock, reserved stock, and active flag; available stock is total minus reserved. Retired pack associations remain only to support historical records.
 - `invoices` and `invoice_items`: customer, delivery status, invoice status, totals, pack ID, case quantity, unit conversion, and price snapshots.
 - `inventory_reservations`: invoice/item reference and reserved case quantity, with one-time release/finalize state.
 - `invoice_balances`: one independent receivable balance per invoice, including original amount, amount paid, and remaining amount.
@@ -82,8 +83,8 @@ Plan the route contracts around these operations: customer profile CRUD; invoice
 
 - Duplicate completion, cancellation, payment, or stock release cannot apply twice.
 - Concurrent pending invoices cannot reserve more stock than is available.
-- A product cannot be removed while any case type has reserved stock; retain invoice and supplier-order snapshots when a product is archived.
-- A 0.5 case reserves 0.5 cases; invoice totals use the direct saved price for the selected case type.
+- A product cannot be removed while its case unit has reserved stock; retain invoice and supplier-order snapshots when a product is archived.
+- A 0.5 case reserves 0.5 cases; invoice totals use the direct saved price per product case.
 - Creating a second invoice leaves the first invoice's balance intact and shows both invoices in the customer's account total.
 - A customer account payment settles the oldest open invoice first, creates a separate allocation for each invoice paid, and never changes either invoice's original sale total.
 - Cancelling a new invoice leaves all older invoice balances unchanged.

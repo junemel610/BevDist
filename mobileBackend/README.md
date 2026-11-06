@@ -57,11 +57,11 @@ Use the feature service for each multi-record write. Do not update invoice total
 npm run test:db
 ```
 
-The suite includes real HTTP authentication/validation, invoice/payment/inventory workflows, all five case packs, supplier ownership, concurrency and migration integrity checks. See [TEST_COVERAGE.md](../TEST_COVERAGE.md) for the full matrix and `node scripts/test-all.mjs` to run both applications’ checks from `Project`.
+The suite includes real HTTP authentication/validation, invoice/payment/inventory workflows, the single generic case unit, supplier ownership, concurrency and migration integrity checks. See [TEST_COVERAGE.md](../TEST_COVERAGE.md) for the full matrix and `node scripts/test-all.mjs` to run both applications’ checks from `Project`.
 
 Tests create a uniquely named `bevdist_test_*` database, migrate it, exercise the workflows, and drop that database when finished. The configured PostgreSQL role therefore needs permission to create databases. Tests do not seed, truncate, or clear `bevdist_db`.
 
-Run `npm run db:migrate` again safely to verify there are no pending migrations. Once applied, migration files must not be edited; add a new numbered migration for later schema changes. The runner applies pending changes atomically and serializes simultaneous migration attempts.
+Run `npm run db:migrate` again safely to verify there are no pending migrations. Migration 009 expects an empty business database before switching to the generic case unit; use a fresh development database when resetting mock records. Migration 010 generates invoice numbers as `INV-MMYYYY-NNNNNNNN`, with a separate counter for each Manila calendar month. Migration 012 seeds the client-listed suppliers and products with zero stock and no selling prices; enter actual values in Stock before invoicing. Once applied, migration files must not be edited; add a new numbered migration for later schema changes. The runner applies pending changes atomically and serializes simultaneous migration attempts.
 
 ## Inspect in pgAdmin
 
@@ -77,4 +77,4 @@ Copy `mobileFrontend/.env.example` to `mobileFrontend/.env.local` and set `EXPO_
 
 The app loads persisted records after login and refreshes them after saves. A new database starts with empty business lists. Add a product in Inventory (including its supplier and opening stock), save a customer, then create an invoice. Confirmations precede writes. Inventory count changes require a reason; stale counts and changes below reserved stock are rejected. If the save result or refresh is uncertain, the app requires a refresh and review before further saves. Session tokens are held only in memory; app reload requires another sign-in. Failed network sign-out keeps the session available for retry; successful sign-out revokes the server session.
 
-Current verification covers a real HTTP/database flow through the mobile API helpers and a web bundle export. Customer container-return editing and PDF/XLSX deductions are implemented. Manual Expo Go checks, including native file sharing, remain pending. Demo fixtures remain available for pure unit tests but are not loaded into the running app. No business data was inserted into the local app database during this implementation.
+Current verification covers a real HTTP/database flow through the mobile API helpers and a web bundle export. Customer container deposit/return editing and signed PDF/XLSX lines are implemented. Manual Expo Go checks, including native file sharing, remain pending. Demo fixtures remain available for pure unit tests but are not loaded into the running app. No business data was inserted into the local app database during this implementation.

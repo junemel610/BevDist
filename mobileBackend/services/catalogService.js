@@ -11,7 +11,22 @@ async function saveProfile(pool, table, id, { name, contact = '', address = '' }
   if (!result.rowCount) throw new HttpError(404, 'Profile not found');
   return result.rows[0];
 }
-const saveCustomer = (pool, id, input) => saveProfile(pool, 'customers', id, input);
+
+async function saveCustomer(pool, id, input) {
+  const name = String(input?.name ?? '').trim();
+  let changedName = true;
+  if (id) {
+    const existing = await pool.query('SELECT name FROM customers WHERE id=$1 AND is_active', [id]);
+    if (!existing.rowCount) throw new HttpError(404, 'Profile not found');
+    changedName = existing.rows[0].name.trim().toLocaleLowerCase() !== name.toLocaleLowerCase();
+  }
+  if (changedName) {
+    const duplicate = await pool.query(`SELECT id FROM customers
+      WHERE is_active AND lower(btrim(name))=lower(btrim($1)) AND ($2::uuid IS NULL OR id<>$2::uuid) LIMIT 1`, [name, id || null]);
+    if (duplicate.rowCount) throw new HttpError(409, 'A customer with this name already exists. Select the existing customer instead.');
+  }
+  return saveProfile(pool, 'customers', id, { ...input, name });
+}
 const saveSupplier = (pool, id, input) => saveProfile(pool, 'suppliers', id, input);
 
 async function lockProduct(client, id) {
@@ -20,22 +35,11 @@ async function lockProduct(client, id) {
   await client.query('SELECT pack_code FROM product_case_packs WHERE product_id=$1 ORDER BY pack_code FOR UPDATE', [id]);
 }
 
-async function ensureCustomCaseTypes(client, caseTypes = []) {
-  for (const type of [...caseTypes].sort((a, b) => a.code.localeCompare(b.code))) {
-    if (!/^[A-Z]+$/.test(type.label)) throw new HttpError(400, 'Custom case type name must be a letter.');
-    const result = await client.query(`INSERT INTO case_pack_types(code,label,units_per_case,family)
-      VALUES ($1,$2,$3,'custom') ON CONFLICT (code) DO UPDATE SET is_active=true
-      WHERE case_pack_types.family='custom' AND case_pack_types.label=EXCLUDED.label
-        AND case_pack_types.units_per_case=EXCLUDED.units_per_case
-      RETURNING code`, [type.code, type.label.trim(), type.unitsPerCase]);
-    if (!result.rowCount) {
-      throw new HttpError(409, `Case type code ${type.code} is already used by a different case type`);
-    }
-  }
-}
-
-async function saveProduct(pool, id, { name, supplierId, supplierName, packs, stockReason, newCasePackTypes = [] }, actorId) {
+async function saveProduct(pool, id, { name, supplierId, supplierName, packs, stockReason }, actorId) {
   return transaction(pool, async client => {
+    if (!Array.isArray(packs) || packs.length !== 1 || packs[0].packId !== 'B') {
+      throw new HttpError(400, 'Products use one generic case unit.');
+    }
     if (!supplierId) {
       const supplier = await client.query(`INSERT INTO suppliers(name) VALUES ($1)
         ON CONFLICT (name) DO UPDATE SET name=EXCLUDED.name RETURNING id,is_active`, [supplierName.trim()]);
@@ -44,12 +48,11 @@ async function saveProduct(pool, id, { name, supplierId, supplierName, packs, st
     }
     const supplier = await client.query('SELECT id FROM suppliers WHERE id=$1 AND is_active FOR SHARE', [supplierId]);
     if (!supplier.rowCount) throw new HttpError(404, 'Supplier not found');
-    await ensureCustomCaseTypes(client, newCasePackTypes);
     const creating = !id;
     if (id) {
       await lockProduct(client, id);
       const removed = await client.query(`SELECT pack_code FROM inventory_stock WHERE product_id=$1
-        AND NOT (pack_code=ANY($2::text[])) AND (total_stock_cases<>0 OR reserved_stock_cases<>0)`, [id, packs.map(p => p.packId)]);
+        AND is_active AND NOT (pack_code=ANY($2::text[])) AND (total_stock_cases<>0 OR reserved_stock_cases<>0)`, [id, packs.map(p => p.packId)]);
       if (removed.rowCount) throw new HttpError(409, 'Case types with stock or reservations cannot be removed');
       await client.query('UPDATE products SET name=$2,supplier_id=$3 WHERE id=$1', [id, name.trim(), supplierId]);
       await client.query('UPDATE product_case_packs SET is_active=false WHERE product_id=$1', [id]);
@@ -81,7 +84,7 @@ async function saveProduct(pool, id, { name, supplierId, supplierName, packs, st
 async function archiveProduct(pool, id) {
   return transaction(pool, async client => {
     await lockProduct(client, id);
-    const stock = await client.query('SELECT 1 FROM inventory_stock WHERE product_id=$1 AND (total_stock_cases<>0 OR reserved_stock_cases<>0)', [id]);
+    const stock = await client.query('SELECT 1 FROM inventory_stock WHERE product_id=$1 AND is_active AND (total_stock_cases<>0 OR reserved_stock_cases<>0)', [id]);
     if (stock.rowCount) throw new HttpError(409, 'Clear physical stock and reservations before deleting this product');
     await client.query('UPDATE products SET is_active=false WHERE id=$1', [id]);
     await client.query('UPDATE product_case_packs SET is_active=false WHERE product_id=$1', [id]);
@@ -100,6 +103,7 @@ async function adjustStock(pool, productId, input, actorId) {
       }
       return { id: old.id };
     }
+    if (packId !== 'B') throw new HttpError(400, 'Stock uses the generic case unit.');
     const pack = await client.query('SELECT 1 FROM product_case_packs WHERE product_id=$1 AND pack_code=$2 AND is_active', [productId, packId]);
     if (!pack.rowCount) throw new HttpError(404, 'Product case type not found');
     const result = await client.query(`INSERT INTO inventory_movements(product_id,pack_code,kind,quantity_delta,request_key,reason,created_by)
@@ -108,4 +112,4 @@ async function adjustStock(pool, productId, input, actorId) {
   });
 }
 
-module.exports = { saveCustomer, saveSupplier, saveProduct, archiveProduct, adjustStock, ensureCustomCaseTypes };
+module.exports = { saveCustomer, saveSupplier, saveProduct, archiveProduct, adjustStock };

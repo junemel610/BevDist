@@ -2,7 +2,7 @@
 
 ## Current integration boundary
 
-The schema, backend services, authenticated routes, and mobile business screens now use PostgreSQL. Login loads `GET /app-data` before showing business screens. Every save awaits its server transaction, then replaces the snapshot. No demo records are loaded or optimistically changed in `AppContext`. New databases display empty lists until products/customers are entered.
+The schema, backend services, authenticated routes, and mobile business screens now use PostgreSQL. Login loads `GET /app-data` before showing business screens. Every save awaits its server transaction, then replaces the snapshot. No demo records are loaded or optimistically changed in `AppContext`. Migration 012 seeds the six client-listed distributors and 51 catalog products. Prices remain unset and physical stock starts at zero until the operator enters actual values.
 
 A blocking progress view prevents overlapping saves. If a save result is uncertain or the following refresh fails, a recovery screen requires reloading records before further writes. A successful write is never automatically resubmitted after a failed refresh. Check records after an ambiguous catalog create before entering another; pending UUID keys are retained only in memory for invoices/payments/supplier orders. Restarting the app does not preserve pending keys. Profile includes a manual Refresh records action.
 
@@ -28,7 +28,7 @@ All business endpoints require `Authorization: Bearer <token>`. Login and health
 | GET | `/health` | Reports API and database connectivity |
 | POST | `/auth/login` | `{ username, password }`; returns `{ token, user }` |
 | POST | `/auth/logout` | Revokes all current tokens for that user; returns 204 |
-| GET | `/app-data` | Customers, suppliers, custom case type catalog, products, invoices (`orders` compatibility key), balances, receipts, ledger display, customer credits, supplier orders (`restockRecords`) |
+| GET | `/app-data` | Customers, suppliers, the single generic case unit, products, invoices (`orders` compatibility key), balances, receipts, ledger display, customer credits, supplier orders (`restockRecords`) |
 | POST | `/invoices` | `{ requestKey, customerId, dueDate, items, containerReturns? }`; returns `{ id }` |
 | PUT | `/invoices/:id` | `{ items, containerReturns? }`; replaces undelivered pending lines atomically |
 | POST | `/invoices/:id/deliver` | Deducts stock once; repeated delivery has no further effect |
@@ -36,12 +36,12 @@ All business endpoints require `Authorization: Bearer <token>`. Login and health
 | POST | `/customers/:customerId/payments` | `{ requestKey, method, amountReceived, reference? }`; oldest invoice first |
 | POST / PUT | `/customers`, `/customers/:id` | `{ name, contact?, address? }`; returns saved profile |
 | POST / PUT | `/suppliers`, `/suppliers/:id` | `{ name, contact?, address? }`; returns saved profile |
-| POST / PUT | `/products`, `/products/:id` | `{ name, supplierId, packs, newCasePackTypes? }`; returns `{ id }` |
+| POST / PUT | `/products`, `/products/:id` | `{ name, supplierId, packs: [{ packId: 'B', ... }] }`; returns `{ id }` |
 | DELETE | `/products/:id` | Archives a product with zero physical/reserved stock; returns 204 |
 | POST | `/products/:id/stock-adjustments` | `{ packId, quantityDelta, reason, requestKey }`; returns movement `{ id }` |
 | POST | `/supplier-orders` | `{ requestKey, supplierId | newSupplier, items?, newProducts?, returnedCases? }`; saves supplier, products, receipt lines, return credits, and stock movements in one transaction |
 
-Catalog reads use `GET /app-data`, which includes `suppliers` and active `casePackTypes`. Product packs use `{ packId, casePrice, lowStockThreshold? }`; `casePrice` is the customer-facing selling price per case. `newCasePackTypes` contains custom definitions `{ code, label, unitsPerCase }`; codes use the `CUSTOM_` prefix, `label` is the next alphabetic name (D, E … Z, AA …), and bottle count is a positive whole number. The UI displays the name and bottle count separately as `{label} · {unitsPerCase} bottles per case`. Custom definitions can be shared by products. Prices must be positive; thresholds are nonnegative half-case quantities and default to 15. PUT replaces the full pack selection. Case types with physical stock or reservations cannot be removed from a product; catalog definitions remain for history and reuse. Product creation accepts either `supplierId` or `supplierName`; a new named supplier is saved within the product transaction. Optional pack fields `totalStock` and (on edit) `expectedStock` let the inventory form save counts and prices atomically. These require a `stockReason`; the authenticated actor is recorded in opening/adjustment ledger entries. Stale expected counts, unavailable stock, or invalid packs roll back the entire save, including any new supplier. Without stock fields, products begin at zero stock. Supplier orders remain the normal way to record incoming deliveries.
+Catalog reads use `GET /app-data`, which includes suppliers and the single active generic case unit. B remains a stable internal key; the UI does not ask for bottle counts or expose case-type choices. Each product's selling price, stock, reservation, and order quantity are measured in that product's case. New invoice, inventory, and supplier-order quantities use half-case increments; clients display 0.5 as `1/2` and 1.5 as `1 1/2`. Product packs use `{ packId: 'B', casePrice, lowStockThreshold? }`, where `casePrice` is either null for an unpriced catalog product or a positive selling price per product case. An unpriced product cannot be invoiced until staff set its price. Thresholds default to 15. Product creation accepts either `supplierId` or `supplierName`; a new named supplier is saved within the product transaction. Optional pack fields `totalStock` and (on edit) `expectedStock` let the inventory form save counts and prices atomically. These require a `stockReason`; the authenticated actor is recorded in opening/adjustment ledger entries. Stale expected counts, unavailable stock, or invalid packs roll back the entire save, including any new supplier. Catalog products start at zero physical stock. Supplier orders remain the normal way to record incoming deliveries.
 
 Supplier order creation accepts exactly one of `supplierId` or `newSupplier: { name, contact?, address? }`. Existing catalog receipt lines go in `items`; new products go in `newProducts: [{ name, packs: [{ packId, casePrice, quantity, unitCost }] }]`. `casePrice` is the selling price per case; `unitCost` is the supplier purchase cost per case. `returnedCases` is optional and defaults to no returns. The server creates a new supplier/product and its case packs, records any returned-case credits, and posts all received stock in one database transaction. A failed request rolls back all of those changes. A new supplier or product is not persisted until this confirmed supplier-order request succeeds.
 
@@ -49,7 +49,9 @@ Stock adjustments use signed half-case deltas, not replacement totals. Each adju
 
 Invoice item input: `{ productId, packId, quantity }`. Quantity uses cases in 0.5 increments. Prices come from the database; edits retain stored prices for existing product/pack lines. New lines use current catalog prices. Client totals and prices are not trusted.
 
-Invoice container return: `{ returnTypeId?, type, quantity, refundPerCase }`. This supports an editable type label and refund-rate snapshot on the invoice, with optional catalog linkage. Quantity currently uses half-case increments, matching the case-only business rule. Refunds reduce invoice amount due and do not add beverage stock or create cash receipts.
+Invoice numbers are generated by PostgreSQL in the `INV-MMYYYY-NNNNNNNN` format, using the Asia/Manila calendar. Each month starts at `00000001`; cancelled invoices still consume a number, and previously issued invoice numbers remain unchanged.
+
+Invoice container adjustment: `{ returnTypeId?, kind: 'deposit' | 'return', type, quantity, amountPerCase }`. Quantity uses half-case increments. Deposits add to invoice amount due; returns reduce it. These are invoice adjustments and do not add beverage stock or create cash receipts. Legacy rows without a kind are treated as returns.
 
 On invoice edit, omitting `containerReturns` preserves existing return lines; sending `[]` explicitly removes them. Existing product/pack prices are retained even if catalog prices have changed.
 
@@ -64,9 +66,9 @@ HTTP errors: 400 invalid input, 401 unauthenticated, 404 unknown record/route, 4
 | Database source | Frontend shape |
 |---|---|
 | `products` / `suppliers` / `inventory_stock` | Product `id`, `name`, `supplierId`, `supplier`, `casePackIds`, `casePrices`, `stockByCasePack` |
-| `invoice_summary` | `orders[]`: `invoiceNumber`, `customerId`, customer snapshot, `subtotal`, `containerRefundTotal`, `grandTotal`, lowercase status/deliveryStatus, Manila date |
+| `invoice_summary` | `orders[]`: `invoiceNumber`, `customerId`, customer snapshot, `subtotal`, `containerDepositTotal`, `containerRefundTotal`, `grandTotal`, lowercase status/deliveryStatus, Manila date |
 | `invoice_items` | `productId`, `packId`, label snapshots, `quantity`, `casePrice`; compatibility `stockQuantity` always equals cases |
-| `invoice_container_returns` | `containerReturns[]`: editable type snapshot, quantity, refund rate and total |
+| `invoice_container_returns` | `containerReturns[]`: editable type snapshot, adjustment kind, quantity, per-case amount and total |
 | `invoice_balances` view | `balances[]`: `id` and `orderId` both equal invoice UUID, `totalAmount`, `amountPaid`, `appliedCredit`, `remainingBalance`, `dueDate`, status |
 | `payments` / `payment_allocations` | Canonical `payments[]`: one receipt with nested allocations |
 | Same receipts/allocations | Compatibility `paymentTransactions[]`: one row per allocation, linked by `receiptId`; excess is attached only to the final allocation |
@@ -77,14 +79,14 @@ A receipt with no allocations appears in canonical `payments` and customer credi
 
 Database payment codes `CASH`, `GCASH`, `BANK_TRANSFER` map to the frontend labels `Cash`, `GCash`, `Bank Transfer`. Invoice lifecycle is derived: cancelled first; otherwise completed only when delivered and fully settled; otherwise pending. Balance status is separate from invoice lifecycle.
 
-The obsolete frontend `deposit` payment field is removed. Container deductions use explicit return lines and `containerRefundTotal`. Payments and applied customer credit remain separate from container refunds.
+The obsolete frontend `deposit` payment field is removed. Container deposits and returns are explicit invoice lines: deposits increase the invoice total; returns reduce it. Payments and applied customer credit remain separate from these adjustments.
 
 ## Remaining screen work before live mode
 
 - [x] Connect login/logout to `authAPI`, handle failed requests, and return to login when the current token expires. Tokens live in memory; sign-in is required after reload. Business records are cleared from memory on sign-out/session expiry.
 - [x] Load the database snapshot after login and successful mutations; reset to empty data on sign-out.
 - [x] Connect customer, inventory, invoice, payment and supplier-order saves to HTTP, awaiting operations and preserving confirmation dialogs. Inventory adjustments record a reason and reject stale stock counts.
-- [x] Add editable customer container returns to create/edit invoice forms and PDF/XLSX output. Each row records type, cases, and refund per case; deductions cannot exceed product value or reduce total below existing settlements. Explicitly removing all rows sends `[]`.
+- [x] Add editable container deposits and returns to create/edit invoice forms and PDF/XLSX output. Deposits add to invoice totals; returns deduct. Explicitly removing all rows sends `[]`.
 - [x] Generate native UUID request keys for invoice/payment/supplier-order creates using Expo Crypto. Keep the same key for an ambiguous retry in the current session; always review recovered records first.
 - Use the Mac's network IP as `EXPO_PUBLIC_API_URL` for a physical phone; `localhost` on a phone refers to the phone. The server defaults to loopback until `HOST` is explicitly configured.
 - Test the entire persisted flow on Expo Go before client use.

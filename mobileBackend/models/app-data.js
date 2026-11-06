@@ -15,8 +15,9 @@ async function loadAppData(pool) {
     const customers = await rows('SELECT id,name,contact,address FROM customers WHERE is_active ORDER BY name,id');
     const products = await rows(`SELECT p.*,s.name AS supplier FROM products p JOIN suppliers s ON s.id=p.supplier_id WHERE p.is_active ORDER BY p.name,p.id`);
     const packs = group(await rows('SELECT * FROM inventory_stock WHERE is_active ORDER BY pack_code'), 'product_id');
-    const casePackTypes = await rows('SELECT code,label,units_per_case,family FROM case_pack_types WHERE is_active ORDER BY code');
-    const casePackTypeByCode = Object.fromEntries(casePackTypes.map(type => [type.code, {
+    const allCasePackTypes = await rows('SELECT code,label,units_per_case,family,is_active FROM case_pack_types ORDER BY code');
+    const casePackTypes = allCasePackTypes.filter(type => type.is_active);
+    const casePackTypeByCode = Object.fromEntries(allCasePackTypes.map(type => [type.code, {
       id: type.code, code: type.code, label: type.label, unitsPerCase: Number(type.units_per_case), family: type.family,
     }]));
     const invoices = await rows(`SELECT *, (created_at AT TIME ZONE 'Asia/Manila')::date::text AS date, due_date::text AS due
@@ -38,8 +39,9 @@ async function loadAppData(pool) {
     });
     const returnItem = row => ({
       id: row.id, returnTypeId: row.return_type_id, type: row.label_snapshot,
-      quantity: Number(row.quantity_cases), refundPerCase: Number(row.refund_per_case_snapshot),
-      refundTotal: Number(row.refund_total),
+      kind: row.entry_kind || 'return', quantity: Number(row.quantity_cases),
+      amountPerCase: Number(row.refund_per_case_snapshot), refundPerCase: Number(row.refund_per_case_snapshot),
+      amountTotal: Number(row.refund_total), refundTotal: Number(row.refund_total),
     });
     return {
       customers,
@@ -48,8 +50,8 @@ async function loadAppData(pool) {
       products: products.map(row => ({
         id: row.id, name: row.name, supplierId: row.supplier_id, supplier: row.supplier,
         casePackIds: (packs[row.id] || []).map(pack => pack.pack_code),
-        casePacks: (packs[row.id] || []).map(pack => ({ ...casePackTypeByCode[pack.pack_code], casePrice: Number(pack.case_price) })),
-        casePrices: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, Number(pack.case_price)])),
+        casePacks: (packs[row.id] || []).map(pack => ({ ...casePackTypeByCode[pack.pack_code], casePrice: pack.case_price == null ? null : Number(pack.case_price) })),
+        casePrices: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, pack.case_price == null ? null : Number(pack.case_price)])),
         stockByCasePack: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, {
           totalStock: Number(pack.total_stock_cases), reservedStock: Number(pack.reserved_stock_cases),
           lowStockThreshold: Number(pack.low_stock_threshold_cases),
@@ -61,7 +63,8 @@ async function loadAppData(pool) {
         customer: { id: row.customer_id, name: row.customer_name_snapshot, contact: row.customer_contact_snapshot, address: row.customer_address_snapshot },
         items: (items[row.id] || []).map(item => ({ ...caseItem(item), stockQuantity: Number(item.quantity_cases), casePrice: Number(item.case_price_snapshot) })),
         containerReturns: (returns[row.id] || []).map(returnItem),
-        subtotal: Number(row.subtotal), containerRefundTotal: Number(row.container_refund_total), grandTotal: Number(row.total_amount),
+        subtotal: Number(row.subtotal), containerRefundTotal: Number(row.container_refund_total),
+        containerDepositTotal: Number(row.container_deposit_total), grandTotal: Number(row.total_amount),
         status: row.status.toLowerCase(), deliveryStatus: row.delivery_status.toLowerCase(), date: row.date,
       })),
       balances: invoices.map(row => ({

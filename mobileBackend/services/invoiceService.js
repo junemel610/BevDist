@@ -6,11 +6,19 @@ const hash = value => createHash('sha256').update(JSON.stringify(value)).digest(
 
 async function addInvoiceLines(client, invoiceId, items, containerReturns, retainedPrices = {}) {
   if (!Array.isArray(items) || !items.length) throw new HttpError(409, 'Invoice needs at least one item');
+  if (new Set(items.map(item => item.productId)).size !== items.length) throw new HttpError(400, 'Add each product once per invoice.');
   // Stable pack order prevents conflicting invoices from locking stock in opposite order.
   for (const item of [...items].sort((a, b) => `${a.productId}/${a.packId}`.localeCompare(`${b.productId}/${b.packId}`))) {
+    if (item.packId !== 'B') throw new HttpError(400, 'Invoices use the generic case unit.');
+    if (!(Number(item.quantity) > 0) || !Number.isInteger(Number(item.quantity) * 2)) {
+      throw new HttpError(400, 'Invoice quantities must use half-case increments.');
+    }
     // Hold catalog rows until the write commits so archiving cannot race stock changes.
     await client.query('SELECT id FROM products WHERE id=$1 FOR SHARE', [item.productId]);
-    await client.query('SELECT pack_code FROM product_case_packs WHERE product_id=$1 AND pack_code=$2 FOR UPDATE', [item.productId, item.packId]);
+    const pack = (await client.query('SELECT case_price FROM product_case_packs WHERE product_id=$1 AND pack_code=$2 FOR UPDATE', [item.productId, item.packId])).rows[0];
+    if (!pack) throw new HttpError(404, 'Product case type is missing or archived');
+    const casePrice = retainedPrices[`${item.productId}:${item.packId}`] ?? pack.case_price;
+    if (casePrice == null || Number(casePrice) <= 0) throw new HttpError(409, 'Set a selling price for this product before invoicing');
     const result = await client.query(`INSERT INTO invoice_items
       (invoice_id, product_id, pack_code, product_name_snapshot, pack_label_snapshot,
        units_per_case_snapshot, quantity_cases, case_price_snapshot)
@@ -22,8 +30,8 @@ async function addInvoiceLines(client, invoiceId, items, containerReturns, retai
   }
   for (const entry of containerReturns) {
     await client.query(`INSERT INTO invoice_container_returns
-      (invoice_id, return_type_id, label_snapshot, quantity_cases, refund_per_case_snapshot)
-      VALUES ($1,$2,$3,$4,$5)`, [invoiceId, entry.returnTypeId || null, entry.type, entry.quantity, entry.refundPerCase]);
+      (invoice_id, return_type_id, label_snapshot, quantity_cases, refund_per_case_snapshot, entry_kind)
+      VALUES ($1,$2,$3,$4,$5,$6)`, [invoiceId, entry.returnTypeId || null, entry.type, entry.quantity, entry.amountPerCase ?? entry.refundPerCase, entry.kind || 'return']);
   }
 }
 
@@ -68,11 +76,14 @@ async function editInvoice(pool, invoiceId, { items, containerReturns }) {
     if (!invoice) throw new HttpError(404, 'Invoice not found');
     await lockCustomer(client, invoice.customer_id);
     await client.query('SELECT id FROM invoices WHERE id=$1 FOR UPDATE', [invoiceId]);
-    const previous = (await client.query('SELECT product_id,pack_code,case_price_snapshot FROM invoice_items WHERE invoice_id=$1 AND is_active', [invoiceId])).rows;
+    const previous = (await client.query(`SELECT product_id,pack_code,
+      sum(quantity_cases * case_price_snapshot) / nullif(sum(quantity_cases),0) AS case_price_snapshot
+      FROM invoice_items WHERE invoice_id=$1 AND is_active GROUP BY product_id,pack_code`, [invoiceId])).rows;
     const retainedPrices = Object.fromEntries(previous.map(row => [`${row.product_id}:${row.pack_code}`, row.case_price_snapshot]));
     const currentReturns = (await client.query('SELECT * FROM invoice_container_returns WHERE invoice_id=$1 AND is_active', [invoiceId])).rows;
     const returns = containerReturns ?? currentReturns.map(row => ({
-      returnTypeId: row.return_type_id, type: row.label_snapshot, quantity: row.quantity_cases, refundPerCase: row.refund_per_case_snapshot,
+      returnTypeId: row.return_type_id, type: row.label_snapshot, quantity: row.quantity_cases,
+      amountPerCase: row.refund_per_case_snapshot, kind: row.entry_kind,
     }));
     await client.query('UPDATE invoice_items SET is_active=false WHERE invoice_id=$1 AND is_active', [invoiceId]);
     await client.query('UPDATE invoice_container_returns SET is_active=false WHERE invoice_id=$1 AND is_active', [invoiceId]);
