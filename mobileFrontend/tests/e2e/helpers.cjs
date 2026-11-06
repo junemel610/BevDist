@@ -33,6 +33,11 @@ async function openInvoice(page, data, id) {
   await page.getByRole('button', { name: `View details for ${order.invoiceNumber}` }).click();
   return order;
 }
+async function selectInvoiceProduct(page, name) {
+  await page.getByRole('button', { name: 'Select products', exact: true }).click();
+  await page.getByRole('button', { name: new RegExp(`Add ${name} to invoice`) }).click();
+  await page.getByRole('button', { name: 'Done selecting products', exact: true }).click();
+}
 async function scrollUntilVisible(page, locator) {
   const { width, height } = page.viewportSize();
   await page.mouse.move(width / 2, height / 2);
@@ -69,12 +74,12 @@ async function business(request, options = {}) {
   const productName = `${options.name || 'Test Cola'} ${suffix}`, supplierName = `Test Supplier ${suffix}`;
   const product = { name: productName, ...(await post('/products', {
     name: productName, supplierName, stockReason: 'E2E opening count',
-    packs: options.packs || [{ packId: 'A', casePrice: 100, totalStock: 20, lowStockThreshold: 2 }],
+    packs: options.packs || [{ packId: 'B', casePrice: 100, totalStock: 20, lowStockThreshold: 2 }],
   })) };
   const invoice = async (quantity = 1, extra = {}) => post('/invoices', {
     customerId: customer.id, requestKey: randomUUID(), dueDate: '2099-12-31',
-    items: [{ productId: product.id, packId: 'A', quantity }], ...extra,
+    items: [{ productId: product.id, packId: 'B', quantity }], ...extra,
   });
   return { customer, product, supplierName, post, snapshot, invoice, headers };
 }
-module.exports = { signIn, tab, confirm, business, clientHeaders, preparePage, activeText, openInvoice, rejectedSave, scrollUntilVisible };
+module.exports = { signIn, tab, confirm, business, clientHeaders, preparePage, activeText, openInvoice, selectInvoiceProduct, rejectedSave, scrollUntilVisible };

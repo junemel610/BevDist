@@ -1,4 +1,4 @@
-export const INITIAL_PRODUCTS = [
+const LEGACY_PRODUCTS = [
   { id: 'p1', name: 'Coca-Cola 1.5L', supplier: 'Coca-Cola', casePackIds: ['A', 'B', 'C'], stockByCasePack: { A: { totalStock: 100, reservedStock: 1 }, B: { totalStock: 60, reservedStock: 0 }, C: { totalStock: 40, reservedStock: 0 } }, casePrices: { A: 660, B: 1320, C: 330 } },
   { id: 'p2', name: 'Coca-Cola 330ml Can', supplier: 'Coca-Cola', casePackIds: ['A', 'B', 'C'], stockByCasePack: { A: { totalStock: 250, reservedStock: 0 }, B: { totalStock: 150, reservedStock: 0.5 }, C: { totalStock: 100, reservedStock: 0 } }, casePrices: { A: 300, B: 600, C: 150 } },
   { id: 'p3', name: 'Sprite 1.5L', supplier: 'Coca-Cola', casePackIds: ['A', 'B', 'C'], stockByCasePack: { A: { totalStock: 75, reservedStock: 0 }, B: { totalStock: 45, reservedStock: 0 }, C: { totalStock: 30, reservedStock: 0 } }, casePrices: { A: 600, B: 1200, C: 300 } },
@@ -21,11 +21,11 @@ export const INITIAL_CUSTOMERS = [
   { id: 'c5', name: 'Lilia Cruz', contact: '09561234567', address: '654 Aguinaldo St., Taguig' },
 ];
 
-export const INITIAL_ORDERS = [
+const LEGACY_ORDERS = [
   {
     id: 'o1',
     orderNumber: 'ORD-2026-001',
-    invoiceNumber: 'INV-2026-001',
+    invoiceNumber: 'INV-102026-00000001',
     customerId: 'c1',
     customer: INITIAL_CUSTOMERS[0],
     items: [
@@ -35,6 +35,7 @@ export const INITIAL_ORDERS = [
     subtotal: 960,
     containerReturns: [],
     containerRefundTotal: 0,
+    containerDepositTotal: 0,
     grandTotal: 960,
     status: 'pending',
     deliveryStatus: 'pending',
@@ -43,7 +44,7 @@ export const INITIAL_ORDERS = [
   {
     id: 'o2',
     orderNumber: 'ORD-2026-002',
-    invoiceNumber: 'INV-2026-002',
+    invoiceNumber: 'INV-102026-00000002',
     customerId: 'c2',
     customer: INITIAL_CUSTOMERS[1],
     items: [
@@ -53,6 +54,7 @@ export const INITIAL_ORDERS = [
     subtotal: 924,
     containerReturns: [],
     containerRefundTotal: 0,
+    containerDepositTotal: 0,
     grandTotal: 924,
     status: 'completed',
     deliveryStatus: 'delivered',
@@ -61,7 +63,7 @@ export const INITIAL_ORDERS = [
   {
     id: 'o3',
     orderNumber: 'ORD-2026-003',
-    invoiceNumber: 'INV-2026-003',
+    invoiceNumber: 'INV-102026-00000003',
     customerId: 'c3',
     customer: INITIAL_CUSTOMERS[2],
     items: [
@@ -70,6 +72,7 @@ export const INITIAL_ORDERS = [
     subtotal: 468,
     containerReturns: [],
     containerRefundTotal: 0,
+    containerDepositTotal: 0,
     grandTotal: 468,
     status: 'pending',
     deliveryStatus: 'pending',
@@ -78,7 +81,7 @@ export const INITIAL_ORDERS = [
   {
     id: 'o4',
     orderNumber: 'ORD-2026-004',
-    invoiceNumber: 'INV-2026-004',
+    invoiceNumber: 'INV-102026-00000004',
     customerId: 'c4',
     customer: INITIAL_CUSTOMERS[3],
     items: [
@@ -88,6 +91,7 @@ export const INITIAL_ORDERS = [
     subtotal: 336,
     containerReturns: [],
     containerRefundTotal: 0,
+    containerDepositTotal: 0,
     grandTotal: 336,
     status: 'cancelled',
     deliveryStatus: 'pending',
@@ -96,7 +100,7 @@ export const INITIAL_ORDERS = [
   {
     id: 'o5',
     orderNumber: 'ORD-2026-005',
-    invoiceNumber: 'INV-2026-005',
+    invoiceNumber: 'INV-102026-00000005',
     customerId: 'c5',
     customer: INITIAL_CUSTOMERS[4],
     items: [
@@ -106,6 +110,7 @@ export const INITIAL_ORDERS = [
     subtotal: 432,
     containerReturns: [],
     containerRefundTotal: 0,
+    containerDepositTotal: 0,
     grandTotal: 432,
     status: 'completed',
     deliveryStatus: 'delivered',
@@ -119,7 +124,7 @@ export const INITIAL_BALANCES = [
     orderId: 'o1',
     customerId: 'c1',
     customerName: 'Maria Santos',
-    invoiceNumber: 'INV-2026-001',
+    invoiceNumber: 'INV-102026-00000001',
     totalAmount: 960,
     amountPaid: 500,
     remainingBalance: 460,
@@ -131,7 +136,7 @@ export const INITIAL_BALANCES = [
     orderId: 'o2',
     customerId: 'c2',
     customerName: 'Juan Dela Cruz',
-    invoiceNumber: 'INV-2026-002',
+    invoiceNumber: 'INV-102026-00000002',
     totalAmount: 924,
     amountPaid: 924,
     remainingBalance: 0,
@@ -143,7 +148,7 @@ export const INITIAL_BALANCES = [
     orderId: 'o3',
     customerId: 'c3',
     customerName: 'Ana Reyes',
-    invoiceNumber: 'INV-2026-003',
+    invoiceNumber: 'INV-102026-00000003',
     totalAmount: 468,
     amountPaid: 300,
     remainingBalance: 168,
@@ -155,7 +160,7 @@ export const INITIAL_BALANCES = [
     orderId: 'o4',
     customerId: 'c4',
     customerName: 'Roberto Gomez',
-    invoiceNumber: 'INV-2026-004',
+    invoiceNumber: 'INV-102026-00000004',
     totalAmount: 336,
     amountPaid: 0,
     remainingBalance: 0,
@@ -167,7 +172,7 @@ export const INITIAL_BALANCES = [
     orderId: 'o5',
     customerId: 'c5',
     customerName: 'Lilia Cruz',
-    invoiceNumber: 'INV-2026-005',
+    invoiceNumber: 'INV-102026-00000005',
     totalAmount: 432,
     amountPaid: 432,
     remainingBalance: 0,
@@ -177,15 +182,15 @@ export const INITIAL_BALANCES = [
 ];
 
 export const INITIAL_PAYMENT_TRANSACTIONS = [
-  { id: 'pay-seed-b1', balanceId: 'b1', orderId: 'o1', customerId: 'c1', customerName: 'Maria Santos', invoiceNumber: 'INV-2026-001', method: 'Cash', amountReceived: 500, amountApplied: 500, excess: 0, date: '2026-10-19' },
-  { id: 'pay-seed-b2', balanceId: 'b2', orderId: 'o2', customerId: 'c2', customerName: 'Juan Dela Cruz', invoiceNumber: 'INV-2026-002', method: 'Cash', amountReceived: 924, amountApplied: 924, excess: 0, date: '2026-10-20' },
-  { id: 'pay-seed-b3', balanceId: 'b3', orderId: 'o3', customerId: 'c3', customerName: 'Ana Reyes', invoiceNumber: 'INV-2026-003', method: 'Cash', amountReceived: 300, amountApplied: 300, excess: 0, date: '2026-10-21' },
-  { id: 'pay-seed-b5', balanceId: 'b5', orderId: 'o5', customerId: 'c5', customerName: 'Lilia Cruz', invoiceNumber: 'INV-2026-005', method: 'Cash', amountReceived: 500, amountApplied: 432, excess: 68, date: '2026-10-22' },
+  { id: 'pay-seed-b1', balanceId: 'b1', orderId: 'o1', customerId: 'c1', customerName: 'Maria Santos', invoiceNumber: 'INV-102026-00000001', method: 'Cash', amountReceived: 500, amountApplied: 500, excess: 0, date: '2026-10-19' },
+  { id: 'pay-seed-b2', balanceId: 'b2', orderId: 'o2', customerId: 'c2', customerName: 'Juan Dela Cruz', invoiceNumber: 'INV-102026-00000002', method: 'Cash', amountReceived: 924, amountApplied: 924, excess: 0, date: '2026-10-20' },
+  { id: 'pay-seed-b3', balanceId: 'b3', orderId: 'o3', customerId: 'c3', customerName: 'Ana Reyes', invoiceNumber: 'INV-102026-00000003', method: 'Cash', amountReceived: 300, amountApplied: 300, excess: 0, date: '2026-10-21' },
+  { id: 'pay-seed-b5', balanceId: 'b5', orderId: 'o5', customerId: 'c5', customerName: 'Lilia Cruz', invoiceNumber: 'INV-102026-00000005', method: 'Cash', amountReceived: 500, amountApplied: 432, excess: 68, date: '2026-10-22' },
 ];
 
 export const INITIAL_CUSTOMER_CREDITS = { 'customer:c5': 68 };
 
-export const INITIAL_RESTOCK_RECORDS = [
+const LEGACY_RESTOCK_RECORDS = [
   {
     id: 'r1',
     supplier: 'Coca-Cola',
@@ -200,3 +205,32 @@ export const INITIAL_RESTOCK_RECORDS = [
     date: '2026-10-16',
   },
 ];
+
+export const INITIAL_PRODUCTS = LEGACY_PRODUCTS.map(product => {
+  const stock = Object.entries(product.stockByCasePack).reduce((sum, [packId, value]) =>
+    sum + value.totalStock, 0);
+  const reserved = Object.entries(product.stockByCasePack).reduce((sum, [packId, value]) =>
+    sum + value.reservedStock, 0);
+  return {
+    ...product,
+    casePackIds: ['B'],
+    stockByCasePack: { B: { totalStock: stock, reservedStock: reserved } },
+    casePrices: { B: product.casePrices.B ?? product.casePrices.A ?? product.casePrices.C ?? product.casePrices.MUCHO_12 ?? product.casePrices.MUCHO_6 },
+  };
+});
+
+export const INITIAL_ORDERS = LEGACY_ORDERS.map(order => ({
+  ...order,
+  items: order.items.map(item => ({
+    ...item, packId: 'B', packLabel: 'Case', unitsPerCase: 1,
+    quantity: Number(item.quantity), stockQuantity: Number(item.quantity), casePrice: Number(item.casePrice),
+  })),
+}));
+
+export const INITIAL_RESTOCK_RECORDS = LEGACY_RESTOCK_RECORDS.map(record => ({
+  ...record,
+  items: record.items.map(item => ({
+    ...item, packId: 'B', packLabel: 'Case', unitsPerCase: 1,
+    quantity: Number(item.quantity), unitCost: Number(item.unitCost),
+  })),
+}));

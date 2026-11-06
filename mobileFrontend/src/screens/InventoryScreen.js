@@ -15,13 +15,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { PesoInput } from '../components/ui/PesoInput';
-import { randomUUID } from 'expo-crypto';
 import { stockNotice } from '../components/inventory/stockNotice';
 import { FeedbackToast } from '../components/FeedbackToast';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, productStockState, stockForCasePack, stockState } from '../components/inventory/inventoryUtils';
-import { casePackDisplay, casePackOptionsForProduct, casePacksForProduct } from '../components/orders/casePacks';
+import { CASE_PACKS, casePackDisplay, casePacksForProduct } from '../components/orders/casePacks';
+import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { confirmAction } from '../utils/confirmAction';
 
 const FILTERS = [
@@ -32,24 +32,14 @@ const FILTERS = [
 ];
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
-const alphabeticCaseCode = value => {
-  let code = '';
-  for (let number = value; number > 0; number = Math.floor((number - 1) / 26)) {
-    code = String.fromCharCode(65 + ((number - 1) % 26)) + code;
-  }
-  return code;
-};
-const nextCaseCode = packs => {
-  return alphabeticCaseCode(4 + packs.filter(pack => pack.family === 'custom').length);
-};
 const STATUS = {
   healthy: { label: 'In stock', color: theme.colors.success, background: theme.colors.successSoft, icon: 'check-circle-outline' },
   low: { label: 'Low stock', color: theme.colors.warning, background: theme.colors.warningSoft, icon: 'warning-amber' },
   out: { label: 'Out of stock', color: theme.colors.danger, background: theme.colors.dangerSoft, icon: 'error-outline' },
 };
 
-export function InventoryScreen() {
-  const { products, suppliers: savedSuppliers = [], casePackTypes = [], addProduct, updateProductInventory, deleteProduct } = useApp();
+export function InventoryScreen({ navigation, route }) {
+  const { products, suppliers: savedSuppliers = [], addProduct, updateProductInventory, deleteProduct } = useApp();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [supplierFilter, setSupplierFilter] = useState('All');
@@ -63,11 +53,10 @@ export function InventoryScreen() {
   const [stockByCasePack, setStockByCasePack] = useState({});
   const [casePackIds, setCasePackIds] = useState([]);
   const [casePrices, setCasePrices] = useState({});
-  const [newCasePackTypes, setNewCasePackTypes] = useState([]);
-  const [customPackUnits, setCustomPackUnits] = useState('');
   const [stockReason, setStockReason] = useState('');
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [returnToInvoice, setReturnToInvoice] = useState(false);
   const { width } = useWindowDimensions();
   const compact = width < 370;
 
@@ -88,21 +77,17 @@ export function InventoryScreen() {
   const selectedSupplier = savedSuppliers.find(supplier => supplier.id === selectedSupplierId);
   const productSupplier = supplierMode === 'existing' ? selectedSupplier?.name || '' : supplierName.trim();
   const matchingSuppliers = savedSuppliers.filter(supplier => supplier.name.toLocaleLowerCase().includes(supplierSearch.trim().toLocaleLowerCase()));
-  const customPacks = [...casePackTypes.filter(pack => pack.family === 'custom'), ...newCasePackTypes];
-  const casePackOptions = casePackOptionsForProduct({ name: addingProduct ? productName : editingProduct?.name, casePackTypes: customPacks });
+  const casePackOptions = CASE_PACKS;
   const selectedCasePackIds = casePackIds.filter(id => casePackOptions.some(pack => pack.id === id));
-  const nextCustomCaseCode = nextCaseCode([...casePackTypes, ...newCasePackTypes]);
 
   const startEditing = useCallback(product => {
     setAddingProduct(false);
     setStockReason('');
     setEditingProduct(product);
-    const packs = casePacksForProduct(product);
-    setCasePackIds(packs.map(pack => pack.id));
-    setNewCasePackTypes([]);
-    setCustomPackUnits('');
-    setCasePrices(Object.fromEntries(packs.map(pack => [pack.id, String(pack.casePrice)])));
-    setStockByCasePack(Object.fromEntries(packs.map(pack => [pack.id, String(stockForCasePack(product, pack.id).totalStock)])));
+    const pack = casePacksForProduct(product).find(entry => entry.id === 'B');
+    setCasePackIds(['B']);
+    setCasePrices({ B: pack?.casePrice ? String(pack.casePrice) : '' });
+    setStockByCasePack({ B: String(stockForCasePack(product, 'B').totalStock) });
     setError('');
   }, []);
 
@@ -110,22 +95,34 @@ export function InventoryScreen() {
     <InventoryCard product={item} compact={compact} onEdit={startEditing} />
   ), [compact, startEditing]);
 
-  const startAdding = () => {
+  const startAdding = useCallback((prefill = {}) => {
     setAddingProduct(true);
     setStockReason('Opening stock count');
     setEditingProduct({ name: 'New product', reservedStock: 0 });
-    setProductName('');
-    setSupplierName('');
-    setSupplierMode(savedSuppliers.length ? 'existing' : 'new');
-    setSelectedSupplierId('');
+    setProductName(prefill.name || '');
+    const supplierMatch = prefill.supplier && savedSuppliers.find(supplier => supplier.name.toLocaleLowerCase().replace(/[^a-z0-9]/g, '') === prefill.supplier.toLocaleLowerCase().replace(/[^a-z0-9]/g, ''));
+    setSupplierName(supplierMatch ? '' : (prefill.supplier || ''));
+    setSupplierMode(supplierMatch || (!prefill.supplier && savedSuppliers.length) ? 'existing' : 'new');
+    setSelectedSupplierId(supplierMatch?.id || '');
     setSupplierSearch('');
-    setCasePackIds([]);
-    setNewCasePackTypes([]);
-    setCustomPackUnits('');
+    setCasePackIds(['B']);
     setCasePrices({});
     setStockByCasePack({});
     setError('');
-  };
+  }, [savedSuppliers]);
+
+  useEffect(() => {
+    if (!route?.params?.setupProductToken) return;
+    const timer = setTimeout(() => {
+      const setup = route.params.setupProduct || {};
+      const existing = setup.productId && products.find(product => product.id === setup.productId);
+      if (existing) startEditing(existing);
+      else startAdding(setup);
+      setReturnToInvoice(true);
+      navigation.setParams({ setupProductToken: undefined, setupProduct: undefined });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [navigation, products, route?.params?.setupProduct, route?.params?.setupProductToken, startAdding, startEditing]);
 
   const saveProduct = () => {
     if (!stockReason.trim()) { setError('Enter a reason for this stock count.'); return; }
@@ -140,7 +137,6 @@ export function InventoryScreen() {
         stockByCasePack: normalizedStock,
         casePackIds: selectedCasePackIds,
         casePrices,
-        casePackTypes: customPacks,
       });
       if (validationError) {
         setError(validationError);
@@ -148,10 +144,10 @@ export function InventoryScreen() {
       }
       confirmAction({
         title: 'Add product to inventory?',
-        message: `${productName.trim()} from ${productSupplier}${supplierMode === 'new' ? ' (new supplier)' : ''} · ${selectedCasePackIds.map(id => `${casePackOptions.find(pack => pack.id === id)?.label || id}: ${stockByCasePack[id] || 0} cases · selling price ${formatPeso(casePrices[id])}/case`).join(' · ')}.`,
+        message: `${productName.trim()} from ${productSupplier}${supplierMode === 'new' ? ' (new supplier)' : ''} · ${selectedCasePackIds.map(id => `${casePackOptions.find(pack => pack.id === id)?.label || id}: ${formatCaseQuantity(stockByCasePack[id] || 0)} cases · selling price ${formatPeso(casePrices[id])}/case`).join(' · ')}.`,
         confirmLabel: 'Add product',
         onConfirm: async () => {
-          const product = await addProduct({ name: productName, supplier: productSupplier, supplierId: supplierMode === 'existing' ? selectedSupplierId : undefined, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, newCasePackTypes, stockReason });
+          const product = await addProduct({ name: productName, supplier: productSupplier, supplierId: supplierMode === 'existing' ? selectedSupplierId : undefined, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason });
           if (!product) {
             setError('Could not add this product. Check the details and try again.');
             return;
@@ -159,58 +155,39 @@ export function InventoryScreen() {
           setEditingProduct(null);
           setAddingProduct(false);
           setToast(stockNotice(selectedCasePackIds.map(packId => ({ productId: product.id, packId })), [product], 'Product added'));
+          if (returnToInvoice) {
+            setReturnToInvoice(false);
+            navigation.getParent()?.navigate('Invoices', { screen: 'InvoicesMain', params: { openCreateInvoiceToken: Date.now() } });
+          }
         },
       });
       return;
     }
-    if (!isValidInventoryUpdate({ ...editingProduct, casePackTypes: customPacks }, normalizedStock, selectedCasePackIds, casePrices)) {
-      setError('Enter half-case stock at least as high as reserved stock for each case type, and a price greater than ₱0.');
+    if (!isValidInventoryUpdate(editingProduct, normalizedStock, selectedCasePackIds, casePrices)) {
+      setError('Enter stock in half-case steps at least as high as reserved stock, and a price greater than ₱0.');
       return;
     }
-    const priceSummary = selectedCasePackIds.map(id => `${id}: ${stockByCasePack[id] || 0} cases · ${formatPeso(casePrices[id])}/case`).join(' · ');
+    const priceSummary = selectedCasePackIds.map(id => `${id}: ${formatCaseQuantity(stockByCasePack[id] || 0)} cases · ${formatPeso(casePrices[id])}/case`).join(' · ');
     confirmAction({
       title: 'Save inventory changes?',
       message: `${editingProduct.name}: ${priceSummary}.`,
       confirmLabel: 'Save changes',
       onConfirm: async () => {
-        const updated = await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, newCasePackTypes, stockReason }, editingProduct);
+        const updated = await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason }, editingProduct);
         if (!updated) {
           setError('Could not save these inventory values. Check them and try again.');
           return;
         }
         setEditingProduct(null);
         setToast(stockNotice(selectedCasePackIds.map(packId => ({ productId: updated.id, packId })), [updated], 'Stock updated'));
+        if (returnToInvoice) {
+          setReturnToInvoice(false);
+          navigation.getParent()?.navigate('Invoices', { screen: 'InvoicesMain', params: { openCreateInvoiceToken: Date.now() } });
+        }
       },
     });
   };
 
-  const addCustomCaseType = () => {
-    const unitsPerCase = Number(customPackUnits);
-    if (!/^\d+$/.test(customPackUnits) || unitsPerCase < 1 || unitsPerCase > 10000) {
-      setError('Enter a whole-number bottle count.'); return;
-    }
-    const code = `CUSTOM_${randomUUID().replaceAll('-', '').toUpperCase()}`;
-    const pack = { id: code, code, label: nextCustomCaseCode, unitsPerCase, family: 'custom' };
-    setNewCasePackTypes(current => [...current, pack]);
-    setCasePackIds(current => [...current, pack.id]);
-    setCustomPackUnits(''); setError('');
-  };
-
-  const removeCustomCaseType = packId => {
-    setNewCasePackTypes(current => current.filter(pack => pack.id !== packId));
-    setCasePackIds(current => current.filter(id => id !== packId));
-    setStockByCasePack(current => {
-      const next = { ...current };
-      delete next[packId];
-      return next;
-    });
-    setCasePrices(current => {
-      const next = { ...current };
-      delete next[packId];
-      return next;
-    });
-    setError('');
-  };
 
   const confirmDeleteProduct = () => confirmAction({
     title: 'Delete this product?',
@@ -223,6 +200,7 @@ export function InventoryScreen() {
         return;
       }
       setEditingProduct(null);
+      setReturnToInvoice(false);
       setToast(`${editingProduct.name} deleted from inventory.`);
     },
   });
@@ -241,7 +219,7 @@ export function InventoryScreen() {
                 <Text accessibilityRole="header" style={styles.title}>Inventory</Text>
                 <Text style={styles.subtitle}>{products.length} products tracked</Text>
               </View>
-              <Pressable onPress={startAdding} accessibilityRole="button" style={({ pressed }) => [styles.addButton, styles.headerActionButton, pressed && styles.pressed]}>
+              <Pressable onPress={() => { setReturnToInvoice(false); startAdding(); }} accessibilityRole="button" style={({ pressed }) => [styles.addButton, styles.headerActionButton, pressed && styles.pressed]}>
                 <MaterialIcons name="add" size={19} color={theme.colors.primary} accessible={false} />
                 <Text style={[styles.addButtonLabel, styles.headerActionText]}>Add product</Text>
               </Pressable>
@@ -324,15 +302,15 @@ export function InventoryScreen() {
         )}
       />
 
-      <Modal visible={Boolean(editingProduct)} transparent animationType="fade" onRequestClose={() => { setEditingProduct(null); setAddingProduct(false); }}>
+      <Modal visible={Boolean(editingProduct)} transparent animationType="fade" onRequestClose={() => { setEditingProduct(null); setAddingProduct(false); setReturnToInvoice(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
           <View style={styles.editDialog}>
             <View style={styles.modalHeading}>
               <View style={styles.modalHeadingText}>
                 <Text style={styles.modalTitle}>{addingProduct ? 'Add product' : 'Edit inventory'}</Text>
-                <Text style={styles.modalSubtitle} numberOfLines={2}>{addingProduct ? 'Set case types, selling prices, and starting stock.' : editingProduct?.name}</Text>
+                <Text style={styles.modalSubtitle} numberOfLines={2}>{addingProduct ? 'Set the case price and starting stock.' : editingProduct?.name}</Text>
               </View>
-              <Pressable onPress={() => setEditingProduct(null)} accessibilityRole="button" accessibilityLabel="Close inventory editor" hitSlop={8} style={styles.closeButton}>
+              <Pressable onPress={() => { setEditingProduct(null); setAddingProduct(false); setReturnToInvoice(false); }} accessibilityRole="button" accessibilityLabel="Close inventory editor" hitSlop={8} style={styles.closeButton}>
                 <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
               </Pressable>
             </View>
@@ -370,33 +348,10 @@ export function InventoryScreen() {
                 </>
               ) : null}
               <View style={styles.sectionDivider} />
-              <Text style={[styles.fieldLabel, styles.priceLabel]}>Case types and prices</Text>
-              <Text style={styles.helperText}>Select the case types sold for this product. Add or remove types here; past records stay available.</Text>
-              <View style={styles.caseTypeOptions}>
-                {casePackOptions.map(pack => {
-                  const selected = selectedCasePackIds.includes(pack.id);
-                  const isNewCustomType = newCasePackTypes.some(newPack => newPack.id === pack.id);
-                  return (
-                    <View key={pack.id} style={styles.caseTypeOption}>
-                      <Pressable
-                        onPress={() => setCasePackIds(current => selected ? current.filter(id => id !== pack.id) : [...current, pack.id])}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: selected }}
-                        aria-checked={selected}
-                        style={[styles.caseTypeChip, selected && styles.caseTypeChipSelected]}
-                      >
-                        {selected && <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />}
-                        <Text style={[styles.caseTypeText, selected && styles.caseTypeTextSelected]}>{casePackDisplay(pack)}</Text>
-                      </Pressable>
-                      {isNewCustomType ? (
-                        <Pressable onPress={() => removeCustomCaseType(pack.id)} accessibilityRole="button" accessibilityLabel={`Remove case type ${pack.label}`} style={styles.removeCaseTypeButton}>
-                          <MaterialIcons name="close" size={16} color={theme.colors.danger} accessible={false} />
-                          <Text style={styles.removeCaseTypeLabel}>Remove</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  );
-                })}
+              <Text style={[styles.fieldLabel, styles.priceLabel]}>Unit</Text>
+              <View style={[styles.caseTypeChip, styles.caseTypeChipSelected, styles.fixedCaseType]}>
+                <MaterialIcons name="check-circle" size={16} color={theme.colors.primary} accessible={false} />
+                <Text style={[styles.caseTypeText, styles.caseTypeTextSelected]}>{casePackDisplay(CASE_PACKS[0])}</Text>
               </View>
               {selectedCasePackIds.map(id => {
                 const pack = casePackOptions.find(option => option.id === id);
@@ -432,18 +387,10 @@ export function InventoryScreen() {
                   </View>
                 );
               })}
-              <Text style={styles.fieldLabel}>Add case type {nextCustomCaseCode}</Text>
-              <Text style={styles.helperText}>Enter the number of bottles in one case.</Text>
-              <View style={styles.customCaseInputGroup}>
-                <Text style={styles.caseInputLabel}>Bottles per case</Text>
-                <TextInput value={customPackUnits} onChangeText={value => setCustomPackUnits(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Custom bottles per case" keyboardType="number-pad" maxLength={5} style={styles.fieldInput} />
-              </View>
-              <Pressable onPress={addCustomCaseType} accessibilityRole="button" accessibilityLabel="Add custom case type" style={[styles.caseTypeChip, styles.addCaseTypeButton]}><MaterialIcons name="add" size={18} color={theme.colors.primary} /><Text style={styles.caseTypeText}>Add type {nextCustomCaseCode}</Text></Pressable>
-              {!selectedCasePackIds.length ? <Text style={styles.helperText}>Select at least one case type.</Text> : null}
               <View style={styles.sectionDivider} />
               <Text style={styles.fieldLabel}>Stock count reason</Text>
               <TextInput value={stockReason} onChangeText={setStockReason} placeholder="Reason" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Stock count reason" style={styles.fieldInput} />
-              <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock separately for each case type. Use half-case steps.' : 'Stock and reservations stay separate for each case type.'}</Text>
+              <Text style={styles.helperText}>{addingProduct ? 'Enter starting stock in half-case or whole-case amounts.' : 'Available stock is physical stock less reserved cases.'}</Text>
               {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
             </ScrollView>
             <View style={styles.modalActions}>
@@ -453,7 +400,7 @@ export function InventoryScreen() {
                   <Text style={styles.deleteLabel}>Delete</Text>
                 </Pressable>
               ) : null}
-              <Pressable onPress={() => setEditingProduct(null)} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
+              <Pressable onPress={() => { setEditingProduct(null); setAddingProduct(false); setReturnToInvoice(false); }} accessibilityRole="button" style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}>
                 <Text style={styles.cancelLabel}>Cancel</Text>
               </Pressable>
               <Pressable onPress={saveProduct} accessibilityRole="button" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
@@ -509,7 +456,7 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
           const packAvailable = stock.totalStock - stock.reservedStock;
           const packState = STATUS[stockState(packAvailable)];
           return (
-            <View key={pack.id} style={styles.caseStockSummary} accessibilityLabel={`${casePackDisplay(pack)}: ${packState.label}, ${packAvailable} cases available`}>
+            <View key={pack.id} style={styles.caseStockSummary} accessibilityLabel={`${casePackDisplay(pack)}: ${packState.label}, ${formatCaseQuantity(packAvailable)} cases available`}>
               <View style={styles.caseStockSummaryHeading}>
                 <Text style={styles.caseStockSummaryName}>{casePackDisplay(pack)}</Text>
                 <View style={[styles.caseTypeHealthBadge, { backgroundColor: packState.background }]}>
@@ -517,8 +464,8 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
                   <Text style={[styles.caseTypeHealthLabel, { color: packState.color }]}>{packState.label}</Text>
                 </View>
               </View>
-              <Text style={styles.caseStockSummaryValue}>{packAvailable} available · {stock.reservedStock} reserved · {stock.totalStock} total</Text>
-              <Text style={styles.caseStockSummaryPrice}>{formatPeso(pack.casePrice)} / case</Text>
+              <Text style={styles.caseStockSummaryValue}>{formatCaseQuantity(packAvailable)} available · {formatCaseQuantity(stock.reservedStock)} reserved · {formatCaseQuantity(stock.totalStock)} total</Text>
+              <Text style={[styles.caseStockSummaryPrice, pack.casePrice == null && styles.unsetPrice]}>{pack.casePrice == null ? 'Selling price not set' : `${formatPeso(pack.casePrice)} / case`}</Text>
             </View>
           );
         })}
@@ -590,6 +537,7 @@ const styles = StyleSheet.create({
   removeCaseTypeLabel: { color: theme.colors.danger, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   caseTypeChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9 },
   caseTypeChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primarySoft },
+  fixedCaseType: { alignSelf: 'flex-start', marginBottom: theme.spacing.sm },
   caseTypeText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
   caseTypeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
   casePriceRow: { gap: theme.spacing.xs, marginBottom: theme.spacing.md },
@@ -609,6 +557,7 @@ const styles = StyleSheet.create({
   caseTypeHealthLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   caseStockSummaryValue: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
   caseStockSummaryPrice: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
+  unsetPrice: { color: theme.colors.warning },
   priceLabel: { marginTop: theme.spacing.md },
   errorText: { color: theme.colors.danger, fontSize: theme.fontSize.sm, marginTop: theme.spacing.sm },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.lg },

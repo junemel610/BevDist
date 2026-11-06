@@ -30,7 +30,7 @@ export function filterInventoryProducts(products, { search = '', supplier = 'All
 
 export function isValidInventoryUpdate(product, stockByCasePack, casePackIds, casePrices) {
   const options = casePackOptionsForProduct(product);
-  const validPacks = Array.isArray(casePackIds) && casePackIds.length > 0 && new Set(casePackIds).size === casePackIds.length
+  const validPacks = Array.isArray(casePackIds) && casePackIds.length === 1 && casePackIds[0] === 'B'
     && casePackIds.every(id => options.some(pack => pack.id === id)
       && /^\d+(\.\d{1,2})?$/.test(String(casePrices[id])) && Number(casePrices[id]) > 0);
   return validPacks && casePackIds.every(id => {

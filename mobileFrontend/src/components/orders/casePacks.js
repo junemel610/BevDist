@@ -1,31 +1,21 @@
+import { formatCaseQuantity } from './caseQuantity.js';
+
 export const CASE_PACKS = [
-  { id: 'A', label: 'A', unitsPerCase: 12, type: 'standard' },
-  { id: 'B', label: 'B', unitsPerCase: 24, type: 'standard' },
-  { id: 'C', label: 'C', unitsPerCase: 6, type: 'standard' },
-  { id: 'MUCHO_6', label: 'Mucho 6', unitsPerCase: 6, type: 'mucho' },
-  { id: 'MUCHO_12', label: 'Mucho 12', unitsPerCase: 12, type: 'mucho' },
+  // B remains the stable storage/API identifier; users only see a generic case.
+  { id: 'B', label: 'Case', unitsPerCase: 1, type: 'standard' },
 ];
 
 export function casePackName(pack) {
-  if (pack?.id === 'MUCHO_6') return 'Mucho 6';
-  if (pack?.id === 'MUCHO_12') return 'Mucho 12';
-  return String(pack?.label || pack?.id || '').match(/^([A-Z]+)\s*·/)?.[1] || pack?.label || pack?.id || '';
+  return 'Case';
 }
 
 export function casePackDisplay(pack) {
   const name = casePackName(pack);
-  const units = Number(pack?.unitsPerCase);
-  return name && Number.isInteger(units) && units > 0 ? `${name} · ${units} bottles per case` : name;
+  return name;
 }
 
 export function casePackOptionsForProduct(product) {
-  const custom = [
-    ...(product?.casePackTypes?.filter(pack => pack.family === 'custom') || []),
-    ...(product?.casePacks?.filter(pack => pack.family === 'custom') || []),
-  ].filter((pack, index, all) => all.findIndex(candidate => candidate.id === pack.id) === index);
-  return String(product?.name).toLowerCase().includes('mucho')
-    ? [...CASE_PACKS.filter(pack => pack.id.startsWith('MUCHO')), ...custom]
-    : [...CASE_PACKS.filter(pack => !pack.id.startsWith('MUCHO')), ...custom];
+  return CASE_PACKS;
 }
 
 export function casePacksForProduct(product) {
@@ -33,7 +23,9 @@ export function casePacksForProduct(product) {
   const selectedIds = product?.casePackIds?.length ? product.casePackIds : options.map(pack => pack.id);
   return options.filter(pack => selectedIds.includes(pack.id)).map(pack => ({
     ...pack,
-    casePrice: Number(product?.casePrices?.[pack.id]) || Number(product?.unitPrice) * pack.unitsPerCase,
+    casePrice: product?.casePrices?.[pack.id] != null
+      ? Number(product.casePrices[pack.id])
+      : (product?.unitPrice != null ? Number(product.unitPrice) * pack.unitsPerCase : null),
   }));
 }
 
@@ -66,12 +58,12 @@ export function availableCases(availableStock, pack) {
 }
 
 export function caseAvailabilityLabel(availableStock) {
-  return `${Math.floor(Math.max(0, availableStock) * 2) / 2} cases available`;
+  return `${formatCaseQuantity(Math.floor(Math.max(0, availableStock) * 2) / 2)} cases available`;
 }
 
 export function caseQuantityInputError(value, maximum) {
   if (String(value).trim() === '') return '';
   if (!/^(\d+(\.\d*)?|\.\d+)$/.test(String(value)) || !Number.isFinite(Number(value)) || !Number.isInteger(Number(value) * 2)) return 'Use half-case steps: 0.5, 1, 1.5…';
-  if (Number(value) > maximum) return `Only ${maximum} cases available.`;
+  if (Number(value) > maximum) return `Only ${formatCaseQuantity(maximum)} cases available.`;
   return '';
 }

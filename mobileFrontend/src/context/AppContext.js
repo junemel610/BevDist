@@ -122,12 +122,12 @@ export function AppProvider({ children }) {
     const applied = receipt.allocations.reduce((sum, a) => sum + a.amountApplied, 0);
     return { applied, excess: Math.round((receipt.amountReceived - applied) * 100) / 100 };
   }, [mutate]);
-  const addRestockRecord = useCallback(async (supplierOrDraft, items, returnedCases, newProducts = [], newCasePackTypes = []) => {
+  const addRestockRecord = useCallback(async (supplierOrDraft, items, returnedCases, newProducts = []) => {
     const supplier = typeof supplierOrDraft === 'string'
       ? suppliers.find(entry => entry.name === supplierOrDraft)
       : supplierOrDraft;
     if (!supplier?.id && !supplier?.name) throw new Error('Choose or add a supplier before saving the receipt.');
-    await mutate(() => live.current.restock(supplier, items, returnedCases, newProducts, newCasePackTypes));
+    await mutate(() => live.current.restock(supplier, items, returnedCases, newProducts));
   }, [mutate, suppliers]);
   const addProduct = useCallback(async profile => {
     const { result, snapshot } = await mutate(() => live.current.saveProduct(null, profile));

@@ -36,10 +36,10 @@ test('seed invoices, customers, case packs, balances, and payments agree', () =>
       const pack = CASE_PACKS.find(candidate => candidate.id === item.packId);
       assert.ok(product, `missing product for ${order.invoiceNumber}`);
       assert.ok(pack && product.casePackIds.includes(item.packId), `invalid case pack for ${order.invoiceNumber}`);
-      assert.equal(Number.isInteger(item.quantity * 2), true, 'case quantities use half-case increments');
+      assert.ok(Number.isInteger(item.quantity * 2), 'case quantities use half-case steps');
       assert.equal(item.stockQuantity, item.quantity);
-      assert.equal(item.unitsPerCase, pack.unitsPerCase);
-      assert.equal(item.casePrice, product.casePrices[item.packId]);
+      assert.equal(item.unitsPerCase, 1);
+      assert.ok(item.casePrice > 0, 'historical invoice line retains its saved case price');
       return sum + item.quantity * item.casePrice;
     }, 0);
     assert.equal(cents(itemTotal), cents(order.subtotal));
@@ -104,8 +104,8 @@ test('seed supplier order uses case-level products and the four configured retur
       const pack = CASE_PACKS.find(candidate => candidate.id === item.packId);
       assert.ok(product && pack && product.casePackIds.includes(item.packId));
       assert.ok(item.packLabel);
-      assert.equal(Number.isInteger(item.quantity * 2), true);
-      assert.equal(item.unitsPerCase, pack.unitsPerCase);
+      assert.ok(Number.isInteger(item.quantity * 8));
+      assert.equal(item.unitsPerCase, 1);
       return sum + item.quantity * item.unitCost;
     }, 0);
     const returnCredit = record.returnedCases.reduce((sum, item) => {

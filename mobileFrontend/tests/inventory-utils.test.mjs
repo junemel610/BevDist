@@ -30,39 +30,33 @@ test('inventory filters combine product or supplier search, status, and supplier
   assert.deepEqual(filterInventoryProducts(products, { search: 'missing' }), []);
 });
 
-test('stock is kept separate per case type and edits preserve reservations', () => {
-  const product = { name: 'Cola', reservedStock: 0, casePackIds: ['A', 'B'], stockByCasePack: { A: { totalStock: 10, reservedStock: 2 }, B: { totalStock: 4, reservedStock: 1 } } };
-  assert.equal(availableStock(product, 'A'), 8);
+test('inventory uses one generic case unit and edits preserve reservations', () => {
+  const product = { name: 'Cola', reservedStock: 0, casePackIds: ['B'], stockByCasePack: { B: { totalStock: 4, reservedStock: 1 } } };
   assert.equal(availableStock(product, 'B'), 3);
-  assert.equal(availableStock(product), 11);
-  assert.deepEqual(stockForCasePack(product, 'A'), { totalStock: 10, reservedStock: 2 });
-  assert.equal(isValidInventoryUpdate(product, { A: { totalStock: 2.5 }, B: { totalStock: 1 } }, ['A', 'B'], { A: 120, B: 250 }), true);
-  assert.equal(isValidInventoryUpdate(product, { A: { totalStock: 1.5 }, B: { totalStock: 1 } }, ['A', 'B'], { A: 120, B: 250 }), false);
-  assert.equal(isValidInventoryUpdate(product, { A: { totalStock: 10 }, B: { totalStock: 4 } }, ['A'], { A: 120 }), false);
-  assert.equal(isValidInventoryUpdate(product, { A: { totalStock: 10 }, B: { totalStock: 0 } }, ['A'], { A: 120 }), false);
-  assert.equal(isValidInventoryUpdate({ ...product, casePackIds: ['A', 'B'], stockByCasePack: { A: { totalStock: 10, reservedStock: 2 }, B: { totalStock: 0, reservedStock: 0 } } }, { A: { totalStock: 10 } }, ['A'], { A: 120 }), true);
-  assert.equal(isValidInventoryUpdate(product, { A: { totalStock: 10 } }, ['A'], { A: 0 }), false);
+  assert.equal(availableStock(product), 3);
+  assert.deepEqual(stockForCasePack(product, 'B'), { totalStock: 4, reservedStock: 1 });
+  assert.equal(isValidInventoryUpdate(product, { B: { totalStock: 2.5 } }, ['B'], { B: 250 }), true);
+  assert.equal(isValidInventoryUpdate(product, { B: { totalStock: 0.5 } }, ['B'], { B: 250 }), false);
+  assert.equal(isValidInventoryUpdate(product, { B: { totalStock: 4 } }, ['A'], { A: 120 }), false);
+  assert.equal(isValidInventoryUpdate(product, { B: { totalStock: 4 } }, ['B'], { B: 0 }), false);
   assert.equal(isValidInventoryUpdate(product, {}, [], {}), false);
 });
 
-test('inventory status reflects each case type separately', () => {
-  const product = { name: 'Cola', supplier: 'Coca-Cola', casePackIds: ['A', 'B'], stockByCasePack: { A: { totalStock: 50, reservedStock: 0 }, B: { totalStock: 2, reservedStock: 0 } } };
+test('inventory status reflects the standardized case quantity', () => {
+  const product = { name: 'Cola', supplier: 'Coca-Cola', casePackIds: ['B'], stockByCasePack: { B: { totalStock: 2, reservedStock: 0 } } };
   assert.equal(productStockState(product), 'low');
   assert.deepEqual(filterInventoryProducts([product], { status: 'low' }), [product]);
 });
 
-test('new products save selected case types with direct case prices', () => {
+test('new products save generic case quantities with a direct case price', () => {
   const { product, error } = createProductProfile(products, {
-    name: 'Mucho Red Horse', supplier: 'Local supplier',
-    stockByCasePack: { MUCHO_6: { totalStock: '2.5' }, MUCHO_12: { totalStock: '2' } },
-    casePackIds: ['MUCHO_6', 'MUCHO_12'], casePrices: { MUCHO_6: '430', MUCHO_12: '850' },
-  }, () => 'mucho');
+    name: 'New Pack Drink', supplier: 'Local supplier',
+    stockByCasePack: { B: { totalStock: '2.5' } }, casePackIds: ['B'], casePrices: { B: '430' },
+  }, () => 'custom');
   assert.equal(error, null);
   assert.deepEqual(product, {
-    id: 'mucho', name: 'Mucho Red Horse', supplier: 'Local supplier',
-    stockByCasePack: { MUCHO_6: { totalStock: 2.5, reservedStock: 0 }, MUCHO_12: { totalStock: 2, reservedStock: 0 } },
-    casePackIds: ['MUCHO_6', 'MUCHO_12'],
-    casePrices: { MUCHO_6: 430, MUCHO_12: 850 },
+    id: 'custom', name: 'New Pack Drink', supplier: 'Local supplier',
+    stockByCasePack: { B: { totalStock: 2.5, reservedStock: 0 } }, casePackIds: ['B'], casePrices: { B: 430 },
   });
 });
 
