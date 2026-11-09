@@ -30,6 +30,7 @@ import { groupOpenCustomerBalances } from '../components/balances/customerAccoun
 import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
 import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoiceExport';
+import { nextInvoiceNumber } from '../components/orders/invoiceNumberPreview';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -498,6 +499,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
     : null;
   const closeLabel = editingOrder ? 'Close edit pending invoice' : 'Close create invoice';
   const todayLabel = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
+  const invoiceNumberPreview = editingOrder?.invoiceNumber || nextInvoiceNumber(orders);
 
   return (
     <OverlayModal visible={visible} onClose={onClose} width={width}>
@@ -518,10 +520,12 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
       </> : <>
       <View style={styles.invoiceStoreHeader}>
         <View style={styles.invoiceStoreCopy}>
-          <Text style={styles.invoiceStoreName}>{editingOrder ? 'Edit invoice' : 'BevDist Distribution Co.'}</Text>
-          <Text style={styles.invoiceStoreSubtitle}>{editingOrder ? `${editingOrder.invoiceNumber} · pending invoice` : 'Customer sales invoice'}</Text>
+          <Text style={styles.invoiceStoreName}>Mila&apos;s Store</Text>
+          <Text style={styles.invoiceStoreSubtitle}>737 San Diego St</Text>
+          <Text style={styles.invoiceStoreSubtitle}>Sampaloc, Manila, 1008</Text>
+          <Text style={styles.invoiceStoreSubtitle}>CP 09569569553, TEL: 856-70568</Text>
         </View>
-        <Pressable onPress={closeModal} accessibilityRole="button" accessibilityLabel={closeLabel} style={styles.closeButton}>
+        <Pressable onPress={closeModal} accessibilityRole="button" accessibilityLabel={closeLabel} style={[styles.closeButton, styles.invoiceHeaderClose]}>
           <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
         </Pressable>
       </View>
@@ -529,11 +533,11 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
         <View style={styles.invoiceDraftMetaRow}>
           <View style={styles.invoiceNumberBlock}>
             <Text style={styles.metaCaption}>INV:</Text>
-            <Text style={styles.metaValue}>{editingOrder?.invoiceNumber || 'Assigned when saved'}</Text>
+            <Text style={styles.invoiceDraftNumber}>{invoiceNumberPreview}</Text>
           </View>
           <View style={styles.metaDate}>
-            <Text style={styles.metaCaption}>Date</Text>
-            <Text style={styles.metaValue}>{todayLabel}</Text>
+            <Text style={styles.metaCaption}>Date:</Text>
+            <Text style={styles.invoiceDraftDate}>{todayLabel}</Text>
           </View>
         </View>
       </View>
@@ -564,9 +568,12 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
           </View>
           {isNewCustomer ? (
             <View style={styles.newCustomerFields}>
-              <TextInput value={newCustomer.name} onChangeText={value => onChangeNewCustomer('name', value)} placeholder="Customer name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer name, required" returnKeyType="next" style={styles.customerInput} />
+              <Text style={styles.customerFieldLabel}>Customer Name</Text>
+              <TextInput value={newCustomer.name} onChangeText={value => onChangeNewCustomer('name', value)} placeholder="Name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer name, required" returnKeyType="next" style={styles.customerInput} />
               {duplicateCustomer && <Text accessibilityRole="alert" style={styles.duplicateCustomerNotice}>{duplicateCustomer.name} already exists. Choose Existing customer and select this profile.</Text>}
-              <TextInput value={newCustomer.contact} onChangeText={value => onChangeNewCustomer('contact', value)} placeholder="Contact" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer contact number, optional" keyboardType="phone-pad" style={styles.customerInput} />
+              <Text style={styles.customerFieldLabel}>Tel No</Text>
+              <TextInput value={newCustomer.contact} onChangeText={value => onChangeNewCustomer('contact', value)} placeholder="Phone" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer contact number, optional" keyboardType="phone-pad" style={styles.customerInput} />
+              <Text style={styles.customerFieldLabel}>Address</Text>
               <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
             </View>
           ) : customers.map(option => {
@@ -968,15 +975,18 @@ const styles = StyleSheet.create({
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: theme.colors.onPrimaryOverlay },
   modalBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
   createOrderBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
-  invoiceStoreHeader: { minHeight: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
-  invoiceStoreCopy: { flex: 1, minWidth: 0 },
+  invoiceStoreHeader: { minHeight: 116, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
+  invoiceStoreCopy: { flex: 1, minWidth: 0, alignItems: 'center' },
   invoiceStoreName: { color: theme.colors.onPrimary, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
-  invoiceStoreSubtitle: { color: theme.colors.onPrimaryMuted, fontSize: theme.fontSize.sm, marginTop: 2 },
-  invoiceDraftMeta: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surface },
-  invoiceDraftMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md },
-  invoiceNumberBlock: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  metaDate: { alignItems: 'flex-end' },
-  metaCaption: { color: theme.colors.textLight, fontSize: theme.fontSize.xs },
+  invoiceStoreSubtitle: { color: theme.colors.onPrimaryMuted, fontSize: theme.fontSize.sm, marginTop: 2, textAlign: 'center' },
+  invoiceHeaderClose: { position: 'absolute', right: theme.spacing.md },
+  invoiceDraftMeta: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm, paddingBottom: theme.spacing.lg, backgroundColor: theme.colors.surface },
+  invoiceDraftMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: theme.spacing.md },
+  invoiceNumberBlock: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.xs },
+  metaDate: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.xs },
+  metaCaption: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium },
+  invoiceDraftNumber: { minWidth: 120, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: theme.colors.text, color: theme.colors.text, fontSize: theme.fontSize.xs },
+  invoiceDraftDate: { minWidth: 132, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: theme.colors.text, color: theme.colors.text, fontSize: theme.fontSize.xs, textAlign: 'center' },
   metaValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
   createSection: { gap: theme.spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md },
   sectionDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
@@ -989,19 +999,19 @@ const styles = StyleSheet.create({
   productsEmpty: { minHeight: 104, alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.border, borderRadius: 10, padding: theme.spacing.md },
   productsEmptyTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   invoiceTableHeader: { minHeight: 40, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-  invoiceColumnHeading: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold, textTransform: 'uppercase' },
-  invoiceProductColumn: { flex: 1, minWidth: 80 },
-  invoiceQtyColumn: { width: 120, alignItems: 'center' },
-  invoicePriceColumn: { width: 72, textAlign: 'right' },
+  invoiceColumnHeading: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  invoiceProductColumn: { flex: 1, minWidth: 60 },
+  invoiceQtyColumn: { width: 104, alignItems: 'center' },
+  invoicePriceColumn: { width: 88, textAlign: 'right' },
   invoiceProductSelector: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingHorizontal: theme.spacing.sm },
   invoiceProductSelectorText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
-  invoiceProductRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 4, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: theme.spacing.sm },
-  invoiceProductNameBlock: { flex: 1, minWidth: 72, gap: 2 },
+  invoiceProductRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 2, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: theme.spacing.sm },
+  invoiceProductNameBlock: { flex: 1, minWidth: 60, gap: 2 },
   invoiceProductName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   invoiceQuantityButton: { width: 28, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 6, backgroundColor: theme.colors.primarySoft },
   invoiceQuantityEntry: { width: 48, height: 40, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 6, textAlign: 'center', color: theme.colors.text, fontSize: theme.fontSize.sm, paddingHorizontal: 2 },
   invoiceLinePrice: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  invoiceGrandTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md },
+  invoiceGrandTotalRow: { flexDirection: 'row', alignSelf: 'flex-end', width: '65%', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md, marginTop: theme.spacing.md },
   invoiceGrandTotalLabel: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   invoiceGrandTotalValue: { color: theme.colors.primary, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
   selectedProductCard: { gap: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, padding: theme.spacing.md },

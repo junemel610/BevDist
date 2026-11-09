@@ -29,9 +29,12 @@ async function selectInvoiceProduct(name = 'Cola') {
 
 test('invoice product picker filters distributor catalogs and adds saved products to the draft', async () => {
   await invoiceScreen({ openCreateInvoiceToken: 1 });
-  expect(screen.getByText('BevDist Distribution Co.')).toBeOnTheScreen();
+  expect(screen.getByText("Mila's Store")).toBeOnTheScreen();
+  expect(screen.getByText('737 San Diego St')).toBeOnTheScreen();
+  expect(screen.getByText('Sampaloc, Manila, 1008')).toBeOnTheScreen();
+  expect(screen.getByText('CP 09569569553, TEL: 856-70568')).toBeOnTheScreen();
   expect(screen.getByText('INV:')).toBeOnTheScreen();
-  expect(screen.getByText('Assigned when saved')).toBeOnTheScreen();
+  expect(screen.getByText(/^INV-\d{6}-\d{8}$/)).toBeOnTheScreen();
   expect(screen.getByText('QTY')).toBeOnTheScreen();
   expect(screen.getByText('Price')).toBeOnTheScreen();
   expect(screen.getByText('Grand total')).toBeOnTheScreen();
