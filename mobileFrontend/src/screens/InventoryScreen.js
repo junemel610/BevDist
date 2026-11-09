@@ -23,6 +23,7 @@ import { createProductProfile, filterInventoryProducts, isValidInventoryUpdate, 
 import { CASE_PACKS, casePackDisplay, casePacksForProduct } from '../components/orders/casePacks';
 import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { confirmAction } from '../utils/confirmAction';
+import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
 
 const FILTERS = [
   { key: 'all', label: 'All products' },
@@ -43,6 +44,7 @@ export function InventoryScreen({ navigation, route }) {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [supplierFilter, setSupplierFilter] = useState('All');
+  const [page, setPage] = useState(1);
   const [editingProduct, setEditingProduct] = useState(null);
   const [addingProduct, setAddingProduct] = useState(false);
   const [productName, setProductName] = useState('');
@@ -75,6 +77,10 @@ export function InventoryScreen({ navigation, route }) {
   const visibleProducts = useMemo(() => {
     return filterInventoryProducts(products, { search, supplier: supplierFilter, status: activeFilter });
   }, [products, search, supplierFilter, activeFilter]);
+  const pageCount = Math.max(1, Math.ceil(visibleProducts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedProducts = visibleProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const changePageFilter = setter => value => { setter(value); setPage(1); };
   const selectedSupplier = savedSuppliers.find(supplier => supplier.id === selectedSupplierId);
   const productSupplier = supplierMode === 'existing' ? selectedSupplier?.name || '' : supplierName.trim();
   const matchingSuppliers = savedSuppliers.filter(supplier => supplier.name.toLocaleLowerCase().includes(supplierSearch.trim().toLocaleLowerCase()));
@@ -212,7 +218,7 @@ export function InventoryScreen({ navigation, route }) {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <FlatList
-        data={visibleProducts}
+        data={pagedProducts}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
@@ -238,7 +244,7 @@ export function InventoryScreen({ navigation, route }) {
               <MaterialIcons name="search" size={22} color={theme.colors.textLight} accessible={false} />
               <TextInput
                 value={search}
-                onChangeText={setSearch}
+                onChangeText={changePageFilter(setSearch)}
                 placeholder="Search products"
                 placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search inventory by product or supplier"
@@ -259,7 +265,7 @@ export function InventoryScreen({ navigation, route }) {
                 return (
                   <Pressable
                     key={filter.key}
-                    onPress={() => setActiveFilter(filter.key)}
+                    onPress={() => changePageFilter(setActiveFilter)(filter.key)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
@@ -278,7 +284,7 @@ export function InventoryScreen({ navigation, route }) {
                 return (
                   <Pressable
                     key={supplier}
-                    onPress={() => setSupplierFilter(supplier)}
+                    onPress={() => changePageFilter(setSupplierFilter)(supplier)}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
@@ -304,6 +310,7 @@ export function InventoryScreen({ navigation, route }) {
             <Text style={styles.emptyText}>{search ? 'Try another product or supplier name.' : 'No products match these filters.'}</Text>
           </View>
         )}
+        ListFooterComponent={<PaginationControls page={currentPage} totalItems={visibleProducts.length} onPageChange={setPage} />}
       />
 
       <Modal visible={Boolean(editingProduct)} transparent animationType="fade" onRequestClose={() => { setEditingProduct(null); setAddingProduct(false); setReturnToInvoice(false); }}>

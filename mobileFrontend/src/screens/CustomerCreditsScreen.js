@@ -4,22 +4,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { customerCreditRows } from '../components/balances/balanceUtils';
 import theme from '../styles/theme';
+import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
 
 const peso = amount => `₱${amount.toLocaleString('en-PH', { maximumFractionDigits: 2 })}`;
 export function CustomerCreditsScreen() {
   const { customerCredits, customers } = useApp();
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const rows = useMemo(() => customerCreditRows(customerCredits, customers), [customerCredits, customers]);
   const visible = rows.filter(row => row.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedRows = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const changeSearch = value => { setSearch(value); setPage(1); };
   return <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.container}>
-    <FlatList data={visible} keyExtractor={row => row.key} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+    <FlatList data={pagedRows} keyExtractor={row => row.key} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
       ListHeaderComponent={<View style={styles.header}>
         <Text style={styles.total}>{peso(rows.reduce((sum, row) => sum + row.amount, 0))} available credit</Text>
         <Text style={styles.help}>Extra payments automatically apply to each customer’s next invoice.</Text>
-        <TextInput value={search} onChangeText={setSearch} placeholder="Search customer" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search customer credits" style={styles.search} />
+        <TextInput value={search} onChangeText={changeSearch} placeholder="Search customer" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search customer credits" style={styles.search} />
       </View>}
       renderItem={({ item }) => <View style={styles.row}><Text style={styles.name}>{item.name}</Text><Text style={styles.amount}>{peso(item.amount)}</Text></View>}
       ListEmptyComponent={<Text style={styles.help}>{search ? 'No matching customers.' : 'No customer credit available.'}</Text>}
+      ListFooterComponent={<PaginationControls page={currentPage} totalItems={visible.length} onPageChange={setPage} />}
     />
   </SafeAreaView>;
 }

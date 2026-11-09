@@ -23,6 +23,7 @@ import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
 import { nextSupplierOrderNumber } from '../components/supplierOrders/orderNumberPreview';
+import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const HISTORY_PERIODS = [
@@ -82,6 +83,7 @@ export function SupplierOrdersScreen() {
   const [historySupplier, setHistorySupplier] = useState('All suppliers');
   const [historyStart, setHistoryStart] = useState('');
   const [historyEnd, setHistoryEnd] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
   const { width } = useWindowDimensions();
   const compact = width < 380;
 
@@ -121,6 +123,10 @@ export function SupplierOrdersScreen() {
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [restockRecords, historyPeriod, historySupplier, historyStart, historyEnd, today]);
+  const historyPageCount = Math.max(1, Math.ceil(historyRecords.length / PAGE_SIZE));
+  const currentHistoryPage = Math.min(historyPage, historyPageCount);
+  const pagedHistoryRecords = historyRecords.slice((currentHistoryPage - 1) * PAGE_SIZE, currentHistoryPage * PAGE_SIZE);
+  const changeHistoryFilter = setter => value => { setter(value); setHistoryPage(1); };
 
   const changeSupplier = nextSupplier => {
     if (nextSupplier === supplier && !supplierDraft) return;
@@ -314,22 +320,22 @@ export function SupplierOrdersScreen() {
           </View>
           <Text style={styles.fieldLabel}>Date</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterRow}>
-            {HISTORY_PERIODS.map(([value, label]) => <Pressable key={value} onPress={() => setHistoryPeriod(value)} accessibilityRole="button" accessibilityState={{ selected: historyPeriod === value }} style={[styles.historyFilterChip, historyPeriod === value && styles.historyFilterChipSelected]}>
+            {HISTORY_PERIODS.map(([value, label]) => <Pressable key={value} onPress={() => changeHistoryFilter(setHistoryPeriod)(value)} accessibilityRole="button" accessibilityState={{ selected: historyPeriod === value }} style={[styles.historyFilterChip, historyPeriod === value && styles.historyFilterChipSelected]}>
               <Text style={[styles.historyFilterText, historyPeriod === value && styles.historyFilterTextSelected]}>{label}</Text>
             </Pressable>)}
           </ScrollView>
           {historyPeriod === 'custom' ? <View style={styles.customRangeRow}>
-            <TextInput value={historyStart} onChangeText={setHistoryStart} placeholder="Start · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Order history start date" style={styles.rangeInput} />
-            <TextInput value={historyEnd} onChangeText={setHistoryEnd} placeholder="End · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Order history end date" style={styles.rangeInput} />
+            <TextInput value={historyStart} onChangeText={changeHistoryFilter(setHistoryStart)} placeholder="Start · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Order history start date" style={styles.rangeInput} />
+            <TextInput value={historyEnd} onChangeText={changeHistoryFilter(setHistoryEnd)} placeholder="End · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Order history end date" style={styles.rangeInput} />
           </View> : null}
           <Text style={styles.fieldLabel}>Supplier</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterRow}>
-            {historySuppliers.map(name => <Pressable key={name} onPress={() => setHistorySupplier(name)} accessibilityRole="button" accessibilityState={{ selected: historySupplier === name }} style={[styles.historyFilterChip, historySupplier === name && styles.historyFilterChipSelected]}>
+            {historySuppliers.map(name => <Pressable key={name} onPress={() => changeHistoryFilter(setHistorySupplier)(name)} accessibilityRole="button" accessibilityState={{ selected: historySupplier === name }} style={[styles.historyFilterChip, historySupplier === name && styles.historyFilterChipSelected]}>
               <Text style={[styles.historyFilterText, historySupplier === name && styles.historyFilterTextSelected]}>{name}</Text>
             </Pressable>)}
           </ScrollView>
           <View style={styles.historyResults}>
-            {historyRecords.length ? historyRecords.map(record => (
+            {historyRecords.length ? pagedHistoryRecords.map(record => (
               <Pressable key={record.id} onPress={() => setSelectedRecord(record)} accessibilityRole="button" accessibilityLabel={`View ${record.supplier} supplier order from ${record.date}`} accessibilityHint="Opens supplier order details" style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
                 <View style={styles.historyIcon}><MaterialIcons name="local-shipping" size={18} color={theme.colors.primary} accessible={false} /></View>
                 <View style={styles.historyCopy}>
@@ -343,6 +349,7 @@ export function SupplierOrdersScreen() {
                 <MaterialIcons name="chevron-right" size={22} color={theme.colors.textLight} accessible={false} />
               </Pressable>
             )) : <Text style={styles.historyEmpty}>{restockRecords.length ? 'No supplier orders match these filters.' : 'Saved supplier orders will appear here.'}</Text>}
+            <PaginationControls page={currentHistoryPage} totalItems={historyRecords.length} onPageChange={setHistoryPage} />
           </View>
         </View>}
         <Modal visible={!historyMode} animationType="slide" onRequestClose={requestCloseOrder}>
