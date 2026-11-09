@@ -60,7 +60,7 @@ These commits are local to `trunk`; check `git status -sb` and `git log` before 
 - **Never inspect or paste `mobileBackend/.env`.** It contains local credentials/secrets and is gitignored. Use `.env.example` for configuration guidance.
 - The state of the user's local database and which migrations it has applied is unknown. Migration 009 requires an empty business database before switching to generic cases. Use a separate disposable development database when verifying migrations. Never drop, reset or migrate the client's database without a verified backup and explicit direction.
 - Migration 012 seeds catalog suppliers/products but invents no stock, prices or customer transactions.
-- Migrations 010 and 011 add monthly invoice numbering and invoice deposit/return accounting.
+- Migrations 010 and 011 add monthly invoice numbering and invoice deposit/return accounting. Migration 014 adds monthly supplier order numbering (`ORD-MMYYYY-NNNNNNNN`).
 
 ## Verification status and next checks
 

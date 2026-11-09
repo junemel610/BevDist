@@ -24,7 +24,7 @@ before(async () => {
   const url = new URL(process.env.DATABASE_URL);
   url.pathname = `/${database}`;
   pool = createPool(url.href);
-  assert.equal((await migrate(pool)).length, 13);
+  assert.equal((await migrate(pool)).length, 14);
   actor = (await one("INSERT INTO app_users(username,password_hash) VALUES ('test-user','test-only-hash') RETURNING id")).id;
 });
 
@@ -83,6 +83,13 @@ test('invoice numbers use a Manila monthly sequence that starts at one and reset
   assert.equal((await one("SELECT next_monthly_invoice_number('2026-10-02 00:00:00+08'::timestamptz) AS number")).number, 'INV-102026-00000002');
   assert.equal((await one("SELECT next_monthly_invoice_number('2026-11-01 00:00:00+08'::timestamptz) AS number")).number, 'INV-112026-00000001');
   assert.equal((await one("SELECT next_monthly_invoice_number('2026-11-02 00:00:00+08'::timestamptz) AS number")).number, 'INV-112026-00000002');
+});
+
+test('supplier order numbers use an independent Manila monthly sequence', async () => {
+  assert.equal((await one("SELECT next_monthly_supplier_order_number('2026-10-01 00:00:00+08'::timestamptz) AS number")).number, 'ORD-102026-00000001');
+  assert.equal((await one("SELECT next_monthly_supplier_order_number('2026-10-02 00:00:00+08'::timestamptz) AS number")).number, 'ORD-102026-00000002');
+  assert.equal((await one("SELECT next_monthly_supplier_order_number('2026-11-01 00:00:00+08'::timestamptz) AS number")).number, 'ORD-112026-00000001');
+  assert.equal((await one("SELECT next_monthly_supplier_order_number('2026-11-02 00:00:00+08'::timestamptz) AS number")).number, 'ORD-112026-00000002');
 });
 
 test('new invoices receive the monthly number format from the database', async () => {
