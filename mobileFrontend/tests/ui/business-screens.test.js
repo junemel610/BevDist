@@ -234,6 +234,8 @@ test('invoice deposit and return rows switch type and submit the chosen amount c
   await selectInvoiceProduct();
   await fireEvent.changeText(screen.getByLabelText('Cola, Case, quantity in cases'), '1');
   await userEvent.press(screen.getByRole('button', { name: 'Add deposit or return line' }));
+  expect(screen.getByLabelText('Adjustment item 1')).toBeOnTheScreen();
+  expect(screen.getByText('What container or item?')).toBeOnTheScreen();
   await fireEvent.changeText(screen.getByLabelText('Container or item name, row 1'), 'Bottle crate');
   await userEvent.press(screen.getByRole('button', { name: 'Deposit, row 1' }));
   await userEvent.press(screen.getByRole('button', { name: 'Add half a case to deposit or return row 1' }));
