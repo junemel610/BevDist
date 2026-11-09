@@ -24,6 +24,7 @@ const saveProduct = () => fireEvent.press(screen.getAllByRole('button', { name: 
 async function receiptLine() {
   await render(<SupplierOrdersScreen />);
   await press('Create supplier order');
+  await press('Select supplier Supplier One');
   await press('Add product');
   await fireEvent.press(screen.getByRole('button', { name: /Cola/ }));
   await fill('Cola quantity in cases', '1');
@@ -42,6 +43,18 @@ test('supplier cost entry shows a peso prefix and uses a short numeric hint', as
   await receiptLine();
   expect(screen.getAllByText('₱').length).toBeGreaterThan(0);
   expect(screen.getByLabelText('Cola supplier cost per case in pesos').props.placeholder).toBe('0');
+});
+
+test('supplier order requires an explicit supplier selection before product picking', async () => {
+  await render(<SupplierOrdersScreen />);
+  await press('Create supplier order');
+  expect(screen.getByText('Select Supplier')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Add product' })).toBeDisabled();
+  const supplier = screen.getByRole('button', { name: 'Select supplier Supplier One' });
+  expect(screen.getByRole('button', { name: 'Select supplier Supplier One', selected: false })).toBeOnTheScreen();
+  await fireEvent.press(supplier);
+  expect(screen.getByRole('button', { name: 'Select supplier Supplier One', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'Add product' })).toBeEnabled();
 });
 
 test('inventory starts supplier cost at selling price and saves later edits independently', async () => {

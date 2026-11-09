@@ -253,6 +253,7 @@ test('dashboard shows payment methods and quick create opens the invoice modal r
 test('supplier order validates empty orders before creating a receipt', async () => {
   await render(<SupplierOrdersScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
+  await userEvent.press(screen.getByRole('button', { name: 'Select supplier Supplier One' }));
   await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
   expect(screen.getByText('Add at least one product line before saving.')).toBeOnTheScreen();
   expect(app.addRestockRecord).not.toHaveBeenCalled();
@@ -294,6 +295,7 @@ test('saved supplier cost prefills an order and remains independently editable',
   app.products[0].supplierCosts = { B: 72 };
   await render(<SupplierOrdersScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
+  await userEvent.press(screen.getByRole('button', { name: 'Select supplier Supplier One' }));
   await userEvent.press(screen.getByRole('button', { name: 'Add product' }));
   await userEvent.press(screen.getByRole('button', { name: /Cola/ }));
   const cost = screen.getByLabelText('Cola supplier cost per case in pesos');
@@ -344,6 +346,7 @@ test('supplier order accepts half cases, confirms saving and opens historical de
   app.restockRecords = [{ id: 'history-1', supplier: 'Supplier One', date: '2026-10-24', items: [{ productName: 'Historic Cola', packLabel: 'A', quantity: 1, unitCost: 80 }], returnedCases: [], netCost: 80 }];
   await render(<SupplierOrdersScreen />);
   await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
+  await userEvent.press(screen.getByRole('button', { name: 'Select supplier Supplier One' }));
   await userEvent.press(screen.getByRole('button', { name: 'Add product' }));
   await userEvent.press(screen.getByRole('button', { name: /Cola/ }));
   await fireEvent.changeText(screen.getByLabelText('Cola quantity in cases'), '0.5');

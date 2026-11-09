@@ -91,7 +91,7 @@ export function SupplierOrdersScreen() {
 
   const suppliers = useMemo(() => savedSuppliers.map(entry => entry.name), [savedSuppliers]);
   const filteredSuppliers = suppliers.filter(name => name.toLocaleLowerCase().includes(supplierSearch.trim().toLocaleLowerCase()));
-  const savedSupplier = savedSuppliers.find(entry => entry.name === selectedSupplier) || savedSuppliers[0] || null;
+  const savedSupplier = savedSuppliers.find(entry => entry.name === selectedSupplier) || null;
   const supplierRecord = supplierDraft || savedSupplier;
   const supplier = supplierRecord?.name || '';
   const supplierProducts = useMemo(() => supplierDraft ? [] : products.filter(product => product.supplierId === supplierRecord?.id), [products, supplierDraft, supplierRecord?.id]);
@@ -354,8 +354,8 @@ export function SupplierOrdersScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeading}>
             <View style={styles.headingCopy}>
-              <Text style={styles.sectionTitle}>Supplier details</Text>
-              <Text style={styles.sectionHint}>{supplier || 'Select an existing supplier or add a new one.'}</Text>
+              <Text style={styles.sectionTitle}>Select Supplier</Text>
+              <Text style={styles.sectionHint}>{supplier ? `Selected: ${supplier}` : 'Choose the supplier that delivered these products.'}</Text>
             </View>
             <Pressable onPress={startNewSupplier} accessibilityRole="button" accessibilityLabel="New supplier" style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
               <MaterialIcons name="person-add" size={18} color={theme.colors.primary} accessible={false} />
@@ -381,6 +381,7 @@ export function SupplierOrdersScreen() {
                   key={name}
                   onPress={() => changeSupplier(name)}
                   accessibilityRole="button"
+                  accessibilityLabel={`Select supplier ${name}`}
                   accessibilityState={{ selected }}
                   {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
                   style={({ pressed }) => [styles.supplierChip, selected && styles.supplierChipSelected, pressed && styles.pressed]}
@@ -404,7 +405,7 @@ export function SupplierOrdersScreen() {
           <View style={styles.sectionHeading}>
             <View style={styles.headingCopy}>
               <Text style={styles.sectionTitle}>Products</Text>
-              <Text style={styles.sectionHint}>{supplierProducts.length} {supplierProducts.length === 1 ? 'product' : 'products'} from {supplier || 'selected supplier'}</Text>
+              <Text style={styles.sectionHint}>{supplier ? `${supplierProducts.length} ${supplierProducts.length === 1 ? 'product' : 'products'} from ${supplier}` : 'Select a supplier to view available products.'}</Text>
             </View>
             <Pressable
               onPress={() => { setProductSearch(''); setPickerVisible(true); }}
