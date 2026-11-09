@@ -17,6 +17,7 @@ import { balanceStatus, customerCreditRows } from '../components/balances/balanc
 import { groupOpenCustomerBalances } from '../components/balances/customerAccounts';
 import { FeedbackToast } from '../components/FeedbackToast';
 import { CustomerPaymentModal } from '../components/balances/CustomerPaymentModal';
+import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -37,6 +38,7 @@ export function BalancesScreen({ navigation }) {
   const { balances, customers, orders, customerCredits = {} } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [notice, setNotice] = useState('');
 
@@ -80,13 +82,17 @@ export function BalancesScreen({ navigation }) {
         || balance.invoiceNumber.toLocaleLowerCase().includes(query)))
       .slice().sort((a, b) => b.dueDate.localeCompare(a.dueDate));
   }, [records, customerAccounts, activeFilter, search]);
+  const pageCount = Math.max(1, Math.ceil(visibleBalances.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedBalances = visibleBalances.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const changePageFilter = setter => value => { setter(value); setPage(1); };
 
   const openPayment = account => { setSelectedAccount(account); setNotice(''); };
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <FlatList
-        data={visibleBalances}
+        data={pagedBalances}
         keyExtractor={item => item.kind === 'account' ? item.key : item.id}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
@@ -134,7 +140,7 @@ export function BalancesScreen({ navigation }) {
               <MaterialIcons name="search" size={22} color={theme.colors.textLight} accessible={false} />
               <TextInput
                 value={search}
-                onChangeText={setSearch}
+                onChangeText={changePageFilter(setSearch)}
                 placeholder="Search balances"
                 placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search balances by customer or invoice number"
@@ -142,7 +148,7 @@ export function BalancesScreen({ navigation }) {
                 style={styles.searchInput}
               />
               {!!search && (
-                <Pressable onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear balance search" style={styles.clearButton}>
+                <Pressable onPress={() => changePageFilter(setSearch)('')} accessibilityRole="button" accessibilityLabel="Clear balance search" style={styles.clearButton}>
                   <MaterialIcons name="close" size={20} color={theme.colors.textLight} accessible={false} />
                 </Pressable>
               )}
@@ -154,7 +160,7 @@ export function BalancesScreen({ navigation }) {
                 return (
                   <Pressable
                     key={filter.key}
-                    onPress={() => setActiveFilter(filter.key)}
+                    onPress={() => changePageFilter(setActiveFilter)(filter.key)}
                     accessibilityRole="button"
                     accessibilityLabel={`${filter.label}, ${counts[filter.key]} ${counts[filter.key] === 1 ? 'balance' : 'balances'}`}
                     accessibilityState={{ selected }}
@@ -183,6 +189,7 @@ export function BalancesScreen({ navigation }) {
             <Text style={styles.emptyText}>{search ? 'Try another customer or invoice number.' : 'There are no invoices in this status.'}</Text>
           </View>
         )}
+        ListFooterComponent={<PaginationControls page={currentPage} totalItems={visibleBalances.length} onPageChange={setPage} />}
       />
 
       {selectedAccount && <CustomerPaymentModal customerId={selectedAccount.customerId} onClose={() => setSelectedAccount(null)} onSaved={setNotice} />}
@@ -300,10 +307,10 @@ const styles = StyleSheet.create({
   accountInvoiceDue: { color: theme.colors.danger, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   accountFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginTop: theme.spacing.sm, paddingTop: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
   accountOutstanding: { color: theme.colors.danger, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, marginTop: 2 },
-  searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
+  searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.md, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   searchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: theme.fontSize.base, paddingVertical: 0 },
   clearButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  filterRow: { gap: theme.spacing.sm, paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm },
+  filterRow: { gap: theme.spacing.sm, paddingTop: theme.spacing.lg, paddingBottom: theme.spacing.md },
   filterChip: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 22, backgroundColor: theme.colors.surface },
   filterChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
   filterLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium },
@@ -331,7 +338,7 @@ const styles = StyleSheet.create({
   emptyIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.md, borderRadius: 28, backgroundColor: theme.colors.primarySoft },
   emptyTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   emptyText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, textAlign: 'center', marginTop: theme.spacing.xs },
-  transactionLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+  transactionLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginBottom: theme.spacing.md },
   transactionLink: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.surface },
   transactionLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   pressed: { opacity: 0.75 },
