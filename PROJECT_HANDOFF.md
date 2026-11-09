@@ -24,7 +24,7 @@ BevDist is a single-user beverage distributor POS. The prototype in `Prototype/`
 - Invoice **Deposit** lines add to the amount due. Invoice **Return** lines reduce the amount due. Each line names the container/item, uses a half-case quantity, and has a per-case amount.
 - Supplier Orders have returned-case/item lines only; there is no supplier deposit option. Their refund/credit reduces the supplier order's net cost.
 - Payments apply to the customer's oldest open invoice first. Any unapplied excess becomes customer credit and is not sales.
-- Dashboard expected sales include non-cancelled invoices. Actual Sales is cash applied to invoices; GCash and Bank Transfer remain separate methods.
+- Dashboard **Sales today** uses the Asia/Manila business date: Expected Sales counts non-cancelled invoices created today; Actual Sales counts cash applied today, including payments received today against older invoices. Excess payments are excluded, and GCash/Bank Transfer remain separate methods. The dashboard refreshes its date every minute so the figures roll over after midnight.
 - The client-listed distributor catalog is seeded by migration 012 with zero stock and no selling prices. Enter actual stock and prices in Inventory before selling.
 
 ## Recent commits
@@ -32,6 +32,8 @@ BevDist is a single-user beverage distributor POS. The prototype in `Prototype/`
 The working tree was clean when this handoff was written.
 
 ```text
+6494010 Show daily sales on dashboard
+e2b1b8b docs: add cross-account project handoff
 c96fff1 Rework invoice entry and deposit return flow
 f182d60 Prevent duplicate customer profiles
 1551144 Standardize inventory around generic cases
@@ -62,7 +64,7 @@ These commits are local to `trunk`; check `git status -sb` and `git log` before 
 
 ## Verification status and next checks
 
-Latest focused supplier-order checks passed: Expo lint, 11 Jest UI tests, and 3 desktop Chromium Playwright supplier tests. The broader suites were not rerun after the other recent feature commits. Before a release/demo, run the full supported checks and resolve failures:
+Latest focused checks passed: Expo lint; 10 dashboard sales/payment unit tests; 22 dashboard/business-screen UI tests; 6 desktop Chromium dashboard Playwright tests; and 11 supplier-order UI plus 3 supplier Playwright tests. The full regression suites were not rerun after the other feature commits. Before a release/demo, run the full supported checks and resolve failures:
 
 ```bash
 # From Project/
