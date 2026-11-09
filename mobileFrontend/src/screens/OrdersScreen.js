@@ -33,12 +33,16 @@ import { confirmAction } from '../utils/confirmAction';
 import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoiceExport';
 import { nextInvoiceNumber } from '../components/orders/invoiceNumberPreview';
 import { INVOICE_BUSINESS, formatInvoiceDate } from '../components/orders/invoiceIdentity';
+import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
   { key: 'outstanding', label: 'Outstanding' },
   { key: 'paid', label: 'Fully paid' },
   { key: 'cancelled', label: 'Cancelled' },
+];
+const DATE_FILTERS = [
+  ['all', 'All time'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['previousMonth', 'Last month'], ['custom', 'Custom'],
 ];
 
 const STATUS = {
@@ -50,10 +54,38 @@ const STATUS = {
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
+function manilaDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const part = type => parts.find(value => value.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function invoicePeriodRange(period, today) {
+  if (!period || period === 'all') return null;
+  const date = new Date(`${today}T00:00:00Z`);
+  if (period === 'today') return [today, today];
+  if (period === 'week') {
+    const monday = new Date(date);
+    monday.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+    return [monday.toISOString().slice(0, 10), today];
+  }
+  if (period === 'month') return [`${today.slice(0, 7)}-01`, today];
+  if (period === 'previousMonth') {
+    const previous = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - 1, 1));
+    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 0)).getUTCDate();
+    return [previous.toISOString().slice(0, 10), `${previous.toISOString().slice(0, 7)}-${String(lastDay).padStart(2, '0')}`];
+  }
+  return null;
+}
+
 export function OrdersScreen({ navigation, route }) {
   const { orders, balances, products, customers, saveCustomer, createOrder, editPendingInvoice, updateOrderStatus, getAvailableStock } = useApp();
   const [activeFilter, setActiveFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const [detailOrder, setDetailOrder] = useState(null);
   const [exporting, setExporting] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
@@ -77,6 +109,7 @@ export function OrdersScreen({ navigation, route }) {
   }, [caseToast]);
 
   const invoiceFor = useCallback(order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id)), [balances]);
+  const today = manilaDate();
   const closeInvoiceEditor = () => {
     setCreatingInvoice(false);
     setEditingOrder(null);
@@ -100,16 +133,22 @@ export function OrdersScreen({ navigation, route }) {
       setExporting('');
     }
   };
+  const selectedDateRange = useMemo(() => (dateFilter === 'custom'
+    ? [dateStart || '', dateEnd || '9999-12-31']
+    : invoicePeriodRange(dateFilter, today)), [dateFilter, dateStart, dateEnd, today]);
+  const dateScopedOrders = useMemo(() => orders.filter(order => (
+    !selectedDateRange || ((!selectedDateRange[0] || order.date >= selectedDateRange[0]) && order.date <= selectedDateRange[1])
+  )), [orders, selectedDateRange]);
   const counts = useMemo(() => {
-    const result = { all: orders.length, outstanding: 0, paid: 0, cancelled: 0 };
-    orders.forEach(order => {
+    const result = { all: dateScopedOrders.length, outstanding: 0, paid: 0, cancelled: 0 };
+    dateScopedOrders.forEach(order => {
       const status = invoiceFor(order).status;
       if (status === 'unpaid' || status === 'partial') result.outstanding += 1;
       else if (status === 'paid') result.paid += 1;
       else if (status === 'cancelled') result.cancelled += 1;
     });
     return result;
-  }, [orders, invoiceFor]);
+  }, [dateScopedOrders, invoiceFor]);
 
   const visibleOrders = useMemo(() => orders
     .map(order => ({ ...order, lifecycleStatus: order.status, ...invoiceFor(order) }))
@@ -121,13 +160,18 @@ export function OrdersScreen({ navigation, route }) {
       return !query || order.invoiceNumber.toLocaleLowerCase().includes(query)
         || order.customer.name.toLocaleLowerCase().includes(query);
     })
+    .filter(order => !selectedDateRange || ((!selectedDateRange[0] || order.date >= selectedDateRange[0]) && order.date <= selectedDateRange[1]))
     .slice()
-    .sort((a, b) => b.date.localeCompare(a.date)), [orders, invoiceFor, activeFilter, search]);
+    .sort((a, b) => b.date.localeCompare(a.date)), [orders, invoiceFor, activeFilter, search, selectedDateRange]);
+  const pageCount = Math.max(1, Math.ceil(visibleOrders.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pagedOrders = visibleOrders.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const changePageFilter = setter => value => { setter(value); setPage(1); };
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
       <FlatList
-        data={visibleOrders}
+        data={pagedOrders}
         keyExtractor={order => order.id}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
@@ -150,15 +194,15 @@ export function OrdersScreen({ navigation, route }) {
             </View>
             <Pressable onPress={() => navigation.navigate('CustomerProfiles')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
               <MaterialIcons name="groups" size={18} color={theme.colors.primary} accessible={false} />
-              <Text style={styles.customerProfilesLinkText}>Manage customer profiles</Text>
+              <Text style={styles.customerProfilesLinkText}>View customers</Text>
             </Pressable>
 
             <View style={styles.searchBox}>
               <MaterialIcons name="search" size={22} color={theme.colors.textLight} accessible={false} />
               <TextInput
                 value={search}
-                onChangeText={setSearch}
-                placeholder="Search invoices"
+                onChangeText={changePageFilter(setSearch)}
+                placeholder="Invoice number or customer"
                 placeholderTextColor={theme.colors.placeholder}
                 accessibilityLabel="Search invoices by invoice number or customer"
                 returnKeyType="search"
@@ -166,7 +210,7 @@ export function OrdersScreen({ navigation, route }) {
               />
               {!!search && (
                 <Pressable
-                  onPress={() => setSearch('')}
+                  onPress={() => changePageFilter(setSearch)('')}
                   accessibilityRole="button"
                   accessibilityLabel="Clear invoice search"
                   hitSlop={8}
@@ -177,6 +221,23 @@ export function OrdersScreen({ navigation, route }) {
               )}
             </View>
 
+            <View>
+              <Text style={styles.filterGroupLabel}>Date range</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateFilterRow} accessibilityLabel="Filter invoices by date">
+                {DATE_FILTERS.map(([key, label]) => {
+                  const selected = dateFilter === key;
+                  return <Pressable key={key} onPress={() => changePageFilter(setDateFilter)(key)} accessibilityRole="button" accessibilityState={{ selected }} {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})} style={({ pressed }) => [styles.dateFilterChip, selected && styles.dateFilterChipSelected, pressed && styles.pressed]}>
+                    <Text style={[styles.dateFilterLabel, selected && styles.dateFilterLabelSelected]}>{label === 'Custom' ? 'Date range' : label}</Text>
+                  </Pressable>;
+                })}
+              </ScrollView>
+              {dateFilter === 'custom' ? <View style={styles.customDateRow}>
+                <TextInput value={dateStart} onChangeText={changePageFilter(setDateStart)} placeholder="Start · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Invoice date start" style={styles.dateInput} />
+                <TextInput value={dateEnd} onChangeText={changePageFilter(setDateEnd)} placeholder="End · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Invoice date end" style={styles.dateInput} />
+              </View> : null}
+            </View>
+
+            <Text style={styles.filterGroupLabel}>Payment status</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -188,7 +249,7 @@ export function OrdersScreen({ navigation, route }) {
                 return (
                   <Pressable
                     key={filter.key}
-                    onPress={() => setActiveFilter(filter.key)}
+                    onPress={() => changePageFilter(setActiveFilter)(filter.key)}
                     accessibilityRole="button"
                     accessibilityLabel={`${filter.label}, ${counts[filter.key]} ${counts[filter.key] === 1 ? 'invoice' : 'invoices'}`}
                     accessibilityState={{ selected }}
@@ -221,6 +282,7 @@ export function OrdersScreen({ navigation, route }) {
             <Text style={styles.emptyText}>{search ? 'Try another invoice number or customer name.' : 'There are no invoices in this status yet.'}</Text>
           </View>
         )}
+        ListFooterComponent={<PaginationControls page={currentPage} totalItems={visibleOrders.length} onPageChange={setPage} />}
       />
 
       <OrderDetailModal
@@ -844,8 +906,16 @@ const styles = StyleSheet.create({
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: theme.spacing.md },
   searchInput: { flex: 1, minHeight: 46, fontSize: theme.fontSize.base, color: theme.colors.text, paddingVertical: theme.spacing.sm },
   clearSearch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  filterGroupLabel: { color: theme.colors.text, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, marginTop: theme.spacing.xs, marginBottom: 2 },
   filterList: { gap: theme.spacing.sm, paddingVertical: 2, paddingRight: theme.spacing.md },
   filterChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
+  dateFilterRow: { flexDirection: 'row', gap: theme.spacing.xs, paddingVertical: theme.spacing.xs },
+  dateFilterChip: { minHeight: 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 999, backgroundColor: theme.colors.surface },
+  dateFilterChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  dateFilterLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  dateFilterLabelSelected: { color: theme.colors.onPrimary },
+  customDateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, paddingTop: theme.spacing.sm },
+  dateInput: { minHeight: 44, flexGrow: 1, flexBasis: 145, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.sm },
   filterChipSelected: { backgroundColor: theme.colors.primary },
   filterLabel: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium, color: theme.colors.textLight },
   filterLabelSelected: { color: theme.colors.onPrimary, fontWeight: theme.fontWeight.semibold },
