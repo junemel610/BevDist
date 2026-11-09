@@ -37,7 +37,7 @@ test('invoice product picker filters distributor catalogs and adds saved product
   expect(screen.getByText('INV:')).toBeOnTheScreen();
   expect(screen.getByText(/^INV-\d{6}-\d{8}$/)).toBeOnTheScreen();
   expect(screen.getByText('QTY')).toBeOnTheScreen();
-  expect(screen.getByText('Price')).toBeOnTheScreen();
+  expect(screen.getByText('PRICE')).toBeOnTheScreen();
   expect(screen.getByText('Grand total')).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Select products' }));
   expect(screen.getByText('Coke Tall 8oz')).toBeOnTheScreen();
@@ -311,7 +311,7 @@ test('invoice deposit and return rows switch type and submit the chosen amount c
   await userEvent.press(screen.getByRole('button', { name: 'Remove half a case from deposit or return row 1' }));
   await userEvent.press(screen.getByRole('button', { name: 'Add half a case to deposit or return row 1' }));
   await fireEvent.changeText(screen.getByLabelText('Deposit per case, row 1'), '20');
-  expect(screen.getAllByText('₱120')).toHaveLength(2);
+  expect(screen.getAllByText('₱120')).toHaveLength(3);
   await userEvent.press(screen.getAllByRole('button', { name: 'Create invoice', exact: true }).at(-1));
   await confirm();
   expect(app.createOrder).toHaveBeenCalledWith(app.customers[0], expect.any(Array), [{ kind: 'deposit', type: 'Bottle crate', quantity: 1, amountPerCase: 20 }]);

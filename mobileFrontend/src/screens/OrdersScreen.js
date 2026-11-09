@@ -31,6 +31,7 @@ import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
 import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoiceExport';
 import { nextInvoiceNumber } from '../components/orders/invoiceNumberPreview';
+import { INVOICE_BUSINESS, formatInvoiceDate } from '../components/orders/invoiceIdentity';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -477,6 +478,34 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
+function InvoiceDocumentHeading({ invoiceNumber, date, onClose, closeLabel }) {
+  return <>
+    <View style={styles.invoiceStoreHeader}>
+      <View style={styles.invoiceStoreCopy}>
+        <Text style={styles.invoiceStoreName}>{INVOICE_BUSINESS.name}</Text>
+        <Text style={styles.invoiceStoreSubtitle}>{INVOICE_BUSINESS.street}</Text>
+        <Text style={styles.invoiceStoreSubtitle}>{INVOICE_BUSINESS.city}</Text>
+        <Text style={styles.invoiceStoreSubtitle}>{INVOICE_BUSINESS.contact}</Text>
+      </View>
+      <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={closeLabel} style={[styles.closeButton, styles.invoiceHeaderClose]}>
+        <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
+      </Pressable>
+    </View>
+    <View style={styles.invoiceDraftMeta}>
+      <View style={styles.invoiceDraftMetaRow}>
+        <View style={styles.invoiceNumberBlock}>
+          <Text style={styles.metaCaption}>INV:</Text>
+          <Text style={styles.invoiceDraftNumber}>{invoiceNumber}</Text>
+        </View>
+        <View style={styles.metaDate}>
+          <Text style={styles.metaCaption}>Date:</Text>
+          <Text style={styles.invoiceDraftDate}>{formatInvoiceDate(date)}</Text>
+        </View>
+      </View>
+    </View>
+  </>;
+}
+
 function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onStepQuantity, onClose, onSave, onSetupProduct }) {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const closeModal = () => {
@@ -513,8 +542,9 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
     ))
     : null;
   const closeLabel = editingOrder ? 'Close edit pending invoice' : 'Close create invoice';
-  const todayLabel = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
   const invoiceNumberPreview = editingOrder?.invoiceNumber || nextInvoiceNumber(orders);
+  const paidSoFar = Number(balances.find(balance => balance.orderId === editingOrder?.id)?.amountPaid) || 0;
+  const balanceDue = Math.max(0, total - paidSoFar);
 
   return (
     <OverlayModal visible={visible} onClose={onClose} fullScreen>
@@ -533,29 +563,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
         </View>
         <InvoiceProductPicker products={products} cart={cart} editingOrder={editingOrder} getAvailableStock={getAvailableStock} onChangeQuantity={onChangeQuantity} onStepQuantity={onStepQuantity} onDone={() => setShowProductPicker(false)} onSetupProduct={onSetupProduct} />
       </> : <>
-      <View style={styles.invoiceStoreHeader}>
-        <View style={styles.invoiceStoreCopy}>
-          <Text style={styles.invoiceStoreName}>Mila&apos;s Store</Text>
-          <Text style={styles.invoiceStoreSubtitle}>737 San Diego St</Text>
-          <Text style={styles.invoiceStoreSubtitle}>Sampaloc, Manila, 1008</Text>
-          <Text style={styles.invoiceStoreSubtitle}>CP 09569569553, TEL: 856-70568</Text>
-        </View>
-        <Pressable onPress={closeModal} accessibilityRole="button" accessibilityLabel={closeLabel} style={[styles.closeButton, styles.invoiceHeaderClose]}>
-          <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
-        </Pressable>
-      </View>
-      <View style={styles.invoiceDraftMeta}>
-        <View style={styles.invoiceDraftMetaRow}>
-          <View style={styles.invoiceNumberBlock}>
-            <Text style={styles.metaCaption}>INV:</Text>
-            <Text style={styles.invoiceDraftNumber}>{invoiceNumberPreview}</Text>
-          </View>
-          <View style={styles.metaDate}>
-            <Text style={styles.metaCaption}>Date:</Text>
-            <Text style={styles.invoiceDraftDate}>{todayLabel}</Text>
-          </View>
-        </View>
-      </View>
+      <InvoiceDocumentHeading invoiceNumber={invoiceNumberPreview} date={editingOrder?.date || new Date()} onClose={closeModal} closeLabel={closeLabel} />
       <ScrollView style={styles.createInvoiceScroll} contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
         {!editingOrder ? <View style={styles.createSection}>
           <View style={styles.sectionHeadingRow}>
@@ -636,7 +644,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
           <View style={styles.invoiceTableHeader}>
             <Text style={[styles.invoiceColumnHeading, styles.invoiceProductColumn]}>Product</Text>
             <Text style={[styles.invoiceColumnHeading, styles.invoiceQtyColumn]}>QTY</Text>
-            <Text style={[styles.invoiceColumnHeading, styles.invoicePriceColumn]}>Price</Text>
+            <Text style={[styles.invoiceColumnHeading, styles.invoicePriceColumn]}>PRICE</Text>
           </View>
           <Pressable onPress={() => setShowProductPicker(true)} accessibilityRole="button" accessibilityLabel="Select products" style={({ pressed }) => [styles.invoiceProductSelector, pressed && styles.pressed]}>
             <Text style={styles.invoiceProductSelectorText}>Select Product</Text>
@@ -661,7 +669,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
                     <View key={pack.id} style={styles.invoiceProductRow}>
                       <View style={styles.invoiceProductNameBlock}>
                         <Text style={styles.invoiceProductName}>{product.name}</Text>
-                        <Text style={styles.infoSecondary}>{product.supplier} · {formatPeso(pack.casePrice)} / case</Text>
+                        <Text style={styles.infoSecondary}>{casePackDisplay(pack)} · {formatPeso(pack.casePrice)} per case</Text>
                         {!!quantityError && <Text accessibilityRole="alert" style={styles.quantityError}>{quantityError}</Text>}
                       </View>
                       <View style={[styles.quantityControls, styles.invoiceQtyColumn]}>
@@ -707,6 +715,8 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
           <Text style={styles.invoiceGrandTotalLabel}>Grand total</Text>
           <Text style={styles.invoiceGrandTotalValue}>{formatPeso(total)}</Text>
         </View>
+        <SummaryLine label="Payments and credit applied" value={`−${formatPeso(paidSoFar)}`} />
+        <SummaryLine label="Remaining balance" value={formatPeso(balanceDue)} />
       </ScrollView>
       <View style={styles.createOrderFooter}>
         <View style={styles.createTotal}>
@@ -820,64 +830,58 @@ function InvoiceModal({ onPay, order, balance, onClose, onExportPdf, onExportExc
   const invoice = invoiceSummary(order, balance);
   const invoiceNumber = invoice.invoiceNumber;
   const status = STATUS[invoice.status] ?? STATUS.unpaid;
+  const depositTotal = Number(order.containerDepositTotal) || 0;
+  const returnTotal = Number(order.containerRefundTotal) || 0;
   return (
     <OverlayModal visible={!!order} onClose={onClose} width={width}>
-      <ModalHeader title="Invoice preview" subtitle={invoiceNumber} onClose={onClose} />
-      <ScrollView contentContainerStyle={styles.invoiceBody}>
-        <View style={styles.invoiceBrandRow}>
-          <View style={styles.invoiceBusiness}>
-            <Text style={styles.businessName}>BevDist Distribution Co.</Text>
-            <Text style={styles.infoSecondary}>Beverage distributor</Text>
-            <Text style={styles.infoSecondary}>Metro Manila, Philippines</Text>
-          </View>
-          <View style={styles.invoiceMark}>
-            <Text style={styles.invoiceMarkText}>INVOICE</Text>
-            <Text style={styles.invoiceNumber}>{invoiceNumber}</Text>
-            <Text style={styles.infoSecondary}>{order.date}</Text>
-          </View>
+      <InvoiceDocumentHeading invoiceNumber={invoiceNumber} date={order.date} onClose={onClose} closeLabel="Close invoice preview" />
+      <ScrollView style={styles.invoicePreviewScroll} contentContainerStyle={styles.invoiceBody}>
+        <View style={styles.invoiceCustomerBlock}>
+          <Text style={styles.sectionLabel}>Customer details</Text>
+          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Customer Name:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.name}</Text></View>
+          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Tel No:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.contact || '—'}</Text></View>
+          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Address:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.address || '—'}</Text></View>
         </View>
 
-        <View style={styles.billedTo}>
-          <Text style={styles.sectionLabel}>Billed to</Text>
-          <Text style={styles.infoPrimary}>{order.customer.name}</Text>
-          <Text style={styles.infoSecondary}>{order.customer.contact}</Text>
-          {!!order.customer.address && <Text style={styles.infoSecondary}>{order.customer.address}</Text>}
+        <View style={styles.invoiceTableHeader}>
+          <Text style={[styles.invoiceColumnHeading, styles.invoiceProductColumn]}>Product</Text>
+          <Text style={[styles.invoiceColumnHeading, styles.previewQuantityColumn]}>QTY</Text>
+          <Text style={[styles.invoiceColumnHeading, styles.previewPriceColumn]}>PRICE</Text>
         </View>
-
-        <View style={styles.sectionDivider} />
-        <Text style={styles.sectionLabel}>Invoice items</Text>
         {order.items.map((item, index) => (
           <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
             <View style={styles.itemDescription}>
               <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${formatCaseQuantity(item.quantity)} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
+              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
             </View>
-            <Text style={styles.itemAmount}>{formatPeso(item.quantity * (item.casePrice ?? item.unitPrice))}</Text>
+            <Text style={styles.previewQuantity}>{formatCaseQuantity(item.quantity)}</Text>
+            <Text style={styles.previewAmount}>{formatPeso(caseLineAmount(item.quantity, item.casePrice ?? item.unitPrice))}</Text>
           </View>
         ))}
 
         {(order.containerReturns || []).length > 0 && <View>
           <View style={styles.sectionDivider} />
-          <Text style={styles.sectionLabel}>Deposits and returns</Text>
+          <Text style={styles.sectionLabel}>Deposit / Return</Text>
           {order.containerReturns.map((entry, index) => <View key={entry.id || index} style={styles.invoiceItem}>
-            <View style={styles.itemDescription}><Text style={styles.itemName}>{entry.type}</Text>
-              <Text style={styles.infoSecondary}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'} · {formatCaseQuantity(entry.quantity)} cases × {formatPeso(entry.amountPerCase ?? entry.refundPerCase)} per case</Text></View>
-            <Text style={styles.itemAmount}>{entry.kind === 'deposit' ? '+' : '−'}{formatPeso(refundAmount(entry))}</Text>
+            <View style={styles.itemDescription}><Text style={styles.itemName}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'}: {entry.type}</Text>
+              <Text style={styles.infoSecondary}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'} · {formatPeso(entry.amountPerCase ?? entry.refundPerCase)} per case</Text></View>
+            <Text style={styles.previewQuantity}>{formatCaseQuantity(entry.quantity)}</Text>
+            <Text style={styles.previewAmount}>{entry.kind === 'deposit' ? '+' : '−'}{formatPeso(refundAmount(entry))}</Text>
           </View>)}
         </View>}
-        <DeliveryBadge order={order} />
         <View style={styles.invoiceSummary}>
-          <SummaryLine label="Subtotal" value={formatPeso(order.subtotal)} />
-          {!!order.containerDepositTotal && <SummaryLine label="Container deposits" value={`+${formatPeso(order.containerDepositTotal)}`} />}
-          <SummaryLine label="Container returns" value={`−${formatPeso(order.containerRefundTotal || 0)}`} />
-          <SummaryLine label="Payments and credit applied" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
-          <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
+          <SummaryLine label="Product subtotal" value={formatPeso(order.subtotal)} />
+          <SummaryLine label="Deposits added" value={`+${formatPeso(depositTotal)}`} />
+          <SummaryLine label="Returns deducted" value={`−${formatPeso(returnTotal)}`} />
           <View style={styles.invoiceGrandTotal}>
             <Text style={styles.invoiceTotalLabel}>Grand total</Text>
             <Text style={styles.invoiceTotalValue}>{formatPeso(order.grandTotal)}</Text>
           </View>
+          <SummaryLine label="Payments and credit applied" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
+          <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
         </View>
 
+        <DeliveryBadge order={order} />
         <View style={styles.invoiceStatusNote}>
           <MaterialIcons name={status.icon} size={17} color={status.color} accessible={false} />
           <Text style={[styles.invoiceStatusText, { color: status.color }]}>Payment status: {status.label}</Text>
@@ -1019,8 +1023,10 @@ const styles = StyleSheet.create({
   invoiceTableHeader: { minHeight: 40, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   invoiceColumnHeading: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   invoiceProductColumn: { flex: 1, minWidth: 60 },
-  invoiceQtyColumn: { width: 116, alignItems: 'center' },
+  invoiceQtyColumn: { width: 102, alignItems: 'center' },
   invoicePriceColumn: { width: 88, textAlign: 'right' },
+  previewQuantityColumn: { width: 102, textAlign: 'center' },
+  previewPriceColumn: { width: 88, textAlign: 'right' },
   invoiceProductSelector: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingHorizontal: theme.spacing.sm },
   invoiceProductSelectorText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
   invoiceProductRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 2, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: theme.spacing.sm },
@@ -1088,6 +1094,7 @@ const styles = StyleSheet.create({
   footerButtonOutline: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   footerOutlineText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, color: theme.colors.text },
   invoiceBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
+  invoicePreviewScroll: { flex: 1 },
   invoiceBrandRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: theme.spacing.md },
   invoiceBusiness: { flex: 1, gap: 3 },
   businessName: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: theme.colors.text, marginBottom: 2 },
@@ -1095,7 +1102,13 @@ const styles = StyleSheet.create({
   invoiceMarkText: { backgroundColor: theme.colors.primary, color: theme.colors.onPrimary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold, paddingHorizontal: theme.spacing.sm, paddingVertical: 5, borderRadius: 6, overflow: 'hidden' },
   invoiceNumber: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold, color: theme.colors.text, textAlign: 'right' },
   billedTo: { padding: theme.spacing.md, gap: 3, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.background },
+  invoiceCustomerBlock: { gap: 4 },
+  invoiceCustomerLine: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: 4 },
+  invoiceCustomerLabel: { width: 112, color: theme.colors.text, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  invoiceCustomerValue: { flex: 1, color: theme.colors.text, fontSize: theme.fontSize.sm },
   invoiceItem: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingVertical: theme.spacing.sm, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  previewQuantity: { width: 102, color: theme.colors.text, fontSize: theme.fontSize.sm, textAlign: 'center' },
+  previewAmount: { width: 88, color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, textAlign: 'right' },
   invoiceSummary: { width: '100%', maxWidth: 340, alignSelf: 'flex-end', gap: theme.spacing.sm },
   summaryLine: { minHeight: 28, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.sm },
   summaryLabel: { flex: 1, fontSize: theme.fontSize.sm, color: theme.colors.textLight },
