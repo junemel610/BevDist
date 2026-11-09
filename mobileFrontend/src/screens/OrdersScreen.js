@@ -55,7 +55,6 @@ export function OrdersScreen({ navigation, route }) {
   const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [detailOrder, setDetailOrder] = useState(null);
-  const [invoiceOrder, setInvoiceOrder] = useState(null);
   const [exporting, setExporting] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
@@ -85,13 +84,13 @@ export function OrdersScreen({ navigation, route }) {
     setContainerReturns([]);
     navigation.setParams({ openCreateInvoiceToken: undefined });
   };
-  const exportInvoice = async format => {
-    if (!invoiceOrder) return;
+  const exportInvoice = async (format, order) => {
+    if (!order) return;
     setExporting(format);
     try {
-      const balance = balances.find(item => item.orderId === invoiceOrder.id);
-      if (format === 'pdf') await exportInvoicePdf(invoiceOrder, balance);
-      else await exportInvoiceExcel(invoiceOrder, balance);
+      const balance = balances.find(item => item.orderId === order.id);
+      if (format === 'pdf') await exportInvoicePdf(order, balance);
+      else await exportInvoiceExcel(order, balance);
     } catch (error) {
       console.error('Invoice export failed:', error);
       const message = error?.message || 'Could not create this invoice file. Please try again.';
@@ -226,6 +225,10 @@ export function OrdersScreen({ navigation, route }) {
 
       <OrderDetailModal
         order={detailOrder}
+        width={width}
+        exporting={exporting}
+        onExportPdf={() => exportInvoice('pdf', detailOrder)}
+        onExportExcel={() => exportInvoice('excel', detailOrder)}
         onClose={() => setDetailOrder(null)}
         onEdit={() => {
           if (!detailOrder) return;
@@ -238,10 +241,6 @@ export function OrdersScreen({ navigation, route }) {
             cart[key] = (cart[key] || 0) + Number(item.quantity);
             return cart;
           }, {}));
-          setDetailOrder(null);
-        }}
-        onShowInvoice={() => {
-          setInvoiceOrder(detailOrder);
           setDetailOrder(null);
         }}
         onPay={() => { setPaymentInvoice(detailOrder); setDetailOrder(null); }}
@@ -373,18 +372,6 @@ export function OrdersScreen({ navigation, route }) {
             },
           });
         }}
-      />
-      <InvoiceModal
-        order={invoiceOrder}
-        balance={balances.find(balance => balance.orderId === invoiceOrder?.id)}
-        exporting={exporting}
-        onPay={() => { setPaymentInvoice(invoiceOrder); setInvoiceOrder(null); }}
-        onExportPdf={() => exportInvoice('pdf')}
-        onExportExcel={() => exportInvoice('excel')}
-        onClose={() => {
-          setInvoiceOrder(null);
-        }}
-        width={width}
       />
       {paymentInvoice && <CustomerPaymentModal customerId={paymentInvoice.customerId || paymentInvoice.customer.id} invoiceNumber={paymentInvoice.invoiceNumber} onClose={() => setPaymentInvoice(null)} onSaved={message => { setStockFeedback(false); setCaseToast(message); }} />}
       <FeedbackToast message={caseToast} onDismiss={() => setCaseToast('')} onViewStock={stockFeedback ? () => { setCaseToast(''); navigation.getParent()?.navigate('Inventory'); } : undefined} />
@@ -731,14 +718,14 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
   );
 }
 
-function OrderDetailModal({ onPay, order, onClose, onShowInvoice, onEdit, onMarkDelivered, onCancel }) {
+function OrderDetailModal({ onPay, order, onClose, onEdit, onMarkDelivered, onCancel, onExportPdf, onExportExcel, exporting, width }) {
   if (!order) return null;
   const status = STATUS[order.status] ?? STATUS.unpaid;
   const invoiceNumber = order.invoiceNumber;
   const depositTotal = Number(order.containerDepositTotal) || 0;
   const returnTotal = Number(order.containerRefundTotal) || 0;
   return (
-    <OverlayModal visible={!!order} onClose={onClose}>
+    <OverlayModal visible={!!order} onClose={onClose} width={width} panelStyle={styles.invoiceDetailsPanel}>
       <InvoiceDocumentHeading invoiceNumber={invoiceNumber} date={order.date} onClose={onClose} closeLabel="Close invoice details" />
       <ScrollView style={styles.invoicePreviewScroll} contentContainerStyle={styles.invoiceBody}>
         <View style={styles.invoiceCustomerBlock}>
@@ -795,18 +782,23 @@ function OrderDetailModal({ onPay, order, onClose, onShowInvoice, onEdit, onMark
           <Text style={[styles.invoiceStatusText, { color: status.color }]}>Payment status: {status.label}</Text>
         </View>
       </ScrollView>
-      <View style={styles.modalFooter}>
+      <View style={styles.invoiceDetailsFooter}>
         {order.status !== 'cancelled' && order.remainingBalance > 0 && <Pressable onPress={onPay} accessibilityRole="button" style={[styles.footerButton, { backgroundColor: theme.colors.primary }]}><Text style={styles.paymentActionLabel}>Record payment</Text></Pressable>}
-        <Pressable onPress={onShowInvoice} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
-          <Text style={styles.footerOutlineText}>Preview / export invoice</Text>
-        </Pressable>
-        {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
-          <Pressable onPress={onEdit} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
-            <Text style={styles.footerOutlineText}>Edit invoice</Text>
+        <View style={styles.invoiceExportActions}>
+          <Pressable onPress={onExportPdf} disabled={Boolean(exporting)} accessibilityRole="button" accessibilityLabel={`Export ${invoiceNumber} as PDF`} style={({ pressed }) => [styles.invoiceExportButton, pressed && styles.pressed, exporting && styles.exportDisabled]}>
+            <MaterialIcons name="picture-as-pdf" size={19} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.invoiceExportLabel}>{exporting === 'pdf' ? 'Preparing…' : 'Export PDF'}</Text>
           </Pressable>
-        ) : null}
-          {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
-          <>
+          <Pressable onPress={onExportExcel} disabled={Boolean(exporting)} accessibilityRole="button" accessibilityLabel={`Export ${invoiceNumber} as Excel`} style={({ pressed }) => [styles.invoiceExportButton, pressed && styles.pressed, exporting && styles.exportDisabled]}>
+            <MaterialIcons name="table-chart" size={19} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.invoiceExportLabel}>{exporting === 'excel' ? 'Preparing…' : 'Export Excel'}</Text>
+          </Pressable>
+        </View>
+        {order.lifecycleStatus === 'pending' && order.deliveryStatus !== 'delivered' ? (
+          <View style={styles.invoiceManagementActions}>
+            <Pressable onPress={onEdit} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
+              <Text style={styles.footerOutlineText}>Edit invoice</Text>
+            </Pressable>
             {order.amountPaid === 0 ? (
               <Pressable onPress={onCancel} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
                 <Text style={styles.footerOutlineText}>Cancel invoice</Text>
@@ -815,105 +807,8 @@ function OrderDetailModal({ onPay, order, onClose, onShowInvoice, onEdit, onMark
             <Pressable onPress={onMarkDelivered} style={({ pressed }) => [styles.footerButton, styles.createSubmit, pressed && styles.pressed]}>
               <Text style={styles.createSubmitText}>Mark delivered</Text>
             </Pressable>
-          </>
+          </View>
         ) : null}
-        <Pressable onPress={onClose} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, pressed && styles.pressed]}>
-          <Text style={styles.footerOutlineText}>Close</Text>
-        </Pressable>
-      </View>
-    </OverlayModal>
-  );
-}
-
-function InvoiceModal({ onPay, order, balance, onClose, onExportPdf, onExportExcel, exporting, width }) {
-  if (!order) return null;
-  const invoice = invoiceSummary(order, balance);
-  const invoiceNumber = invoice.invoiceNumber;
-  const status = STATUS[invoice.status] ?? STATUS.unpaid;
-  const depositTotal = Number(order.containerDepositTotal) || 0;
-  const returnTotal = Number(order.containerRefundTotal) || 0;
-  return (
-    <OverlayModal visible={!!order} onClose={onClose} width={width}>
-      <InvoiceDocumentHeading invoiceNumber={invoiceNumber} date={order.date} onClose={onClose} closeLabel="Close invoice preview" />
-      <ScrollView style={styles.invoicePreviewScroll} contentContainerStyle={styles.invoiceBody}>
-        <View style={styles.invoiceCustomerBlock}>
-          <Text style={styles.sectionLabel}>Customer details</Text>
-          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Customer Name:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.name}</Text></View>
-          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Tel No:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.contact || '—'}</Text></View>
-          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Address:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.address || '—'}</Text></View>
-        </View>
-
-        <View style={styles.invoiceTableHeader}>
-          <Text style={[styles.invoiceColumnHeading, styles.invoiceProductColumn]}>Product</Text>
-          <Text style={[styles.invoiceColumnHeading, styles.previewQuantityColumn]}>QTY</Text>
-          <Text style={[styles.invoiceColumnHeading, styles.previewPriceColumn]}>PRICE</Text>
-        </View>
-        {order.items.map((item, index) => (
-          <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
-            <View style={styles.itemDescription}>
-              <Text style={styles.itemName}>{item.productName}</Text>
-              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
-            </View>
-            <Text style={styles.previewQuantity}>{formatCaseQuantity(item.quantity)}</Text>
-            <Text style={styles.previewAmount}>{formatPeso(caseLineAmount(item.quantity, item.casePrice ?? item.unitPrice))}</Text>
-          </View>
-        ))}
-
-        {(order.containerReturns || []).length > 0 && <View>
-          <View style={styles.sectionDivider} />
-          <Text style={styles.sectionLabel}>Deposit / Return</Text>
-          {order.containerReturns.map((entry, index) => <View key={entry.id || index} style={styles.invoiceItem}>
-            <View style={styles.itemDescription}><Text style={styles.itemName}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'}: {entry.type}</Text>
-              <Text style={styles.infoSecondary}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'} · {formatPeso(entry.amountPerCase ?? entry.refundPerCase)} per case</Text></View>
-            <Text style={styles.previewQuantity}>{formatCaseQuantity(entry.quantity)}</Text>
-            <Text style={styles.previewAmount}>{entry.kind === 'deposit' ? '+' : '−'}{formatPeso(refundAmount(entry))}</Text>
-          </View>)}
-        </View>}
-        <View style={styles.invoiceSummary}>
-          <SummaryLine label="Product subtotal" value={formatPeso(order.subtotal)} />
-          <SummaryLine label="Deposits added" value={`+${formatPeso(depositTotal)}`} />
-          <SummaryLine label="Returns deducted" value={`−${formatPeso(returnTotal)}`} />
-          <View style={styles.invoiceGrandTotal}>
-            <Text style={styles.invoiceTotalLabel}>Grand total</Text>
-            <Text style={styles.invoiceTotalValue}>{formatPeso(order.grandTotal)}</Text>
-          </View>
-          <SummaryLine label="Payments and credit applied" value={`−${formatPeso(invoice.amountPaid)}`} valueColor={theme.colors.success} />
-          <SummaryLine label="Remaining balance" value={formatPeso(invoice.remainingBalance)} valueColor={invoice.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
-        </View>
-
-        <DeliveryBadge order={order} />
-        <View style={styles.invoiceStatusNote}>
-          <MaterialIcons name={status.icon} size={17} color={status.color} accessible={false} />
-          <Text style={[styles.invoiceStatusText, { color: status.color }]}>Payment status: {status.label}</Text>
-        </View>
-      </ScrollView>
-      <View style={styles.invoiceModalFooter}>
-        {invoice.status !== 'cancelled' && invoice.remainingBalance > 0 && <Pressable onPress={onPay} accessibilityRole="button" style={[styles.footerButton, { backgroundColor: theme.colors.primary }]}><Text style={styles.paymentActionLabel}>Record payment</Text></Pressable>}
-        <View style={styles.invoiceExportActions}>
-          <Pressable
-            onPress={onExportPdf}
-            disabled={Boolean(exporting)}
-            accessibilityRole="button"
-            accessibilityLabel={`Export ${invoiceNumber} as PDF`}
-            style={({ pressed }) => [styles.invoiceExportButton, pressed && styles.pressed, exporting && styles.exportDisabled]}
-          >
-            <MaterialIcons name="picture-as-pdf" size={19} color={theme.colors.primary} accessible={false} />
-            <Text style={styles.invoiceExportLabel}>{exporting === 'pdf' ? 'Preparing…' : 'Export PDF'}</Text>
-          </Pressable>
-          <Pressable
-            onPress={onExportExcel}
-            disabled={Boolean(exporting)}
-            accessibilityRole="button"
-            accessibilityLabel={`Export ${invoiceNumber} as Excel`}
-            style={({ pressed }) => [styles.invoiceExportButton, pressed && styles.pressed, exporting && styles.exportDisabled]}
-          >
-            <MaterialIcons name="table-chart" size={19} color={theme.colors.primary} accessible={false} />
-            <Text style={styles.invoiceExportLabel}>{exporting === 'excel' ? 'Preparing…' : 'Export Excel'}</Text>
-          </Pressable>
-        </View>
-        <Pressable onPress={onClose} style={({ pressed }) => [styles.footerButton, styles.footerButtonOutline, styles.invoiceCloseButton, pressed && styles.pressed]}>
-          <Text style={styles.footerOutlineText}>Close preview</Text>
-        </Pressable>
       </View>
     </OverlayModal>
   );
@@ -1084,11 +979,12 @@ const styles = StyleSheet.create({
   grandTotalLabel: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   grandTotalValue: { fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.primary },
   modalFooter: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
-  invoiceModalFooter: { gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  invoiceDetailsPanel: { maxWidth: 980 },
+  invoiceDetailsFooter: { gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  invoiceManagementActions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: theme.spacing.sm },
   invoiceExportActions: { flexDirection: 'row', gap: theme.spacing.sm },
   invoiceExportButton: { minHeight: 48, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.sm, borderRadius: 9, backgroundColor: theme.colors.primarySoft },
   invoiceExportLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  invoiceCloseButton: { alignSelf: 'flex-end' },
   exportDisabled: { opacity: 0.6 },
   footerButton: { minHeight: 48, minWidth: 112, alignItems: 'center', justifyContent: 'center', borderRadius: 9, paddingHorizontal: theme.spacing.lg },
   footerButtonOutline: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
