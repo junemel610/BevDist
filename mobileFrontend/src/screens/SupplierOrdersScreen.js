@@ -330,24 +330,25 @@ export function SupplierOrdersScreen() {
         </View>}
         <Modal visible={!historyMode} animationType="slide" onRequestClose={() => setHistoryMode(true)}>
           <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-              <View style={[styles.pageHeading, styles.pageHeadingBand]}>
-                <View style={styles.headingCopy}>
-                  <Text accessibilityRole="header" style={styles.title}>Create supplier order</Text>
-                  <Text style={styles.subtitle}>Record products received and returned cases.</Text>
+            <View style={styles.createModal}>
+            <ScrollView style={styles.createScroll} contentContainerStyle={styles.createContent} keyboardShouldPersistTaps="handled">
+              <View style={styles.createHeader}>
+                <View style={styles.createHeaderCopy}>
+                  <Text accessibilityRole="header" style={styles.createTitle}>Supplier order</Text>
+                  <Text style={styles.createSubtitle}>Record products received and returned cases.</Text>
                 </View>
-                <Pressable onPress={() => setHistoryMode(true)} accessibilityRole="button" accessibilityLabel="Close create supplier order" style={({ pressed }) => [styles.closeHeadingAction, pressed && styles.pressed]}>
-                  <MaterialIcons name="close" size={22} color={theme.colors.primary} accessible={false} />
+                <Pressable onPress={() => setHistoryMode(true)} accessibilityRole="button" accessibilityLabel="Close create supplier order" style={({ pressed }) => [styles.createClose, pressed && styles.pressed]}>
+                  <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
                 </Pressable>
               </View>
         <View style={styles.orderMeta}>
-          <View>
-            <Text style={styles.metaCaption}>ORDER NO.</Text>
-            <Text style={styles.metaValue} accessibilityLabel={`Order number ${orderNumberPreview}`}>{orderNumberPreview}</Text>
+          <View style={styles.orderNumberBlock}>
+            <Text style={styles.metaCaption}>ORD:</Text>
+            <Text style={styles.orderNumberValue} accessibilityLabel={`Order number ${orderNumberPreview}`}>{orderNumberPreview}</Text>
           </View>
-          <View style={styles.metaDate}>
-            <Text style={styles.metaCaption}>DATE</Text>
-            <Text style={styles.metaValue}>{todayLabel}</Text>
+          <View style={styles.orderDateBlock}>
+            <Text style={styles.metaCaption}>Date:</Text>
+            <Text style={styles.orderDateValue}>{todayLabel}</Text>
           </View>
         </View>
 
@@ -419,8 +420,12 @@ export function SupplierOrdersScreen() {
           </View>
 
           <View style={styles.productTableHeader}>
-            <Text style={styles.tableHeading}>ITEMS RECEIVED</Text>
-            <Text style={styles.tableHint}>Quantity · Cost per case · Line total</Text>
+            <Text style={styles.tableHeading}>Products received</Text>
+          </View>
+          <View style={styles.productFieldHeadings}>
+            <Text style={[styles.fieldHeading, styles.quantityField]}>Quantity (cases)</Text>
+            <Text style={[styles.fieldHeading, styles.costField]}>Supplier cost / case</Text>
+            <Text style={[styles.fieldHeading, styles.totalField]}>Line total</Text>
           </View>
 
           {items.length === 0 ? (
@@ -432,9 +437,6 @@ export function SupplierOrdersScreen() {
           ) : items.map(item => (
             <View key={item.rowKey} style={styles.orderItem}>
               <View style={styles.orderItemHeading}>
-                <View style={styles.itemIcon}>
-                  <MaterialIcons name="local-drink" size={19} color={theme.colors.primary} accessible={false} />
-                </View>
                 <View style={styles.itemNameBlock}>
                   <Text style={styles.itemName}>{item.productName}</Text>
                   <Text style={styles.itemMeta}>{item.newProductKey ? `${item.packLabel} · new product; stock is added when saved` : `${item.packLabel} · current stock: ${formatCaseQuantity(stockForCasePack(products.find(product => product.id === item.productId), item.packId).totalStock)} cases`}</Text>
@@ -444,8 +446,7 @@ export function SupplierOrdersScreen() {
                 </Pressable>
               </View>
               <View style={styles.fieldsRow}>
-                <View style={[styles.itemField, styles.quantityField]}>
-                  <Text style={styles.fieldLabel}>Quantity (cases)</Text>
+                <View style={styles.quantityField}>
                   <TextInput
                     value={String(item.quantity)}
                     onChangeText={value => updateItem(item.rowKey, 'quantity', value)}
@@ -456,8 +457,7 @@ export function SupplierOrdersScreen() {
                     style={styles.input}
                   />
                 </View>
-                <View style={[styles.itemField, styles.costField]}>
-                  <Text style={styles.fieldLabel}>Supplier cost per case</Text>
+                <View style={styles.costField}>
                   <PesoInput
                     value={String(item.unitCost)}
                     onChangeText={value => updateItem(item.rowKey, 'unitCost', value)}
@@ -469,7 +469,6 @@ export function SupplierOrdersScreen() {
                   />
                 </View>
                 <View style={styles.lineTotal}>
-                  <Text style={styles.fieldLabel}>Line total</Text>
                   <Text style={styles.lineTotalValue}>{formatPeso((Number(item.quantity) || 0) * (Number(item.unitCost) || 0))}</Text>
                 </View>
               </View>
@@ -501,46 +500,20 @@ export function SupplierOrdersScreen() {
           <Text style={styles.sectionTitle}>Order total</Text>
           <SummaryLine label="Products received" amount={totals.productCost} />
           <SummaryLine label="Returned case credits" amount={totals.returnCredit} negative />
-          <View style={styles.netRow}>
-            <Text style={styles.netLabel}>Net cost</Text>
-            <Text style={styles.netValue}>{formatPeso(totals.netCost)}</Text>
-          </View>
-          {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-          <Pressable
-            onPress={saveOrder}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}
-          >
-            <MaterialIcons name="save" size={19} color={theme.colors.onPrimary} accessible={false} />
-            <Text style={styles.saveLabel}>Save supplier order</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.historySection}>
-          <View style={styles.historyHeading}>
-            <Text style={styles.sectionTitle}>Recent supplier orders</Text>
-            <Text style={styles.historyCount}>{restockRecords.length}</Text>
-          </View>
-          {restockRecords.length ? restockRecords.slice(0, 5).map(record => (
-            <Pressable key={record.id} onPress={() => setSelectedRecord(record)} accessibilityRole="button" accessibilityLabel={`View ${record.supplier} supplier order from ${record.date}`} accessibilityHint="Opens supplier order details" style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
-              <View style={styles.historyIcon}>
-                <MaterialIcons name="local-shipping" size={18} color={theme.colors.primary} accessible={false} />
-              </View>
-              <View style={styles.historyCopy}>
-                <Text style={styles.historySupplier}>{record.supplier}</Text>
-                <Text style={styles.historyMeta}>{record.date} · {record.items.length} {record.items.length === 1 ? 'product' : 'products'}</Text>
-              </View>
-              <View style={styles.historyTotal}>
-                <Text style={styles.historyAmount}>{formatPeso(record.netCost)}</Text>
-                <Text style={styles.historyCaption}>Net cost</Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={22} color={theme.colors.textLight} accessible={false} />
-            </Pressable>
-          )) : (
-            <Text style={styles.historyEmpty}>Saved supplier orders will appear here.</Text>
-          )}
         </View>
             </ScrollView>
+            <View style={styles.createFooter}>
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+              <View style={styles.footerTotal}>
+                <Text style={styles.footerCaption}>Net cost</Text>
+                <Text style={styles.footerAmount}>{formatPeso(totals.netCost)}</Text>
+              </View>
+              <Pressable onPress={saveOrder} accessibilityRole="button" accessibilityLabel="Save supplier order" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
+                <MaterialIcons name="save" size={19} color={theme.colors.onPrimary} accessible={false} />
+                <Text style={styles.saveLabel}>Save supplier order</Text>
+              </Pressable>
+            </View>
+            </View>
           </SafeAreaView>
         </Modal>
       </ScrollView>
@@ -722,19 +695,33 @@ function SummaryLine({ label, amount, negative = false }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   content: { width: '100%', maxWidth: theme.layout.maxContentWidth, alignSelf: 'center', padding: theme.spacing.lg, paddingBottom: theme.spacing['2xl'], gap: theme.spacing.md },
+  createModal: { flex: 1, backgroundColor: theme.colors.background },
+  createScroll: { flex: 1 },
+  createContent: { width: '100%', maxWidth: theme.layout.maxContentWidth, alignSelf: 'center', padding: theme.spacing.lg, gap: theme.spacing.lg },
+  createHeader: { minHeight: 116, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, backgroundColor: theme.colors.primary },
+  createHeaderCopy: { flex: 1, alignItems: 'center' },
+  createTitle: { color: theme.colors.onPrimary, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, textAlign: 'center' },
+  createSubtitle: { color: theme.colors.onPrimaryMuted, fontSize: theme.fontSize.sm, marginTop: 2, textAlign: 'center' },
+  createClose: { position: 'absolute', right: theme.spacing.md, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: theme.colors.onPrimaryOverlay },
+  createFooter: { gap: theme.spacing.sm, padding: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background },
+  footerTotal: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, borderRadius: 9, backgroundColor: theme.colors.primary },
+  footerCaption: { color: theme.colors.onPrimary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  footerAmount: { color: theme.colors.onPrimary, fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold },
   pageHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.xs },
   headingCopy: { flex: 1 },
   pageHeadingBand: { marginHorizontal: -theme.spacing.lg, marginTop: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
   title: { color: theme.colors.onPrimary, fontSize: theme.fontSize['2xl'], fontWeight: theme.fontWeight.bold },
   subtitle: { color: theme.colors.onPrimary, opacity: 0.82, fontSize: theme.fontSize.sm, marginTop: theme.spacing.xs },
-  orderMeta: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
-  metaCaption: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, letterSpacing: 0.5 },
-  metaValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 4 },
-  metaDate: { alignItems: 'flex-end' },
+  orderMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: theme.spacing.md, paddingBottom: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  orderNumberBlock: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.xs },
+  orderDateBlock: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.xs },
+  metaCaption: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium },
+  orderNumberValue: { minWidth: 132, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: theme.colors.text, color: theme.colors.text, fontSize: theme.fontSize.xs },
+  orderDateValue: { minWidth: 110, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: theme.colors.text, color: theme.colors.text, fontSize: theme.fontSize.xs, textAlign: 'center' },
   headingAction: { minHeight: 46, maxWidth: 210, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surface },
   closeHeadingAction: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 23, backgroundColor: theme.colors.surface },
   headingActionLabel: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
-  section: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
+  section: { gap: theme.spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
   sectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   sectionHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
@@ -751,28 +738,30 @@ const styles = StyleSheet.create({
   emptyProducts: { alignItems: 'center', paddingVertical: theme.spacing.xl, borderWidth: 1, borderColor: theme.colors.border, borderStyle: 'dashed', borderRadius: 12 },
   emptyTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: theme.spacing.sm },
   emptyHint: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
-  productTableHeader: { minHeight: 40, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.xs, borderBottomWidth: 1, borderBottomColor: theme.colors.border, marginTop: theme.spacing.xs },
-  tableHeading: { color: theme.colors.textLight, fontSize: 10, fontWeight: theme.fontWeight.bold, letterSpacing: 0.45 },
-  tableHint: { color: theme.colors.textLight, fontSize: 10 },
-  orderItem: { paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  productTableHeader: { minHeight: 40, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.border, marginTop: theme.spacing.xs },
+  tableHeading: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
+  productFieldHeadings: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.sm, paddingTop: theme.spacing.sm },
+  fieldHeading: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  orderItem: { paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surface },
   orderItemHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   itemIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: theme.colors.primarySoft },
   itemNameBlock: { flex: 1 },
   itemName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   itemMeta: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
   removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  fieldsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.sm, paddingLeft: 46 },
+  fieldsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.xs },
   itemField: { flexGrow: 1, flexBasis: 120, minWidth: 110 },
-  quantityField: { maxWidth: 150 },
-  costField: { maxWidth: 190 },
+  quantityField: { flex: 1, minWidth: 96 },
+  costField: { flex: 1.35, minWidth: 150 },
+  totalField: { flex: 0.8, minWidth: 82, textAlign: 'right' },
   fieldLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginBottom: 5 },
   input: { minHeight: 48, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
-  lineTotal: { minWidth: 72, alignItems: 'flex-end', paddingBottom: 12 },
+  lineTotal: { flex: 0.8, minWidth: 82, alignItems: 'flex-end' },
   lineTotalValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   creditTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   creditTotalLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotalValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  summarySection: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
+  summarySection: { gap: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md },
   summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md },
   summaryLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
   summaryAmount: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },

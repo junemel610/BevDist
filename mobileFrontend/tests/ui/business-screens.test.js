@@ -269,6 +269,11 @@ test('invoice and supplier order create actions open modals from the page header
   expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
   expect(screen.getByLabelText(/Order number ORD-\d{6}-\d{8}/)).toBeOnTheScreen();
+  expect(screen.getByText('Supplier order', { exact: true })).toBeOnTheScreen();
+  expect(screen.getAllByText('Products received').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Net cost').length).toBeGreaterThan(0);
+  expect(screen.queryByText('Recent supplier orders')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Save supplier order' })).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Close create supplier order', exact: true }));
   expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
   await rendered.unmount();
