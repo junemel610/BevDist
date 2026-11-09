@@ -271,7 +271,6 @@ export function OrdersScreen({ navigation, route }) {
       />
       <CreateInvoiceModal
         visible={creatingInvoice || Boolean(route.params?.openCreateInvoiceToken) || Boolean(editingOrder)}
-        width={width}
         products={invoiceProducts}
         customers={customers}
         balances={balances}
@@ -441,13 +440,19 @@ function OrderCard({ order, compact, onView }) {
   );
 }
 
-function OverlayModal({ visible, onClose, children, width, panelStyle }) {
+function OverlayModal({ visible, onClose, children, width, panelStyle, fullScreen = false }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalScrim}>
-        <View style={[styles.modalPanel, width > 720 && styles.wideModalPanel, panelStyle]}>
-          {children}
-        </View>
+    <Modal visible={visible} transparent={!fullScreen} animationType={fullScreen ? 'slide' : 'fade'} onRequestClose={onClose}>
+      <View style={fullScreen ? styles.fullScreenScrim : styles.modalScrim}>
+        {fullScreen ? (
+          <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.fullScreenPanel}>
+            {children}
+          </SafeAreaView>
+        ) : (
+          <View style={[styles.modalPanel, width > 720 && styles.wideModalPanel, panelStyle]}>
+            {children}
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -472,7 +477,7 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onStepQuantity, onClose, onSave, onSetupProduct }) {
+function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onStepQuantity, onClose, onSave, onSetupProduct }) {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const closeModal = () => {
     setShowProductPicker(false);
@@ -512,7 +517,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
   const invoiceNumberPreview = editingOrder?.invoiceNumber || nextInvoiceNumber(orders);
 
   return (
-    <OverlayModal visible={visible} onClose={onClose} width={width} panelStyle={showProductPicker && styles.productPickerPanel}>
+    <OverlayModal visible={visible} onClose={onClose} fullScreen>
       {showProductPicker ? <>
         <View style={styles.pickerPageHeader}>
           <Pressable onPress={() => setShowProductPicker(false)} accessibilityRole="button" accessibilityLabel="Back to invoice" style={styles.pickerBackButton}>
@@ -551,7 +556,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
           </View>
         </View>
       </View>
-      <ScrollView contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.createInvoiceScroll} contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
         {!editingOrder ? <View style={styles.createSection}>
           <View style={styles.sectionHeadingRow}>
             <Text style={styles.createSectionTitle}>Customer details</Text>
@@ -974,8 +979,9 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: theme.fontSize.lg, fontWeight: theme.fontWeight.bold, color: theme.colors.text },
   emptyText: { marginTop: theme.spacing.xs, fontSize: theme.fontSize.sm, color: theme.colors.textLight, textAlign: 'center', lineHeight: 21 },
   modalScrim: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.overlay },
+  fullScreenScrim: { flex: 1, backgroundColor: theme.colors.surface },
   modalPanel: { width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: theme.colors.surface, borderRadius: 16, overflow: 'hidden' },
-  productPickerPanel: { height: '92%' },
+  fullScreenPanel: { flex: 1, width: '100%', backgroundColor: theme.colors.surface, overflow: 'hidden' },
   wideModalPanel: { maxWidth: 760 },
   modalHeader: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
   pickerPageHeader: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, backgroundColor: theme.colors.primary },
@@ -985,6 +991,7 @@ const styles = StyleSheet.create({
   modalSubtitle: { fontSize: theme.fontSize.sm, color: theme.colors.onPrimaryMuted, marginTop: 3 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: theme.colors.onPrimaryOverlay },
   modalBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
+  createInvoiceScroll: { flex: 1 },
   createOrderBody: { padding: theme.spacing.lg, gap: theme.spacing.lg },
   invoiceStoreHeader: { minHeight: 116, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
   invoiceStoreCopy: { flex: 1, minWidth: 0, alignItems: 'center' },
