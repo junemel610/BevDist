@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { PesoInput } from '../components/ui/PesoInput';
+import { DiscardDraftModal } from '../components/ui/DiscardDraftModal';
 import { ContainerReturnEditor } from '../components/orders/ContainerReturnEditor';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
@@ -71,6 +72,7 @@ export function SupplierOrdersScreen() {
   const [items, setItems] = useState([]);
   const [returnedCases, setReturnedCases] = useState([]);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [discardOrderVisible, setDiscardOrderVisible] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -134,6 +136,21 @@ export function SupplierOrdersScreen() {
       return;
     }
     apply();
+  };
+
+  const requestCloseOrder = () => setDiscardOrderVisible(true);
+  const discardSupplierOrder = () => {
+    setDiscardOrderVisible(false);
+    setPickerVisible(false);
+    setSupplierEditorVisible(false);
+    setProductEditorVisible(false);
+    setSupplier('');
+    setSupplierDraft(null);
+    setItems([]);
+    setNewProducts([]);
+    setReturnedCases([]);
+    setError('');
+    setHistoryMode(true);
   };
 
   const addProduct = (product, pack) => {
@@ -328,7 +345,7 @@ export function SupplierOrdersScreen() {
             )) : <Text style={styles.historyEmpty}>{restockRecords.length ? 'No supplier orders match these filters.' : 'Saved supplier orders will appear here.'}</Text>}
           </View>
         </View>}
-        <Modal visible={!historyMode} animationType="slide" onRequestClose={() => setHistoryMode(true)}>
+        <Modal visible={!historyMode} animationType="slide" onRequestClose={requestCloseOrder}>
           <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
             <View style={styles.createModal}>
             <ScrollView style={styles.createScroll} contentContainerStyle={styles.createContent} keyboardShouldPersistTaps="handled">
@@ -337,7 +354,7 @@ export function SupplierOrdersScreen() {
                   <Text accessibilityRole="header" style={styles.createTitle}>Supplier order</Text>
                   <Text style={styles.createSubtitle}>Record products received and returned cases.</Text>
                 </View>
-                <Pressable onPress={() => setHistoryMode(true)} accessibilityRole="button" accessibilityLabel="Close create supplier order" style={({ pressed }) => [styles.createClose, pressed && styles.pressed]}>
+                <Pressable onPress={requestCloseOrder} accessibilityRole="button" accessibilityLabel="Close create supplier order" style={({ pressed }) => [styles.createClose, pressed && styles.pressed]}>
                   <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
                 </Pressable>
               </View>
@@ -518,6 +535,15 @@ export function SupplierOrdersScreen() {
         </Modal>
       </ScrollView>
 
+      <DiscardDraftModal
+        visible={discardOrderVisible}
+        title="Discard this supplier order?"
+        message="This order has not been saved. Leaving now will discard the supplier, products, quantities, and return credits in this draft."
+        onKeepEditing={() => setDiscardOrderVisible(false)}
+        onDiscard={discardSupplierOrder}
+        discardLabel="Discard order"
+      />
+
       <Modal visible={pickerVisible} transparent animationType="slide" onRequestClose={() => setPickerVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.pickerSheet}>
@@ -541,7 +567,7 @@ export function SupplierOrdersScreen() {
                 style={styles.searchInput}
               />
             </View>
-            <ScrollView>
+            <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
               <Pressable onPress={() => { setError(''); setProductName(''); setCasePrices({}); setPickerVisible(false); setProductEditorVisible(true); }} accessibilityRole="button" style={({ pressed }) => [styles.createProductOption, pressed && styles.pressed]}>
                 <MaterialIcons name="add-box" size={20} color={theme.colors.primary} accessible={false} />
                 <View style={styles.headingCopy}>
@@ -793,7 +819,8 @@ const styles = StyleSheet.create({
   historyCaption: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
   historyEmpty: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, paddingVertical: theme.spacing.lg },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: theme.colors.overlay },
-  pickerSheet: { maxHeight: '78%', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
+  pickerSheet: { width: '100%', height: '88%', maxHeight: '94%', minHeight: '70%', maxWidth: 760, alignSelf: 'center', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
+  pickerList: { flex: 1 },
   detailSheet: { maxHeight: '85%', padding: theme.spacing.lg, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: theme.colors.surface },
   detailContent: { gap: theme.spacing.sm, paddingBottom: theme.spacing.md },
   detailSectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold, marginTop: theme.spacing.sm },
