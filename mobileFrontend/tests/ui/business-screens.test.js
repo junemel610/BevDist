@@ -212,24 +212,23 @@ test('dashboard shows payment methods and quick create opens the invoice modal r
 
 test('supplier order validates empty orders before creating a receipt', async () => {
   await render(<SupplierOrdersScreen />);
+  await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
   await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
   expect(screen.getByText('Add at least one product line before saving.')).toBeOnTheScreen();
   expect(app.addRestockRecord).not.toHaveBeenCalled();
 });
 
-test('invoice and supplier order screens share the same create/history navigation pattern', async () => {
+test('invoice and supplier order create actions sit in the page header and return to history', async () => {
   await invoiceScreen();
-  expect(screen.getByRole('button', { name: 'Invoice history', selected: true })).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Create invoice' }));
-  expect(screen.getByRole('button', { name: 'Create invoice', selected: true })).toBeOnTheScreen();
   expect(screen.getByText("Mila's Store")).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Close create invoice' }));
-  expect(screen.getByRole('button', { name: 'Invoice history', selected: true })).toBeOnTheScreen();
 
   const rendered = await render(<SupplierOrdersScreen />);
-  expect(screen.getByRole('button', { name: 'Create supplier order', selected: true })).toBeOnTheScreen();
-  await userEvent.press(screen.getByRole('button', { name: 'Order history (0)' }));
-  expect(screen.getByRole('button', { name: 'Order history (0)', selected: true })).toBeOnTheScreen();
+  expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
+  expect(screen.getByText('Create supplier order')).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Order history', exact: true }));
   expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
   await rendered.unmount();
 });
@@ -240,7 +239,6 @@ test('supplier order history filters by custom dates and supplier and opens matc
     { id: 'history-other', orderNumber: 'SUP-00000002', supplier: 'Supplier One', date: '2026-11-02', items: [{ productName: 'Cola', packLabel: 'Case', quantity: 1, unitCost: 80 }], returnedCases: [], netCost: 80 },
   ];
   await render(<SupplierOrdersScreen />);
-  await userEvent.press(screen.getByRole('button', { name: 'Order history (2)' }));
   await userEvent.press(screen.getByRole('button', { name: 'Date range' }));
   await fireEvent.changeText(screen.getByLabelText('Order history start date'), '2026-10-01');
   await fireEvent.changeText(screen.getByLabelText('Order history end date'), '2026-10-31');
@@ -255,6 +253,7 @@ test('supplier order history filters by custom dates and supplier and opens matc
 test('saved supplier cost prefills an order and remains independently editable', async () => {
   app.products[0].supplierCosts = { B: 72 };
   await render(<SupplierOrdersScreen />);
+  await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
   await userEvent.press(screen.getByRole('button', { name: 'Add product' }));
   await userEvent.press(screen.getByRole('button', { name: /Cola/ }));
   const cost = screen.getByLabelText('Cola supplier cost per case in pesos');
@@ -304,6 +303,7 @@ test('invoice deposit and return rows switch type and submit the chosen amount c
 test('supplier order accepts half cases, confirms saving and opens historical details', async () => {
   app.restockRecords = [{ id: 'history-1', supplier: 'Supplier One', date: '2026-10-24', items: [{ productName: 'Historic Cola', packLabel: 'A', quantity: 1, unitCost: 80 }], returnedCases: [], netCost: 80 }];
   await render(<SupplierOrdersScreen />);
+  await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
   await userEvent.press(screen.getByRole('button', { name: 'Add product' }));
   await userEvent.press(screen.getByRole('button', { name: /Cola/ }));
   await fireEvent.changeText(screen.getByLabelText('Cola quantity in cases'), '0.5');

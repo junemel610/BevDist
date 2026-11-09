@@ -31,7 +31,6 @@ import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
 import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoiceExport';
 import { nextInvoiceNumber } from '../components/orders/invoiceNumberPreview';
-import { TransactionModeSelector } from '../components/ui/TransactionModeSelector';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -69,7 +68,6 @@ export function OrdersScreen({ navigation, route }) {
   const [stockFeedback, setStockFeedback] = useState(false);
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 * Math.min(fontScale, 1.25);
-  const invoiceEditorActive = creatingInvoice || Boolean(route.params?.openCreateInvoiceToken) || Boolean(editingOrder);
 
   useEffect(() => {
     if (!caseToast) return undefined;
@@ -84,10 +82,6 @@ export function OrdersScreen({ navigation, route }) {
     setCart({});
     setContainerReturns([]);
     navigation.setParams({ openCreateInvoiceToken: undefined });
-  };
-  const selectInvoiceMode = mode => {
-    if (mode === 'create') setCreatingInvoice(true);
-    else closeInvoiceEditor();
   };
   const exportInvoice = async format => {
     if (!invoiceOrder) return;
@@ -143,13 +137,16 @@ export function OrdersScreen({ navigation, route }) {
                 <Text accessibilityRole="header" style={styles.title}>Invoice management</Text>
                 <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'invoice' : 'invoices'}</Text>
               </View>
+              <Pressable
+                onPress={() => setCreatingInvoice(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Create invoice"
+                style={({ pressed }) => [styles.createButton, styles.headerActionButton, pressed && styles.pressed]}
+              >
+                <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
+                <Text style={[styles.createButtonText, styles.headerActionText]}>{compact ? 'Create' : 'Create invoice'}</Text>
+              </Pressable>
             </View>
-            <TransactionModeSelector
-              accessibilityLabel="Invoice screen mode"
-              selected={invoiceEditorActive ? 'create' : 'history'}
-              onSelect={selectInvoiceMode}
-              options={[{ value: 'create', label: 'Create invoice' }, { value: 'history', label: 'Invoice history' }]}
-            />
             <Pressable onPress={() => navigation.navigate('CustomerProfiles')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
               <MaterialIcons name="groups" size={18} color={theme.colors.primary} accessible={false} />
               <Text style={styles.customerProfilesLinkText}>Manage customer profiles</Text>

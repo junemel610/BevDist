@@ -23,6 +23,7 @@ async function stockForm() {
 const saveProduct = () => fireEvent.press(screen.getAllByRole('button', { name: 'Add product', exact: true }).at(-1));
 async function receiptLine() {
   await render(<SupplierOrdersScreen />);
+  await press('Create supplier order');
   await press('Add product');
   await fireEvent.press(screen.getByRole('button', { name: /Cola/ }));
   await fill('Cola quantity in cases', '1');
@@ -128,6 +129,7 @@ test('opening and closing a new supplier preserves the receipt draft', async () 
 
 test('new supplier and single-pack product are saved together with a supplier receipt', async () => {
   await render(<SupplierOrdersScreen />);
+  await press('Create supplier order');
   await press('New supplier'); await fill('New supplier name', 'New Depot'); await press('Use supplier in this order');
   await press('Add product'); await fireEvent.press(screen.getByRole('button', { name: /Create a new product/ }));
   await fill('New product name', 'New Drink');

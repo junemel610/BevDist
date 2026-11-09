@@ -20,7 +20,6 @@ import { casePackDisplay, casePackOptionsForProduct, casePacksForProduct } from 
 import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
-import { TransactionModeSelector } from '../components/ui/TransactionModeSelector';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const HISTORY_PERIODS = [
@@ -74,7 +73,7 @@ export function SupplierOrdersScreen() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [historyMode, setHistoryMode] = useState(false);
+  const [historyMode, setHistoryMode] = useState(true);
   const [historyPeriod, setHistoryPeriod] = useState('all');
   const [historySupplier, setHistorySupplier] = useState('All suppliers');
   const [historyStart, setHistoryStart] = useState('');
@@ -270,6 +269,7 @@ export function SupplierOrdersScreen() {
         setReturnedCases([]);
         setError('');
         setNotice('Supplier order saved. Inventory updated.');
+        setHistoryMode(true);
       },
     });
   };
@@ -279,20 +279,19 @@ export function SupplierOrdersScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={[styles.pageHeading, styles.pageHeadingBand]}>
           <View style={styles.headingCopy}>
-            <Text accessibilityRole="header" style={styles.title}>Supplier order</Text>
-            <Text style={styles.subtitle}>Record products received and returned cases.</Text>
+            <Text accessibilityRole="header" style={styles.title}>{historyMode ? 'Supplier orders' : 'Create supplier order'}</Text>
+            <Text style={styles.subtitle}>{historyMode ? `${restockRecords.length} received ${restockRecords.length === 1 ? 'order' : 'orders'}` : 'Record products received and returned cases.'}</Text>
           </View>
-          <View style={styles.headingIcon}>
-            <MaterialIcons name="local-shipping" size={23} color={theme.colors.onPrimary} accessible={false} />
-          </View>
+          <Pressable
+            onPress={() => setHistoryMode(mode => !mode)}
+            accessibilityRole="button"
+            accessibilityLabel={historyMode ? 'Create supplier order' : 'Order history'}
+            style={({ pressed }) => [styles.headingAction, pressed && styles.pressed]}
+          >
+            <MaterialIcons name={historyMode ? 'add' : 'history'} size={20} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.headingActionLabel}>{historyMode ? (compact ? 'Create' : 'Create supplier order') : 'Order history'}</Text>
+          </Pressable>
         </View>
-
-        <TransactionModeSelector
-          accessibilityLabel="Supplier order screen mode"
-          selected={historyMode ? 'history' : 'create'}
-          onSelect={mode => setHistoryMode(mode === 'history')}
-          options={[{ value: 'create', label: 'Create supplier order' }, { value: 'history', label: `Order history (${restockRecords.length})` }]}
-        />
 
         {historyMode ? <View style={styles.historySection}>
           <View style={styles.historyHeading}>
@@ -767,7 +766,8 @@ const styles = StyleSheet.create({
   metaCaption: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, letterSpacing: 0.5 },
   metaValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 4 },
   metaDate: { alignItems: 'flex-end' },
-  headingIcon: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)' },
+  headingAction: { minHeight: 46, maxWidth: 210, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: theme.spacing.md, borderRadius: 10, backgroundColor: theme.colors.surface },
+  headingActionLabel: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.bold },
   section: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, backgroundColor: theme.colors.surface },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
   sectionTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },

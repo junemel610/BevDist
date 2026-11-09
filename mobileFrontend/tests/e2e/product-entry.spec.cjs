@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { randomUUID } = require('node:crypto');
-const { business, signIn, tab, confirm, preparePage, activeText, rejectedSave } = require('./helpers.cjs');
+const { business, signIn, tab, createSupplierOrder, confirm, preparePage, activeText, rejectedSave } = require('./helpers.cjs');
 const { apiURL } = require('./settings.cjs');
 test.beforeEach(preparePage);
 const unique = label => `${label} ${randomUUID().slice(0, 8)}`;
@@ -90,7 +90,7 @@ test('stock product form fixes the unit to one generic Case', async ({ page, req
 
 test('receipt product search, new-product validation and supplier form cancellation preserve draft lines', async ({ page, request }) => {
   const data = await business(request);
-  await signIn(page); await tab(page, 'Orders'); await selectSupplier(page, data.supplierName);
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page); await selectSupplier(page, data.supplierName);
   await page.getByRole('button', { name: 'Add product', exact: true }).click();
   await page.getByLabel('Search products', { exact: true }).fill('zz-missing');
   await expect(activeText(page, 'No matching products. You can create a new product above.')).toBeVisible();
@@ -117,7 +117,7 @@ test('receipt product search, new-product validation and supplier form cancellat
 
 test('new supplier and new product receipt save only on confirmation with manual return credit', async ({ page, request }, testInfo) => {
   const data = await business(request), supplierName = unique('Receipt Depot'), name = unique('Receipt Drink');
-  await signIn(page); await tab(page, 'Orders');
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page);
   await page.getByRole('button', { name: 'New supplier', exact: true }).click();
   await page.getByLabel('New supplier name').fill(supplierName);
   await page.getByLabel('New supplier contact').fill('09123');
@@ -157,7 +157,7 @@ test('new supplier and new product receipt save only on confirmation with manual
 test('supplier receipt saves a new supplier and multiple new products without case returns', async ({ page, request }) => {
   const data = await business(request), supplierName = unique('No Return Depot');
   const productNames = ['No Return Soda', 'No Return Water', 'No Return Juice'].map(unique);
-  await signIn(page); await tab(page, 'Orders');
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page);
   await page.getByRole('button', { name: 'New supplier', exact: true }).click();
   await page.getByLabel('New supplier name', { exact: true }).fill(supplierName);
   await page.getByRole('button', { name: 'Use supplier in this order' }).click();
@@ -177,7 +177,7 @@ test('supplier receipt saves a new supplier and multiple new products without ca
 
 test('existing supplier can receive a new product and remove then re-add a draft product', async ({ page, request }) => {
   const data = await business(request), name = unique('Case Receipt');
-  await signIn(page); await tab(page, 'Orders'); await selectSupplier(page, data.supplierName);
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page); await selectSupplier(page, data.supplierName);
   await newReceiptProduct(page, name);
   await page.getByRole('button', { name: `Remove ${name} Case`, exact: true }).click();
   await expect(activeText(page, 'No products added')).toBeVisible();
@@ -193,7 +193,7 @@ test('existing supplier can receive a new product and remove then re-add a draft
 
 test('rejected supplier receipt keeps draft available for correction and retry', async ({ page, request }) => {
   const data = await business(request), name = unique('Retry Drink');
-  await signIn(page); await tab(page, 'Orders'); await selectSupplier(page, data.supplierName);
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page); await selectSupplier(page, data.supplierName);
   await newReceiptProduct(page, name);
   await page.getByLabel(`${name} quantity in cases`, { exact: true }).fill('0.5');
   await page.getByLabel(`${name} supplier cost per case in pesos`, { exact: true }).fill('80');

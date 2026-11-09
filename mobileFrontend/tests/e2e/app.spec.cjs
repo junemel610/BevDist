@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { randomUUID } = require('node:crypto');
 const { username, password } = require('./settings.cjs');
-const { signIn, tab, confirm, business, preparePage, selectInvoiceProduct } = require('./helpers.cjs');
+const { signIn, tab, createSupplierOrder, confirm, business, preparePage, selectInvoiceProduct } = require('./helpers.cjs');
 
 test.beforeEach(preparePage);
 
@@ -31,17 +31,16 @@ test('login validation, real navigation, refresh and confirmed sign-out', async 
 test('Invoice and Orders share matching create/history screen navigation', async ({ page }) => {
   await signIn(page);
   await tab(page, 'Invoice');
-  await expect(page.getByRole('button', { name: 'Invoice history', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'Invoice management', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Create invoice', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Create invoice', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Close create invoice', { exact: true })).toBeVisible();
   await page.getByLabel('Close create invoice', { exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Invoice history', exact: true })).toHaveAttribute('aria-pressed', 'true');
 
   await tab(page, 'Orders');
-  await expect(page.getByRole('button', { name: 'Create supplier order', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: /Order history/ }).click();
-  await expect(page.getByRole('button', { name: /Order history/, exact: false })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Supplier order history', { exact: true })).toBeVisible();
+  await createSupplierOrder(page);
+  await expect(page.getByLabel('Order history', { exact: true })).toBeVisible();
+  await page.getByLabel('Order history', { exact: true }).click();
   await expect(page.getByText('Supplier order history', { exact: true })).toBeVisible();
 });
 
@@ -140,6 +139,7 @@ test('supplier orders persist half-case receipts and open their details', async 
   const data = await business(request);
   await signIn(page);
   await tab(page, 'Orders');
+  await createSupplierOrder(page);
   await page.getByRole('button', { name: new RegExp(data.supplierName) }).click();
   await page.getByRole('button', { name: /Add product/ }).click();
   await page.getByRole('button', { name: new RegExp(data.product.name) }).click();

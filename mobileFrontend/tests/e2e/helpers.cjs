@@ -11,6 +11,7 @@ async function signIn(page) {
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
 }
 async function tab(page, name) { await page.getByRole('tab', { name: new RegExp(name) }).click(); }
+async function createSupplierOrder(page) { await page.getByRole('button', { name: 'Create supplier order', exact: true }).click(); }
 async function confirm(page, action, accept = true) {
   const dialog = page.waitForEvent('dialog');
   const click = action();
@@ -82,4 +83,4 @@ async function business(request, options = {}) {
   });
   return { customer, product, supplierName, post, snapshot, invoice, headers };
 }
-module.exports = { signIn, tab, confirm, business, clientHeaders, preparePage, activeText, openInvoice, selectInvoiceProduct, rejectedSave, scrollUntilVisible };
+module.exports = { signIn, tab, createSupplierOrder, confirm, business, clientHeaders, preparePage, activeText, openInvoice, selectInvoiceProduct, rejectedSave, scrollUntilVisible };

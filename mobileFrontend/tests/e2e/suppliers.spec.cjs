@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { business, signIn, tab, confirm, preparePage, activeText } = require('./helpers.cjs');
+const { business, signIn, tab, createSupplierOrder, confirm, preparePage, activeText } = require('./helpers.cjs');
 test.beforeEach(preparePage);
 async function addLine(page, name) {
   await page.getByRole('button', { name: /Add product/ }).click();
@@ -11,7 +11,7 @@ test('supplier order validates empty/quarter-case lines and product picker can c
   const product = (await data.snapshot()).products.find(p => p.id === data.product.id);
   const second = `Valid ${data.product.name}`;
   await data.post('/products', { name: second, supplierId: product.supplierId, packs: [{ packId: 'B', casePrice: 100 }] });
-  await signIn(page); await tab(page, 'Orders');
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page);
   await page.getByRole('button', { name: new RegExp(data.supplierName) }).click();
   await page.getByRole('button', { name: 'Save supplier order' }).click();
   await expect(activeText(page, 'Add at least one product line before saving.')).toBeVisible();
@@ -34,7 +34,7 @@ test('multi-product supplier receipts deduct named returned-case credits and sho
   const data = await business(request), saved = (await data.snapshot()).products.find(p => p.id === data.product.id);
   const secondName = `Second ${data.product.name}`;
   await data.post('/products', { name: secondName, supplierId: saved.supplierId, packs: [{ packId: 'B', casePrice: 200 }] });
-  await signIn(page); await tab(page, 'Orders');
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page);
   await page.getByRole('button', { name: new RegExp(data.supplierName) }).click();
   await page.getByRole('button', { name: /Add product/ }).click();
   await page.getByRole('button').filter({ has: page.getByText(new RegExp(`^${data.product.name} · `)) }).click();
@@ -64,7 +64,6 @@ test('multi-product supplier receipts deduct named returned-case credits and sho
   expect(snapshot.products.find(p => p.id === data.product.id).supplierCosts.B).toBe(100);
   expect(snapshot.products.find(p => p.name === secondName).supplierCosts.B).toBe(200);
   await page.getByLabel('Close supplier order details').click();
-  await page.getByRole('button', { name: /Order history/ }).click();
   await page.getByRole('button', { name: 'Date range', exact: true }).click();
   await page.getByLabel('Order history start date', { exact: true }).fill(receipt.date);
   await page.getByLabel('Order history end date', { exact: true }).fill(receipt.date);
@@ -77,7 +76,7 @@ test('multi-product supplier receipts deduct named returned-case credits and sho
 
 test('changing supplier with a draft confirms before discarding its product lines', async ({ page, request }) => {
   const data = await business(request), other = await business(request);
-  await signIn(page); await tab(page, 'Orders');
+  await signIn(page); await tab(page, 'Orders'); await createSupplierOrder(page);
   await page.getByRole('button', { name: new RegExp(data.supplierName) }).click();
   await addLine(page, data.product.name);
   const change = () => page.getByRole('button', { name: new RegExp(other.supplierName) }).click();
