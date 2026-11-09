@@ -11,13 +11,26 @@ const order = {
 };
 const invoice = { invoiceNumber: order.invoiceNumber, amountPaid: 50, remainingBalance: 140, status: 'partial' };
 
-test('PDF HTML escapes return labels and includes deductions without treating them as cash payments', () => {
+test('PDF uses the paper invoice layout and escapes customer and return labels', () => {
   const html = invoiceHtml(order, invoice);
   assert.ok(html.includes('A &lt;empty&gt; &amp; crates'));
   assert.ok(!html.includes('A <empty>'));
-  assert.match(html, /Container returns<\/span><span>−₱10\.00/);
-  assert.match(html, /Grand total<\/span><span>₱190\.00/);
-  assert.match(html, /Remaining balance<\/span><span>₱140\.00/);
+  assert.ok(html.includes('Store &lt;One&gt;'));
+  assert.match(html, /Mila's Store/);
+  assert.match(html, /\.business[^}]*text-align:center/);
+  assert.match(html, /737 San Diego St/);
+  assert.match(html, /Sampaloc, Manila, 1008/);
+  assert.match(html, /CP 09569569553, TEL: 856-70568/);
+  assert.match(html, /INV:<\/span><span class="meta-line">INV-TEST/);
+  assert.match(html, /Date:<\/span><span class="meta-line date-line">2026-10-24/);
+  assert.match(html, /Customer Name:/);
+  assert.match(html, /Tel No:/);
+  assert.match(html, /Address:/);
+  assert.match(html, /<th>Product<\/th><th>QTY<\/th><th>PRICE<\/th>/);
+  assert.match(html, /Return · ₱20\.00 per case/);
+  assert.match(html, /−₱10\.00/);
+  assert.match(html, /GRAND TOTAL<\/span><strong>₱190\.00/);
+  assert.ok(!html.includes('Remaining balance'));
 });
 
 test('styled Excel serializes return lines, numeric deductions, totals, and valid summary merges', () => {
@@ -46,8 +59,9 @@ test('invoice exports show deposits as additions to the invoice total', () => {
     grandTotal: 225,
   };
   const html = invoiceHtml(depositOrder, { ...invoice, remainingBalance: 175 });
-  assert.match(html, /Container deposits<\/span><span>\+₱25\.00/);
-  assert.match(html, /Container deposit/);
+  assert.match(html, /Deposit · ₱50\.00 per case/);
+  assert.match(html, /\+₱25\.00/);
+  assert.match(html, /GRAND TOTAL<\/span><strong>₱225\.00/);
   const rows = XLSX.utils.sheet_to_json(invoiceWorkbook(depositOrder, invoice).Sheets.Invoice, { header: 1 });
   assert.equal(rows.find(row => row[0] === 'Container deposits')[4], 25);
   assert.equal(rows.find(row => row[0] === 'GRAND TOTAL')[4], 225);

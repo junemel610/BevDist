@@ -20,65 +20,64 @@ export function invoiceHtml(order, invoice) {
   const itemRows = order.items.map(item => {
     const price = Number(item.casePrice ?? item.unitPrice) || 0;
     const lineTotal = caseLineAmount(item.quantity, price);
-    const caseType = item.unitsPerCase ? casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase }) : item.packLabel || 'Historical invoice line';
     return `<tr>
-      <td>${escapeHtml(item.productName)}</td>
-      <td>${escapeHtml(caseType)}</td>
+      <td>${escapeHtml(item.productName)}<span class="subline">${escapeHtml(item.unitsPerCase ? casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase }) : item.packLabel || 'Case')}</span></td>
       <td class="number">${quantity(item.quantity)}</td>
-      <td class="number">₱${peso(price)}</td>
       <td class="number">₱${peso(lineTotal)}</td>
     </tr>`;
   }).join('');
   const returnRows = (order.containerReturns || []).map(entry => {
     const deposit = entry.kind === 'deposit';
     return `<tr>
-      <td>${escapeHtml(entry.type)}</td><td>${deposit ? 'Container deposit' : 'Container return'}</td>
-      <td class="number">${quantity(entry.quantity)}</td><td class="number">₱${peso(entry.amountPerCase ?? entry.refundPerCase)}</td>
-      <td class="number">${deposit ? '+' : '−'}₱${peso(refundAmount(entry))}</td></tr>`;
+      <td>${escapeHtml(entry.type)}<span class="subline">${deposit ? 'Deposit' : 'Return'} · ₱${peso(entry.amountPerCase ?? entry.refundPerCase)} per case</span></td>
+      <td class="number">${quantity(entry.quantity)}</td>
+      <td class="number">${deposit ? '+' : '−'}₱${peso(refundAmount(entry))}</td>
+    </tr>`;
   }).join('');
 
   return `<!DOCTYPE html>
   <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    @page { size: A4; margin: 18mm; }
+    @page { size: A4; margin: 14mm 15mm; }
     * { box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; color: #0f172a; font-size: 12px; }
-    .top { display:flex; justify-content:space-between; gap:24px; padding-bottom:20px; border-bottom:3px solid #1e3a8a; }
-    h1 { color:#1e3a8a; font-size:22px; margin:0 0 6px; }
-    .muted { color:#475569; line-height:1.6; }
-    .invoice { text-align:right; }
-    .invoice strong { display:block; font-size:19px; color:#1e3a8a; margin-bottom:5px; }
-    .bill { margin:22px 0; padding:14px; background:#f1f5f9; border-radius:8px; }
-    .label { color:#475569; font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; }
-    .customer { font-weight:bold; font-size:14px; }
-    table { border-collapse:collapse; width:100%; margin-top:10px; }
-    th { background:#1e3a8a; color:white; text-align:left; padding:10px 8px; }
-    td { padding:10px 8px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+    body { font-family: Arial, sans-serif; color:#111; font-size:12pt; }
+    .business { width:100%; margin:0 auto 28px; line-height:1.42; text-align:center; }
+    .business strong { display:block; font-size:14pt; }
+    .meta { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin:0 0 30px; }
+    .meta-block { display:flex; align-items:flex-end; gap:6px; }
+    .meta-line { display:inline-block; min-width:205px; min-height:21px; border-bottom:1px solid #222; }
+    .date-line { min-width:210px; }
+    .customer { width:58%; margin:0 auto 18px; line-height:1.65; }
+    .customer-line { display:flex; gap:6px; align-items:flex-end; }
+    .customer-line span:first-child { white-space:nowrap; }
+    .fill-line { flex:1; min-height:19px; border-bottom:1px solid #222; }
+    .table-heading, table { width:100%; }
+    table { border-collapse:collapse; margin-top:0; table-layout:fixed; }
+    th { text-align:left; padding:6px 8px 8px; font-weight:normal; border-bottom:1px solid #333; }
+    td { padding:9px 8px; border-bottom:1px solid #d1d1d1; vertical-align:top; }
     tr { break-inside:avoid; }
-    .number { text-align:right; white-space:nowrap; }
-    .summary { width:55%; margin:22px 0 0 auto; }
-    .sumrow { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid #e2e8f0; }
-    .grand { margin-top:8px; padding:12px; background:#1e3a8a; color:white; font-weight:bold; font-size:15px; border-radius:6px; }
-    .status { margin-top:16px; padding:10px; background:#eff6ff; color:#1e3a8a; border-radius:6px; font-weight:bold; }
+    th:nth-child(1), td:nth-child(1) { width:48%; }
+    th:nth-child(2), td:nth-child(2) { width:18%; text-align:center; }
+    th:nth-child(3), td:nth-child(3) { width:34%; text-align:right; }
+    .subline { display:block; margin-top:2px; color:#444; font-size:9pt; }
+    .adjustment-note { margin:12px 0 0; text-align:right; font-size:9pt; line-height:1.5; }
+    .grand { width:55%; margin:54px 0 0 auto; display:flex; align-items:flex-end; justify-content:space-between; gap:18px; font-weight:bold; }
+    .grand strong { min-width:47%; padding-bottom:3px; border-bottom:1px solid #222; text-align:right; }
+    @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
   </style></head><body>
-    <div class="top"><div><h1>BevDist Distribution Co.</h1><div class="muted">Beverage distributor<br>Metro Manila, Philippines</div></div>
-      <div class="invoice"><strong>INVOICE</strong><div>${escapeHtml(invoice.invoiceNumber)}</div><div class="muted">${escapeHtml(order.date)}</div></div>
+    <div class="business"><strong>Mila's Store</strong>737 San Diego St<br>Sampaloc, Manila, 1008<br>CP 09569569553, TEL: 856-70568</div>
+    <div class="meta">
+      <div class="meta-block"><span>INV:</span><span class="meta-line">${escapeHtml(invoice.invoiceNumber)}</span></div>
+      <div class="meta-block"><span>Date:</span><span class="meta-line date-line">${escapeHtml(order.date)}</span></div>
     </div>
-    <div class="bill"><div class="label">Billed to</div><div class="customer">${escapeHtml(order.customer.name)}</div>
-      ${order.customer.contact ? `<div class="muted">${escapeHtml(order.customer.contact)}</div>` : ''}
-      ${order.customer.address ? `<div class="muted">${escapeHtml(order.customer.address)}</div>` : ''}
+    <div class="customer">
+      <div class="customer-line"><span>Customer Name:</span><span class="fill-line">${escapeHtml(order.customer.name)}</span></div>
+      <div class="customer-line"><span>Tel No:</span><span class="fill-line">${escapeHtml(order.customer.contact || '')}</span></div>
+      <div class="customer-line"><span>Address:</span><span class="fill-line">${escapeHtml(order.customer.address || '')}</span></div>
     </div>
-    <div class="label">Invoice items</div>
-    <table><thead><tr><th>Product</th><th>Unit</th><th class="number">Cases</th><th class="number">Price / amount per case</th><th class="number">Amount</th></tr></thead><tbody>${itemRows}${returnRows}</tbody></table>
-    <div class="summary">
-      <div class="sumrow"><span>Subtotal</span><span>₱${peso(order.subtotal ?? order.grandTotal)}</span></div>
-      <div class="sumrow"><span>Container deposits</span><span>+₱${peso(order.containerDepositTotal || 0)}</span></div>
-      <div class="sumrow"><span>Container returns</span><span>−₱${peso(order.containerRefundTotal || 0)}</span></div>
-      <div class="sumrow"><span>Payments and credit applied</span><span>−₱${peso(invoice.amountPaid)}</span></div>
-      <div class="sumrow"><span>Remaining balance</span><span>₱${peso(invoice.remainingBalance)}</span></div>
-      <div class="sumrow grand"><span>Grand total</span><span>₱${peso(order.grandTotal)}</span></div>
-    </div>
-    <div class="status">Payment status: ${escapeHtml(invoice.status)}</div>
+    <table><thead><tr><th>Product</th><th>QTY</th><th>PRICE</th></tr></thead><tbody>${itemRows}${returnRows}</tbody></table>
+    ${(order.containerReturns || []).length ? `<div class="adjustment-note">+ Deposit &nbsp;&nbsp; − Return</div>` : ''}
+    <div class="grand"><span>GRAND TOTAL</span><strong>₱${peso(order.grandTotal)}</strong></div>
   </body></html>`;
 }
 
