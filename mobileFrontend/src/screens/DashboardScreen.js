@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -6,13 +6,19 @@ import { useApp } from '../context/AppContext';
 import { DashboardActivity, QuickActions } from '../components/dashboard/DashboardActivity';
 import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
-import { salesSummary, salesTrends, dailyAppliedPayments } from '../components/dashboard/salesSummary';
+import { salesSummary, dailySalesSummary, salesTrends, dailyAppliedPayments } from '../components/dashboard/salesSummary';
+import { businessDate } from '../utils/businessDate';
 import theme from '../styles/theme';
 
 export function DashboardScreen({ navigation }) {
   const [contentWidth, setContentWidth] = useState(0);
+  const [today, setToday] = useState(() => businessDate());
   const { fontScale } = useWindowDimensions();
   const { orders, balances, paymentTransactions, getLowStockCount } = useApp();
+  useEffect(() => {
+    const timer = setInterval(() => setToday(businessDate()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const navigateTo = useCallback(route => navigation.getParent()?.navigate(route), [navigation]);
   const openCreateInvoice = useCallback(() => navigation.getParent()?.navigate('Invoices', {
     screen: 'InvoicesMain',
@@ -25,8 +31,9 @@ export function DashboardScreen({ navigation }) {
   const wide = contentWidth >= 720 * fontScale;
   const chartWidth = wide ? (contentWidth - gap) / 2 : '100%';
   const sales = salesSummary(orders, balances, paymentTransactions);
-  const dailyPayments = dailyAppliedPayments(orders, balances, paymentTransactions);
-  const trends = salesTrends(orders, balances, paymentTransactions);
+  const todaySales = dailySalesSummary(orders, balances, paymentTransactions, today);
+  const dailyPayments = dailyAppliedPayments(orders, balances, paymentTransactions, today);
+  const trends = salesTrends(orders, balances, paymentTransactions, today);
   const summary = [
     { label: 'Outstanding Invoices', value: sales.outstandingInvoices },
     { label: 'Outstanding Balances', value: formatPeso(sales.outstanding) },
@@ -54,23 +61,23 @@ export function DashboardScreen({ navigation }) {
           <View style={styles.salesCard}>
             <View style={styles.salesHeading}>
               <View>
-                <Text style={styles.sectionTitle}>Sales</Text>
-                <Text style={styles.sectionHint}>Expected invoice value and cash received</Text>
+                <Text style={styles.sectionTitle}>Sales today</Text>
+                <Text style={styles.sectionHint}>Today&apos;s invoice value and cash received</Text>
               </View>
               <MaterialIcons name="payments" size={22} color={theme.colors.primary} accessible={false} />
             </View>
             <View style={styles.salesValues}>
               <View style={styles.salesMetric}>
                 <Text style={styles.cardLabel}>Total Expected Sales</Text>
-                <Text style={styles.expectedValue}>{formatPeso(sales.expected)}</Text>
+                <Text style={styles.expectedValue}>{formatPeso(todaySales.expected)}</Text>
               </View>
               <View style={styles.salesDivider} />
               <View style={styles.salesMetric}>
                 <Text style={styles.cardLabel}>Actual Sales</Text>
-                <Text style={styles.actualValue}>{formatPeso(sales.actual)}</Text>
+                <Text style={styles.actualValue}>{formatPeso(todaySales.actual)}</Text>
               </View>
             </View>
-            <Text style={styles.salesHint}>Actual Sales counts cash payments applied to invoices.</Text>
+            <Text style={styles.salesHint}>Actual Sales counts cash applied to invoices today; excess payments are excluded.</Text>
           </View>
 
           <View style={styles.metrics}>

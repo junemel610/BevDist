@@ -59,6 +59,20 @@ export function salesSummary(orders, balances, paymentTransactions) {
   return summary;
 }
 
+export function dailySalesSummary(orders, balances, paymentTransactions, today = businessDate()) {
+  const balancesByOrder = new Map(balances.map(balance => [balance.orderId, balance]));
+  const expected = orders.reduce((sum, order) => {
+    if (order.date !== today || order.status === 'cancelled') return sum;
+    const balance = balancesByOrder.get(order.id);
+    if (balance?.status === 'cancelled') return sum;
+    return sum + invoiceSummary(order, balance).totalDue;
+  }, 0);
+  return {
+    expected,
+    actual: dailyAppliedPayments(orders, balances, paymentTransactions, today).Cash,
+  };
+}
+
 export function salesTrends(orders, balances, paymentTransactions, today = new Date()) {
   const todayKey = today instanceof Date ? businessDate(today) : today;
   const todayDate = new Date(`${todayKey}T00:00:00.000Z`);

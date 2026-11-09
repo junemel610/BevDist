@@ -199,6 +199,8 @@ test('GCash page excludes cash receipts and retains excess credit', async () => 
 
 test('dashboard shows payment methods and quick create opens the invoice modal route', async () => {
   await render(<DashboardScreen navigation={navigation} />);
+  expect(screen.getByText('Sales today')).toBeOnTheScreen();
+  expect(screen.getByText("Today's invoice value and cash received")).toBeOnTheScreen();
   expect(screen.getByText('Payments today')).toBeOnTheScreen();
   for (const method of ['Cash','GCash','Bank Transfer']) expect(screen.getByText(method)).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: /Create Invoice/ }));

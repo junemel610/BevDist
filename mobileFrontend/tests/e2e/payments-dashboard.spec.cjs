@@ -26,11 +26,11 @@ for (const method of ['Cash', 'GCash', 'Bank Transfer']) {
     const snapshot = await data.snapshot();
     expect(snapshot.payments.find(p => p.customerId === data.customer.id)).toMatchObject({ method, amountReceived: 40 });
     await tab(page, 'Home');
-    const expected = snapshot.orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.grandTotal, 0);
-    const actual = snapshot.paymentTransactions.filter(p => p.method === 'Cash').reduce((sum, p) => sum + p.amountApplied, 0);
-    await expect(activeText(page, 'Total expected').locator('..').getByText(peso(expected), { exact: true })).toBeVisible();
-    await expect(activeText(page, 'Actual sales').locator('..').getByText(peso(actual), { exact: true })).toBeVisible();
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const expected = snapshot.orders.filter(o => o.status !== 'cancelled' && o.date === day).reduce((sum, o) => sum + o.grandTotal, 0);
+    const actual = snapshot.paymentTransactions.filter(p => p.method === 'Cash' && p.date === day).reduce((sum, p) => sum + p.amountApplied, 0);
+    await expect(activeText(page, 'Total Expected Sales').locator('..').getByText(peso(expected), { exact: true })).toBeVisible();
+    await expect(activeText(page, 'Actual Sales').locator('..').getByText(peso(actual), { exact: true })).toBeVisible();
     const applied = snapshot.paymentTransactions.filter(p => p.method === method && p.date === day).reduce((sum, p) => sum + p.amountApplied, 0);
     await expect(activeText(page, method).locator('..').getByText(peso(applied), { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Daily Cash Sales', exact: true })).toBeVisible();

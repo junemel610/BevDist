@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { invoiceSummary, salesSummary, salesTrends } from '../src/components/dashboard/salesSummary.js';
+import { invoiceSummary, salesSummary, dailySalesSummary, salesTrends } from '../src/components/dashboard/salesSummary.js';
 import { INITIAL_BALANCES, INITIAL_ORDERS, INITIAL_PAYMENT_TRANSACTIONS } from '../src/data/initialData.js';
 
 test('counts invoice totals and excludes cancelled orders and excess payments', () => {
@@ -29,6 +29,28 @@ test('partial payments count toward actual sales and leave a balance due', () =>
     [{ id: 'order', status: 'pending', grandTotal: 1000 }],
     [{ orderId: 'order', amountPaid: 300 }],
   ), { expected: 1000, actual: 300, outstanding: 700, outstandingInvoices: 1, fullyPaid: 0, completedOrders: 0 });
+});
+
+test('dashboard sales cards include only invoices and applied payments from the selected business day', () => {
+  const orders = [
+    { id: 'today', date: '2026-11-09', status: 'pending', grandTotal: 1000 },
+    { id: 'yesterday', date: '2026-11-08', status: 'pending', grandTotal: 2000 },
+    { id: 'cancelled', date: '2026-11-09', status: 'cancelled', grandTotal: 500 },
+  ];
+  const balances = [
+    { id: 'today-balance', orderId: 'today', status: 'unpaid' },
+    { id: 'yesterday-balance', orderId: 'yesterday', status: 'partial' },
+    { id: 'cancelled-balance', orderId: 'cancelled', status: 'cancelled' },
+  ];
+  const payments = [
+    { id: 'cash-today', balanceId: 'yesterday-balance', orderId: 'yesterday', method: 'Cash', amountApplied: 300, date: '2026-11-09' },
+    { id: 'cash-yesterday', balanceId: 'today-balance', orderId: 'today', method: 'Cash', amountApplied: 200, date: '2026-11-08' },
+    { id: 'gcash-today', balanceId: 'today-balance', orderId: 'today', method: 'GCash', amountApplied: 100, date: '2026-11-09' },
+    { id: 'cancelled-today', balanceId: 'cancelled-balance', orderId: 'cancelled', method: 'Cash', amountApplied: 500, date: '2026-11-09' },
+  ];
+
+  assert.deepEqual(dailySalesSummary(orders, balances, payments, '2026-11-09'), { expected: 1000, actual: 300 });
+  assert.deepEqual(dailySalesSummary(orders, balances, payments, '2026-11-10'), { expected: 0, actual: 0 });
 });
 
 test('cash is included in actual sales while GCash stays in its separate total', () => {
