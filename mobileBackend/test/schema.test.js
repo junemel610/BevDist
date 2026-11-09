@@ -24,7 +24,7 @@ before(async () => {
   const url = new URL(process.env.DATABASE_URL);
   url.pathname = `/${database}`;
   pool = createPool(url.href);
-  assert.equal((await migrate(pool)).length, 14);
+  assert.equal((await migrate(pool)).length, 15);
   actor = (await one("INSERT INTO app_users(username,password_hash) VALUES ('test-user','test-only-hash') RETURNING id")).id;
 });
 
@@ -53,7 +53,7 @@ const pay = (f, amountReceived, extra = {}) => recordPayment(pool, {
   customerId: f.customer, method: 'Cash', amountReceived, requestKey: randomUUID(), ...extra,
 }, actor);
 
-test('migrations are repeatable and seed the saved supplier/product directory and matching prices without stock', async () => {
+test('migrations are repeatable and seed the saved product directory with current Recibo prices and no stock', async () => {
   assert.deepEqual(await migrate(pool), []);
   assert.equal((await one('SELECT count(*) AS count FROM case_pack_types WHERE is_active')).count, '1');
   assert.deepEqual((await pool.query("SELECT code,units_per_case FROM case_pack_types WHERE is_active ORDER BY code")).rows, [
@@ -70,11 +70,21 @@ test('migrations are repeatable and seed the saved supplier/product directory an
   assert.equal(catalog.suppliers.length, 6);
   assert.equal(catalog.products.length, 51);
   const cokeTall = catalog.products.find(product => product.name === 'Coke Tall 8oz');
-  assert.equal(cokeTall.casePrices.B, 171);
+  assert.equal(cokeTall.casePrices.B, 206);
   assert.equal(cokeTall.supplierCosts.B, 171);
   const pepsi = catalog.products.find(product => product.name === 'Pepsi 8oz');
-  assert.equal(pepsi.casePrices.B, 172);
+  assert.equal(pepsi.casePrices.B, 207);
   assert.equal(pepsi.supplierCosts.B, 172);
+  const summit = catalog.products.find(product => product.name === 'Summit 350mL');
+  assert.equal(summit.casePrices.B, 252.2);
+  assert.equal(summit.supplierCosts.B, 256);
+  const mountainDewNeon = catalog.products.find(product => product.name === 'Mountain Dew Neon');
+  assert.equal(mountainDewNeon.casePrices.B, 210);
+  assert.equal(mountainDewNeon.supplierCosts.B, 190);
+  const minuteMaid = catalog.products.find(product => product.name === 'Minute Maid');
+  assert.equal(minuteMaid.casePrices.B, 125);
+  assert.equal(minuteMaid.supplierCosts.B, 125);
+  assert.equal(catalog.products.some(product => product.name === 'Wilkins-330'), false);
   assert.equal((await one('SELECT count(*) AS count FROM returned_case_types')).count, '0');
 });
 
