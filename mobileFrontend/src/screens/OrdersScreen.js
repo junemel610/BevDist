@@ -31,6 +31,7 @@ import theme from '../styles/theme';
 import { confirmAction } from '../utils/confirmAction';
 import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoiceExport';
 import { nextInvoiceNumber } from '../components/orders/invoiceNumberPreview';
+import { TransactionModeSelector } from '../components/ui/TransactionModeSelector';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -68,6 +69,7 @@ export function OrdersScreen({ navigation, route }) {
   const [stockFeedback, setStockFeedback] = useState(false);
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 390 * Math.min(fontScale, 1.25);
+  const invoiceEditorActive = creatingInvoice || Boolean(route.params?.openCreateInvoiceToken) || Boolean(editingOrder);
 
   useEffect(() => {
     if (!caseToast) return undefined;
@@ -76,6 +78,17 @@ export function OrdersScreen({ navigation, route }) {
   }, [caseToast]);
 
   const invoiceFor = useCallback(order => invoiceSummary(order, balances.find(balance => balance.orderId === order.id)), [balances]);
+  const closeInvoiceEditor = () => {
+    setCreatingInvoice(false);
+    setEditingOrder(null);
+    setCart({});
+    setContainerReturns([]);
+    navigation.setParams({ openCreateInvoiceToken: undefined });
+  };
+  const selectInvoiceMode = mode => {
+    if (mode === 'create') setCreatingInvoice(true);
+    else closeInvoiceEditor();
+  };
   const exportInvoice = async format => {
     if (!invoiceOrder) return;
     setExporting(format);
@@ -125,23 +138,18 @@ export function OrdersScreen({ navigation, route }) {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={(
           <View style={styles.headerContent}>
-            <View style={styles.headingBlock}>
             <View style={[styles.titleRow, styles.pageHeadingBand]}>
-                <View style={styles.headingBlock}>
-                  <Text accessibilityRole="header" style={styles.title}>Invoice management</Text>
-                  <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'invoice' : 'invoices'}</Text>
-                </View>
-                <Pressable
-                  onPress={() => setCreatingInvoice(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Create invoice"
-                  style={({ pressed }) => [styles.createButton, styles.headerActionButton, pressed && styles.pressed]}
-                >
-                  <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
-                  <Text style={[styles.createButtonText, styles.headerActionText]}>{compact ? 'Create' : 'Create invoice'}</Text>
-                </Pressable>
+              <View style={styles.headingBlock}>
+                <Text accessibilityRole="header" style={styles.title}>Invoice management</Text>
+                <Text style={styles.subtitle}>{orders.length} total {orders.length === 1 ? 'invoice' : 'invoices'}</Text>
               </View>
             </View>
+            <TransactionModeSelector
+              accessibilityLabel="Invoice screen mode"
+              selected={invoiceEditorActive ? 'create' : 'history'}
+              onSelect={selectInvoiceMode}
+              options={[{ value: 'create', label: 'Create invoice' }, { value: 'history', label: 'Invoice history' }]}
+            />
             <Pressable onPress={() => navigation.navigate('CustomerProfiles')} accessibilityRole="button" style={({ pressed }) => [styles.customerProfilesLink, pressed && styles.pressed]}>
               <MaterialIcons name="groups" size={18} color={theme.colors.primary} accessible={false} />
               <Text style={styles.customerProfilesLinkText}>Manage customer profiles</Text>
@@ -283,13 +291,18 @@ export function OrdersScreen({ navigation, route }) {
         onSelectCustomerMode={setIsNewCustomer}
         onChangeNewCustomer={(field, value) => setNewCustomer(current => ({ ...current, [field]: value }))}
         onChangeQuantity={(productId, packId, quantity) => setCart(current => ({ ...current, [`${productId}:${packId}`]: quantity }))}
-        onClose={() => {
-          setCreatingInvoice(false);
-          setEditingOrder(null);
-          setCart({});
-          setContainerReturns([]);
-          navigation.setParams({ openCreateInvoiceToken: undefined });
+        onStepQuantity={(productId, packId, amount) => {
+          const product = invoiceProducts.find(item => item.id === productId);
+          const pack = product && casePacksForProduct(product).find(item => item.id === packId);
+          const existing = editingOrder?.items.filter(item => item.productId === productId && item.packId === packId).reduce((sum, item) => sum + Number(item.quantity), 0) || 0;
+          const maximum = pack ? availableCases(getAvailableStock(productId, packId) + existing, pack) : 0;
+          const key = `${productId}:${packId}`;
+          setCart(current => {
+            const next = Math.max(0, (Number(current[key]) || 0) + amount);
+            return next > maximum ? current : { ...current, [key]: next };
+          });
         }}
+        onClose={closeInvoiceEditor}
         onSetupProduct={product => {
           setCreatingInvoice(false);
           navigation.setParams({ openCreateInvoiceToken: undefined });
@@ -431,11 +444,11 @@ function OrderCard({ order, compact, onView }) {
   );
 }
 
-function OverlayModal({ visible, onClose, children, width }) {
+function OverlayModal({ visible, onClose, children, width, panelStyle }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalScrim}>
-        <View style={[styles.modalPanel, width > 720 && styles.wideModalPanel]}>
+        <View style={[styles.modalPanel, width > 720 && styles.wideModalPanel, panelStyle]}>
           {children}
         </View>
       </View>
@@ -462,7 +475,7 @@ function ModalHeader({ title, subtitle, onClose }) {
   );
 }
 
-function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onClose, onSave, onSetupProduct }) {
+function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onStepQuantity, onClose, onSave, onSetupProduct }) {
   const [showProductPicker, setShowProductPicker] = useState(false);
   const closeModal = () => {
     setShowProductPicker(false);
@@ -502,7 +515,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
   const invoiceNumberPreview = editingOrder?.invoiceNumber || nextInvoiceNumber(orders);
 
   return (
-    <OverlayModal visible={visible} onClose={onClose} width={width}>
+    <OverlayModal visible={visible} onClose={onClose} width={width} panelStyle={showProductPicker && styles.productPickerPanel}>
       {showProductPicker ? <>
         <View style={styles.pickerPageHeader}>
           <Pressable onPress={() => setShowProductPicker(false)} accessibilityRole="button" accessibilityLabel="Back to invoice" style={styles.pickerBackButton}>
@@ -516,7 +529,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
             <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
           </Pressable>
         </View>
-        <InvoiceProductPicker products={products} cart={cart} editingOrder={editingOrder} getAvailableStock={getAvailableStock} onChangeQuantity={onChangeQuantity} onDone={() => setShowProductPicker(false)} onSetupProduct={onSetupProduct} />
+        <InvoiceProductPicker products={products} cart={cart} editingOrder={editingOrder} getAvailableStock={getAvailableStock} onChangeQuantity={onChangeQuantity} onStepQuantity={onStepQuantity} onDone={() => setShowProductPicker(false)} onSetupProduct={onSetupProduct} />
       </> : <>
       <View style={styles.invoiceStoreHeader}>
         <View style={styles.invoiceStoreCopy}>
@@ -651,7 +664,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                       </View>
                       <View style={[styles.quantityControls, styles.invoiceQtyColumn]}>
                         <Pressable
-                          onPress={() => onChangeQuantity(product.id, pack.id, Math.max(0, quantity - 0.5))}
+                          onPress={() => onStepQuantity(product.id, pack.id, -0.5)}
                           disabled={!quantity}
                           accessibilityRole="button"
                           accessibilityLabel={`Remove half a ${casePackDisplay(pack)} case of ${product.name}`}
@@ -667,7 +680,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, width,
                           style={[styles.invoiceQuantityEntry, quantityError && styles.quantityEntryError]}
                         />
                         <Pressable
-                          onPress={() => onChangeQuantity(product.id, pack.id, quantity + 0.5)}
+                          onPress={() => onStepQuantity(product.id, pack.id, 0.5)}
                           disabled={quantity + 0.5 > maxCases}
                           accessibilityRole="button"
                           accessibilityLabel={`Add half a ${casePackDisplay(pack)} case of ${product.name}`}
@@ -965,6 +978,7 @@ const styles = StyleSheet.create({
   emptyText: { marginTop: theme.spacing.xs, fontSize: theme.fontSize.sm, color: theme.colors.textLight, textAlign: 'center', lineHeight: 21 },
   modalScrim: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: theme.spacing.md, backgroundColor: theme.colors.overlay },
   modalPanel: { width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: theme.colors.surface, borderRadius: 16, overflow: 'hidden' },
+  productPickerPanel: { height: '92%' },
   wideModalPanel: { maxWidth: 760 },
   modalHeader: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md, backgroundColor: theme.colors.primary },
   pickerPageHeader: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, backgroundColor: theme.colors.primary },
@@ -1001,7 +1015,7 @@ const styles = StyleSheet.create({
   invoiceTableHeader: { minHeight: 40, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   invoiceColumnHeading: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   invoiceProductColumn: { flex: 1, minWidth: 60 },
-  invoiceQtyColumn: { width: 104, alignItems: 'center' },
+  invoiceQtyColumn: { width: 116, alignItems: 'center' },
   invoicePriceColumn: { width: 88, textAlign: 'right' },
   invoiceProductSelector: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingHorizontal: theme.spacing.sm },
   invoiceProductSelectorText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },

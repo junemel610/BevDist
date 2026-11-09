@@ -41,7 +41,7 @@ test('invoice product picker filters distributor catalogs and adds saved product
   await userEvent.press(screen.getByRole('button', { name: 'Select products' }));
   expect(screen.getByText('Coke Tall 8oz')).toBeOnTheScreen();
   expect(screen.getAllByText(/Not in inventory yet/).length).toBeGreaterThan(0);
-  expect(screen.getByTestId('distributor-filters')).toHaveStyle({ flexWrap: 'wrap' });
+  expect(screen.getByTestId('distributor-filters')).toHaveStyle({ flexGrow: 0, flexShrink: 0, maxHeight: 50 });
   expect(screen.getByRole('button', { name: 'Pepsi distributor filter' })).toHaveStyle({ borderRadius: 999, minHeight: 34 });
   await userEvent.press(screen.getByRole('button', { name: 'Pepsi distributor filter' }));
   expect(screen.getByText('Pepsi 8oz')).toBeOnTheScreen();
@@ -215,6 +215,55 @@ test('supplier order validates empty orders before creating a receipt', async ()
   await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
   expect(screen.getByText('Add at least one product line before saving.')).toBeOnTheScreen();
   expect(app.addRestockRecord).not.toHaveBeenCalled();
+});
+
+test('invoice and supplier order screens share the same create/history navigation pattern', async () => {
+  await invoiceScreen();
+  expect(screen.getByRole('button', { name: 'Invoice history', selected: true })).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Create invoice' }));
+  expect(screen.getByRole('button', { name: 'Create invoice', selected: true })).toBeOnTheScreen();
+  expect(screen.getByText("Mila's Store")).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Close create invoice' }));
+  expect(screen.getByRole('button', { name: 'Invoice history', selected: true })).toBeOnTheScreen();
+
+  const rendered = await render(<SupplierOrdersScreen />);
+  expect(screen.getByRole('button', { name: 'Create supplier order', selected: true })).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Order history (0)' }));
+  expect(screen.getByRole('button', { name: 'Order history (0)', selected: true })).toBeOnTheScreen();
+  expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
+  await rendered.unmount();
+});
+
+test('supplier order history filters by custom dates and supplier and opens matching order details', async () => {
+  app.restockRecords = [
+    { id: 'history-pepsi', orderNumber: 'SUP-00000001', supplier: 'Pepsi', date: '2026-10-24', items: [{ productName: 'Pepsi 8oz', packLabel: 'Case', quantity: 1, unitCost: 172 }], returnedCases: [], netCost: 172 },
+    { id: 'history-other', orderNumber: 'SUP-00000002', supplier: 'Supplier One', date: '2026-11-02', items: [{ productName: 'Cola', packLabel: 'Case', quantity: 1, unitCost: 80 }], returnedCases: [], netCost: 80 },
+  ];
+  await render(<SupplierOrdersScreen />);
+  await userEvent.press(screen.getByRole('button', { name: 'Order history (2)' }));
+  await userEvent.press(screen.getByRole('button', { name: 'Date range' }));
+  await fireEvent.changeText(screen.getByLabelText('Order history start date'), '2026-10-01');
+  await fireEvent.changeText(screen.getByLabelText('Order history end date'), '2026-10-31');
+  await userEvent.press(screen.getByRole('button', { name: 'Pepsi' }));
+  expect(screen.getByText('1 matching order')).toBeOnTheScreen();
+  expect(screen.getAllByText('Pepsi').length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: 'View Supplier One supplier order from 2026-11-02' })).toBeNull();
+  await userEvent.press(screen.getByRole('button', { name: 'View Pepsi supplier order from 2026-10-24' }));
+  expect(screen.getByText('Pepsi 8oz')).toBeOnTheScreen();
+});
+
+test('saved supplier cost prefills an order and remains independently editable', async () => {
+  app.products[0].supplierCosts = { B: 72 };
+  await render(<SupplierOrdersScreen />);
+  await userEvent.press(screen.getByRole('button', { name: 'Add product' }));
+  await userEvent.press(screen.getByRole('button', { name: /Cola/ }));
+  const cost = screen.getByLabelText('Cola supplier cost per case in pesos');
+  expect(cost).toHaveDisplayValue('72');
+  await fireEvent.changeText(cost, '80');
+  await fireEvent.changeText(screen.getByLabelText('Cola quantity in cases'), '1');
+  await userEvent.press(screen.getByRole('button', { name: /Save supplier order|Save order/ }));
+  await confirm();
+  expect(app.addRestockRecord).toHaveBeenCalledWith(app.suppliers[0], [expect.objectContaining({ unitCost: 80, quantity: 1 })], [], []);
 });
 
 test('delivery and cancellation each require confirmation before changing an invoice', async () => {

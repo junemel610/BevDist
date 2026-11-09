@@ -8,7 +8,7 @@ import { DISTRIBUTOR_CATALOG, distributorIdForProduct, extraProductsForDistribut
 
 const peso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH')}`;
 
-export function InvoiceProductPicker({ products, cart, editingOrder, getAvailableStock, onChangeQuantity, onDone, onSetupProduct }) {
+export function InvoiceProductPicker({ products, cart, editingOrder, getAvailableStock, onChangeQuantity, onStepQuantity, onDone, onSetupProduct }) {
   const [distributor, setDistributor] = useState('all');
   const [search, setSearch] = useState('');
   const extraFilters = useMemo(() => otherDistributorFilters(products), [products]);
@@ -48,11 +48,11 @@ export function InvoiceProductPicker({ products, cart, editingOrder, getAvailabl
           </Pressable>
         ) : configured && !priceMissing ? (
           <View style={styles.quantityControls}>
-            <Pressable onPress={() => onChangeQuantity(product.id, pack.id, Math.max(0, quantity - 0.5))} accessibilityRole="button" accessibilityLabel={`Remove half a case of ${displayName}`} style={styles.quantityButton}>
+            <Pressable onPress={() => onStepQuantity(product.id, pack.id, -0.5)} accessibilityRole="button" accessibilityLabel={`Remove half a case of ${displayName}`} style={styles.quantityButton}>
               <MaterialIcons name="remove" size={18} color={theme.colors.primary} accessible={false} />
             </Pressable>
             <TextInput value={String(cart[key] ?? '0')} onChangeText={value => onChangeQuantity(product.id, pack.id, value)} selectTextOnFocus keyboardType="decimal-pad" accessibilityLabel={`${displayName}, ${casePackDisplay(pack)}, quantity in cases`} style={[styles.quantityInput, quantityError && styles.quantityInputError]} />
-            <Pressable onPress={() => onChangeQuantity(product.id, pack.id, quantity + 0.5)} disabled={quantity + 0.5 > maximum} accessibilityRole="button" accessibilityLabel={`Add half a case of ${displayName}`} style={[styles.quantityButton, quantity + 0.5 > maximum && styles.disabled]}>
+            <Pressable onPress={() => onStepQuantity(product.id, pack.id, 0.5)} disabled={quantity + 0.5 > maximum} accessibilityRole="button" accessibilityLabel={`Add half a case of ${displayName}`} style={[styles.quantityButton, quantity + 0.5 > maximum && styles.disabled]}>
               <MaterialIcons name="add" size={18} color={quantity + 0.5 > maximum ? theme.colors.textLight : theme.colors.primary} accessible={false} />
             </Pressable>
           </View>
@@ -96,7 +96,7 @@ export function InvoiceProductPicker({ products, cart, editingOrder, getAvailabl
         <TextInput value={search} onChangeText={setSearch} placeholder="Search products" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search invoice products" style={styles.searchInput} returnKeyType="search" />
         {!!search && <Pressable onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear product search" style={styles.clearButton}><MaterialIcons name="close" size={18} color={theme.colors.textLight} accessible={false} /></Pressable>}
       </View>
-      <View style={styles.filters} testID="distributor-filters">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={styles.filterContent} testID="distributor-filters">
         {filters.map(filter => {
           const selected = distributor === filter.id;
           return <Pressable key={filter.id} onPress={() => setDistributor(filter.id)} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${filter.name} distributor filter`} style={[styles.filterChip, selected && styles.filterChipSelected]}>
@@ -104,7 +104,7 @@ export function InvoiceProductPicker({ products, cart, editingOrder, getAvailabl
             <Text style={[styles.filterText, selected && styles.filterTextSelected]}>{filter.name}</Text>
           </Pressable>;
         })}
-      </View>
+      </ScrollView>
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
         {!catalogSections.length && !extraGroups.length ? <Text style={styles.empty}>No products match this search.</Text> : null}
         {catalogSections.map(section => <View key={section.id} style={styles.distributorSection}>
@@ -135,8 +135,9 @@ const styles = StyleSheet.create({
   searchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, marginHorizontal: 16, marginTop: 14, paddingHorizontal: 12 },
   searchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: 16, paddingVertical: 8 },
   clearButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingHorizontal: 16, paddingVertical: 8 },
-  filterChip: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: theme.colors.border, paddingHorizontal: 12, backgroundColor: theme.colors.surface },
+  filters: { flexGrow: 0, flexShrink: 0, maxHeight: 50 },
+  filterContent: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 16, paddingVertical: 8 },
+  filterChip: { flexShrink: 0, minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, borderWidth: 1, borderColor: theme.colors.border, paddingHorizontal: 12, backgroundColor: theme.colors.surface },
   filterChipSelected: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
   filterText: { color: theme.colors.textLight, fontSize: 13, fontWeight: '600' },
   filterTextSelected: { color: theme.colors.onPrimary },

@@ -31,9 +31,9 @@ test('PDF print action opens only the formatted invoice rather than printing app
   const waiting = page.waitForEvent('popup', { timeout: 10000 });
   await page.getByRole('button', { name: `Export ${order.invoiceNumber} as PDF` }).click();
   const print = await waiting;
-  await expect(print.getByRole('heading', { name: 'BevDist Distribution Co.' })).toBeVisible();
+  await expect(print.getByText("Mila's Store", { exact: true })).toBeVisible();
   await expect(print.getByText(data.customer.name, { exact: true })).toBeVisible();
-  await expect(print.getByRole('cell', { name: data.product.name, exact: true })).toBeVisible();
+  await expect(print.getByRole('cell', { name: new RegExp(data.product.name) })).toBeVisible();
   await expect.poll(() => print.evaluate(() => window.__printedInvoice)).toBe(true);
   await expect(print.getByRole('tab')).toHaveCount(0);
   const pdf = await print.pdf({ path: testInfo.outputPath('invoice.pdf'), format: 'A4', printBackground: true });

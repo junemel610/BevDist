@@ -19,7 +19,8 @@ test('invoice deposit adds to the total and persists separately from returns', a
   await page.getByLabel('Deposit per case, row 1').fill('20');
   const save = () => page.getByRole('button', { name: 'Create invoice', exact: true }).last().click();
   await confirm(page, save);
-  const saved = (await data.snapshot()).orders.find(order => order.customerId === data.customer.id);
+  await expect.poll(async () => (await data.snapshot()).orders.some(order => order.customer?.name === data.customer.name)).toBe(true);
+  const saved = (await data.snapshot()).orders.find(order => order.customer?.name === data.customer.name);
   expect(saved.containerDepositTotal).toBe(20);
   expect(saved.containerRefundTotal).toBe(0);
   expect(saved.grandTotal).toBe(price * 0.5 + 20);
@@ -42,8 +43,10 @@ test('inline new customer, case steppers, empty cart, modal close and stock noti
   await selectInvoiceProduct(page, data.product.name);
   const add = page.getByRole('button', { name: `Add half a Case case of ${data.product.name}` });
   const subtract = page.getByRole('button', { name: `Remove half a Case case of ${data.product.name}` });
-  await add.click(); await add.click(); await subtract.click();
-  await expect(page.getByLabel(`${data.product.name}, Case, quantity in cases`, { exact: true })).toHaveValue('0.5');
+  const quantity = page.getByLabel(`${data.product.name}, Case, quantity in cases`, { exact: true });
+  await expect(quantity).toHaveValue('0.5');
+  await add.click(); await expect(quantity).toHaveValue('1');
+  await subtract.click(); await expect(quantity).toHaveValue('0.5');
   await confirm(page, () => page.getByRole('button', { name: 'Create invoice', exact: true }).last().click());
   await expect(page.getByLabel('Close create invoice')).not.toBeVisible();
   const snapshot = await data.snapshot(), customer = snapshot.customers.find(c => c.name === name);

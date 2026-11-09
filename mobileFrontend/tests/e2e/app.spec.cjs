@@ -28,6 +28,23 @@ test('login validation, real navigation, refresh and confirmed sign-out', async 
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 });
 
+test('Invoice and Orders share matching create/history screen navigation', async ({ page }) => {
+  await signIn(page);
+  await tab(page, 'Invoice');
+  await expect(page.getByRole('button', { name: 'Invoice history', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Create invoice', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Create invoice', exact: true }).first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Close create invoice', { exact: true })).toBeVisible();
+  await page.getByLabel('Close create invoice', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Invoice history', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+  await tab(page, 'Orders');
+  await expect(page.getByRole('button', { name: 'Create supplier order', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /Order history/ }).click();
+  await expect(page.getByRole('button', { name: /Order history/, exact: false })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Supplier order history', { exact: true })).toBeVisible();
+});
+
 test('quick create validates cases, applies container refunds and persists an invoice', async ({ page, request }) => {
   const data = await business(request);
   await signIn(page);
