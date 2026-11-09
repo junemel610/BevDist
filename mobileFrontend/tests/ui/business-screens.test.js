@@ -169,6 +169,29 @@ test('inventory search filters products and Edit opens labelled stock/price fiel
   expect(app.updateProductInventory).toHaveBeenCalledWith('product-1', expect.objectContaining({ stockReason: 'Count correction' }), app.products[0]);
 });
 
+test('inventory card separates case stock, selling price, and supplier cost without repeating its stock status', async () => {
+  app.products[0] = {
+    ...app.products[0],
+    name: 'Gatorade',
+    supplier: 'Pepsi',
+    casePrices: { B: 311 },
+    supplierCosts: { B: 291 },
+    stockByCasePack: { B: { totalStock: 0, reservedStock: 0 } },
+  };
+  await render(<InventoryScreen />);
+
+  expect(screen.getByText('Gatorade')).toBeOnTheScreen();
+  expect(screen.getAllByText('Pepsi').length).toBeGreaterThan(0);
+  expect(screen.getByText('Case')).toBeOnTheScreen();
+  expect(screen.getByLabelText(/Case\. Out of stock\. 0 available, 0 reserved, 0 total\. Selling price .*supplier cost/)).toBeOnTheScreen();
+  expect(screen.getByText('Stock')).toBeOnTheScreen();
+  expect(screen.getByText('0 available · 0 reserved · 0 total')).toBeOnTheScreen();
+  expect(screen.getByText('Selling price')).toBeOnTheScreen();
+  expect(screen.getByText('₱311 / case')).toBeOnTheScreen();
+  expect(screen.getByText('Supplier cost')).toBeOnTheScreen();
+  expect(screen.getByText('₱291 / case')).toBeOnTheScreen();
+});
+
 test('balances open payments at zero and prevent a zero-value submission', async () => {
   await render(<BalancesScreen navigation={navigation} />);
   await userEvent.press(screen.getByRole('button', { name: /Record customer payment/ }));

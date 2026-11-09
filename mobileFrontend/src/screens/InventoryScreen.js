@@ -447,7 +447,6 @@ function SummaryCount({ count, label, color }) {
 }
 
 const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
-  const state = STATUS[productStockState(product)];
   const packs = casePacksForProduct(product);
   return (
     <View style={styles.productCard}>
@@ -455,10 +454,6 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
         <View style={styles.productInfo}>
           <Text style={styles.productName}>{product.name}</Text>
           <Text style={styles.supplierName}>{product.supplier}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: state.background }]}>
-            <MaterialIcons name={state.icon} size={15} color={state.color} accessible={false} />
-            <Text style={[styles.statusLabel, { color: state.color }]}>{state.label}</Text>
-          </View>
         </View>
         <Pressable
           onPress={() => onEdit(product)}
@@ -477,7 +472,7 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
           const packAvailable = stock.totalStock - stock.reservedStock;
           const packState = STATUS[stockState(packAvailable)];
           return (
-            <View key={pack.id} style={styles.caseStockSummary} accessible accessibilityLabel={`${casePackDisplay(pack)}: ${packState.label}, ${formatCaseQuantity(packAvailable)} cases available`}>
+            <View key={pack.id} style={styles.caseStockSummary} accessible accessibilityLabel={`${casePackDisplay(pack)}. ${packState.label}. ${formatCaseQuantity(packAvailable)} available, ${formatCaseQuantity(stock.reservedStock)} reserved, ${formatCaseQuantity(stock.totalStock)} total. Selling price ${pack.casePrice == null ? 'not set' : `${formatPeso(pack.casePrice)} per case`}${product.supplierCosts?.[pack.id] == null ? '' : `; supplier cost ${formatPeso(product.supplierCosts[pack.id])} per case`}`}>
               <View style={styles.caseStockSummaryHeading}>
                 <Text style={styles.caseStockSummaryName}>{casePackDisplay(pack)}</Text>
                 <View style={[styles.caseTypeHealthBadge, { backgroundColor: packState.background }]}>
@@ -485,9 +480,20 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
                   <Text style={[styles.caseTypeHealthLabel, { color: packState.color }]}>{packState.label}</Text>
                 </View>
               </View>
-              <Text style={styles.caseStockSummaryValue}>{formatCaseQuantity(packAvailable)} available · {formatCaseQuantity(stock.reservedStock)} reserved · {formatCaseQuantity(stock.totalStock)} total</Text>
-              <Text style={[styles.caseStockSummaryPrice, pack.casePrice == null && styles.unsetPrice]}>{pack.casePrice == null ? 'Selling price not set' : `${formatPeso(pack.casePrice)} / case`}</Text>
-              {product.supplierCosts?.[pack.id] != null ? <Text style={styles.caseStockSummaryCost}>Supplier cost {formatPeso(product.supplierCosts[pack.id])} / case</Text> : null}
+              <View style={styles.caseStockFacts}>
+                <Text style={styles.caseStockFactLabel}>Stock</Text>
+                <Text style={styles.caseStockSummaryValue}>{formatCaseQuantity(packAvailable)} available · {formatCaseQuantity(stock.reservedStock)} reserved · {formatCaseQuantity(stock.totalStock)} total</Text>
+              </View>
+              <View style={styles.casePriceFacts}>
+                <View style={styles.casePriceFact}>
+                  <Text style={styles.caseStockFactLabel}>Selling price</Text>
+                  <Text style={[styles.caseStockSummaryPrice, pack.casePrice == null && styles.unsetPrice]}>{pack.casePrice == null ? 'Not set' : `${formatPeso(pack.casePrice)} / case`}</Text>
+                </View>
+                {product.supplierCosts?.[pack.id] != null ? <View style={styles.casePriceFact}>
+                  <Text style={styles.caseStockFactLabel}>Supplier cost</Text>
+                  <Text style={styles.caseStockSummaryCost}>{formatPeso(product.supplierCosts[pack.id])} / case</Text>
+                </View> : null}
+              </View>
             </View>
           );
         })}
@@ -534,8 +540,6 @@ const styles = StyleSheet.create({
   productInfo: { flex: 1 },
   productName: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, lineHeight: 22 },
   supplierName: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 3 },
-  statusBadge: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: theme.spacing.sm, borderRadius: 20 },
-  statusLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   editButton: { minWidth: 72, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
   editLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   emptyState: { alignItems: 'center', paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing['2xl'] },
@@ -577,9 +581,13 @@ const styles = StyleSheet.create({
   caseStockSummaryName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   caseTypeHealthBadge: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: theme.spacing.xs, borderRadius: 12 },
   caseTypeHealthLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
-  caseStockSummaryValue: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
-  caseStockSummaryPrice: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
-  caseStockSummaryCost: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
+  caseStockFacts: { marginTop: theme.spacing.xs },
+  caseStockFactLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs },
+  caseStockSummaryValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, marginTop: 2 },
+  casePriceFacts: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.lg, marginTop: theme.spacing.sm, paddingTop: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  casePriceFact: { flexGrow: 1, flexBasis: 130 },
+  caseStockSummaryPrice: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
+  caseStockSummaryCost: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
   unsetPrice: { color: theme.colors.warning },
   priceLabel: { marginTop: theme.spacing.md },
   errorText: { color: theme.colors.danger, fontSize: theme.fontSize.sm, marginTop: theme.spacing.sm },
