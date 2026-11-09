@@ -460,25 +460,6 @@ function OverlayModal({ visible, onClose, children, width, panelStyle, fullScree
   );
 }
 
-function ModalHeader({ title, subtitle, onClose }) {
-  return (
-    <View style={styles.modalHeader}>
-      <View style={styles.modalHeading}>
-        <Text style={styles.modalTitle}>{title}</Text>
-        {!!subtitle && <Text style={styles.modalSubtitle}>{subtitle}</Text>}
-      </View>
-      <Pressable
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel={`Close ${title.toLowerCase()}`}
-        style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
-      >
-        <MaterialIcons name="close" size={22} color={theme.colors.text} accessible={false} />
-      </Pressable>
-    </View>
-  );
-}
-
 function InvoiceDocumentHeading({ invoiceNumber, date, onClose, closeLabel }) {
   return <>
     <View style={styles.invoiceStoreHeader}>
@@ -753,58 +734,65 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
 function OrderDetailModal({ onPay, order, onClose, onShowInvoice, onEdit, onMarkDelivered, onCancel }) {
   if (!order) return null;
   const status = STATUS[order.status] ?? STATUS.unpaid;
+  const invoiceNumber = order.invoiceNumber;
+  const depositTotal = Number(order.containerDepositTotal) || 0;
+  const returnTotal = Number(order.containerRefundTotal) || 0;
   return (
     <OverlayModal visible={!!order} onClose={onClose}>
-      <ModalHeader title="Invoice details" subtitle={`${order.invoiceNumber} · ${order.date}`} onClose={onClose} />
-      <ScrollView contentContainerStyle={styles.modalBody}>
-        <View style={styles.infoGroup}>
-          <Text style={styles.sectionLabel}>Customer</Text>
-          <Text style={styles.infoPrimary}>{order.customer.name}</Text>
-          <Text style={styles.infoSecondary}>{order.customer.contact}</Text>
-          {!!order.customer.address && <Text style={styles.infoSecondary}>{order.customer.address}</Text>}
+      <InvoiceDocumentHeading invoiceNumber={invoiceNumber} date={order.date} onClose={onClose} closeLabel="Close invoice details" />
+      <ScrollView style={styles.invoicePreviewScroll} contentContainerStyle={styles.invoiceBody}>
+        <View style={styles.invoiceCustomerBlock}>
+          <Text style={styles.sectionLabel}>Customer details</Text>
+          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Customer Name:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.name}</Text></View>
+          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Tel No:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.contact || '—'}</Text></View>
+          <View style={styles.invoiceCustomerLine}><Text style={styles.invoiceCustomerLabel}>Address:</Text><Text style={styles.invoiceCustomerValue}>{order.customer.address || '—'}</Text></View>
         </View>
-        <View style={styles.sectionDivider} />
-        <View style={styles.infoGroup}>
-          <Text style={styles.sectionLabel}>Invoice</Text>
-          <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Delivery</Text>
-            <Text style={styles.infoValue}>{order.deliveryStatus === 'delivered' ? 'Delivered' : 'Pending delivery'}</Text>
-          </View>
-          <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Overall status</Text>
-            <Text style={styles.infoValue}>{order.lifecycleStatus === 'completed' ? 'Completed' : order.lifecycleStatus === 'cancelled' ? 'Cancelled' : 'Ongoing'}</Text>
-          </View>
-          <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Payment status</Text>
-            <Text style={[styles.infoValue, { color: status.color }]}>{status.label}</Text>
-          </View>
-          <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Paid</Text>
-            <Text style={styles.infoValue}>{formatPeso(order.amountPaid)}</Text>
-          </View>
-          <View style={styles.infoLine}>
-            <Text style={styles.infoSecondary}>Balance due</Text>
-            <Text style={styles.infoValue}>{formatPeso(order.remainingBalance)}</Text>
-          </View>
+
+        <View style={styles.invoiceTableHeader}>
+          <Text style={[styles.invoiceColumnHeading, styles.invoiceProductColumn]}>Product</Text>
+          <Text style={[styles.invoiceColumnHeading, styles.previewQuantityColumn]}>QTY</Text>
+          <Text style={[styles.invoiceColumnHeading, styles.previewPriceColumn]}>PRICE</Text>
         </View>
-        <View style={styles.sectionDivider} />
-        <View>
-          <Text style={styles.sectionLabel}>Items</Text>
-          {order.items.map((item, index) => (
-            <View key={`${item.productId}-${index}`} style={styles.itemRow}>
-              <View style={styles.itemDescription}>
-                <Text style={styles.itemName}>{item.productName}</Text>
-                <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${formatCaseQuantity(item.quantity)} ${item.quantity === 1 ? 'case' : 'cases'} × ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
-              </View>
-              <Text style={styles.itemAmount}>{formatPeso(item.quantity * (item.casePrice ?? item.unitPrice))}</Text>
+        {order.items.map((item, index) => (
+          <View key={`${item.productId}-${index}`} style={styles.invoiceItem}>
+            <View style={styles.itemDescription}>
+              <Text style={styles.itemName}>{item.productName}</Text>
+              <Text style={styles.infoSecondary}>{item.unitsPerCase ? `${casePackDisplay({ id: item.packId, label: item.packLabel, unitsPerCase: item.unitsPerCase })} · ${formatPeso(item.casePrice ?? item.unitPrice)} per case` : 'Historical invoice line'}</Text>
             </View>
-          ))}
+            <Text style={styles.previewQuantity}>{formatCaseQuantity(item.quantity)}</Text>
+            <Text style={styles.previewAmount}>{formatPeso(caseLineAmount(item.quantity, item.casePrice ?? item.unitPrice))}</Text>
+          </View>
+        ))}
+
+        {(order.containerReturns || []).length > 0 && <View>
+          <View style={styles.sectionDivider} />
+          <Text style={styles.sectionLabel}>Deposit / Return</Text>
+          {order.containerReturns.map((entry, index) => <View key={entry.id || index} style={styles.invoiceItem}>
+            <View style={styles.itemDescription}>
+              <Text style={styles.itemName}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'}: {entry.type}</Text>
+              <Text style={styles.infoSecondary}>{entry.kind === 'deposit' ? 'Deposit' : 'Return'} · {formatPeso(entry.amountPerCase ?? entry.refundPerCase)} per case</Text>
+            </View>
+            <Text style={styles.previewQuantity}>{formatCaseQuantity(entry.quantity)}</Text>
+            <Text style={styles.previewAmount}>{entry.kind === 'deposit' ? '+' : '−'}{formatPeso(refundAmount(entry))}</Text>
+          </View>)}
+        </View>}
+
+        <View style={styles.invoiceSummary}>
+          <SummaryLine label="Product subtotal" value={formatPeso(order.subtotal)} />
+          <SummaryLine label="Deposits added" value={`+${formatPeso(depositTotal)}`} />
+          <SummaryLine label="Returns deducted" value={`−${formatPeso(returnTotal)}`} />
+          <View style={styles.invoiceGrandTotal}>
+            <Text style={styles.invoiceTotalLabel}>Grand total</Text>
+            <Text style={styles.invoiceTotalValue}>{formatPeso(order.grandTotal)}</Text>
+          </View>
+          <SummaryLine label="Paid" value={`−${formatPeso(order.amountPaid)}`} valueColor={theme.colors.success} />
+          <SummaryLine label="Remaining balance" value={formatPeso(order.remainingBalance)} valueColor={order.remainingBalance > 0 ? theme.colors.danger : theme.colors.success} />
         </View>
-        <View style={styles.sectionDivider} />
+
         <DeliveryBadge order={order} />
-        <View style={styles.grandTotalRow}>
-          <Text style={styles.grandTotalLabel}>Grand total</Text>
-          <Text style={styles.grandTotalValue}>{formatPeso(order.grandTotal)}</Text>
+        <View style={styles.invoiceStatusNote}>
+          <MaterialIcons name={status.icon} size={17} color={status.color} accessible={false} />
+          <Text style={[styles.invoiceStatusText, { color: status.color }]}>Payment status: {status.label}</Text>
         </View>
       </ScrollView>
       <View style={styles.modalFooter}>
