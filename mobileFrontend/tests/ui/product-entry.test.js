@@ -43,6 +43,19 @@ test('supplier cost entry shows a peso prefix and uses a short numeric hint', as
   expect(screen.getByLabelText('Cola supplier cost per case in pesos').props.placeholder).toBe('0');
 });
 
+test('inventory starts supplier cost at selling price and saves later edits independently', async () => {
+  await stockForm();
+  await fireEvent.press(screen.getByRole('radio', { name: 'Select supplier Supplier One' }));
+  const supplierCost = screen.getByLabelText('Case supplier cost per case in pesos');
+  expect(supplierCost).toHaveDisplayValue('120');
+  await fill('Case supplier cost per case in pesos', '105');
+  await saveProduct();
+  await confirm();
+  expect(app.addProduct).toHaveBeenCalledWith(expect.objectContaining({
+    casePrices: { B: '120' }, supplierCosts: { B: '105' },
+  }));
+});
+
 test('stock supplier search includes suppliers without products and saves their ID after confirmation', async () => {
   app.suppliers.push({ id: 'supplier-2', name: 'Empty Supplier' });
   await stockForm();

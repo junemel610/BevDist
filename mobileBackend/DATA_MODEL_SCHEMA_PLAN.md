@@ -35,7 +35,7 @@ All entity IDs are UUIDs. Foreign keys preserve relationships; financial history
 | `suppliers` | Name, contact, address; default supplier for products and actual supplier on each receipt |
 | `products` | Name, supplier ID, active flag |
 | `case_pack_types` | One generic case unit is active. B remains an internal compatibility key; the app does not store or display bottles per case. Quantities and prices are per product case. |
-| `product_case_packs` | Composite key `(product_id, pack_code)`, optional direct case price until configured, per-pack low-stock threshold |
+| `product_case_packs` | Composite key `(product_id, pack_code)`, independent selling price and supplier cost per case, per-pack low-stock threshold |
 | `returned_case_types` | Optional configurable return labels and default refund rates; no guessed values seeded |
 | `invoices` | Invoice number, customer ID and printed customer snapshots, due date, delivery/cancellation timestamps, actor, request key/hash |
 | `invoice_items` | Invoice ID, product/pack FK, quantity, direct price and label snapshots, generated line total; edits deactivate and replace rows |

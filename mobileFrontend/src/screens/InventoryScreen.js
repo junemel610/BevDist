@@ -53,6 +53,7 @@ export function InventoryScreen({ navigation, route }) {
   const [stockByCasePack, setStockByCasePack] = useState({});
   const [casePackIds, setCasePackIds] = useState([]);
   const [casePrices, setCasePrices] = useState({});
+  const [supplierCosts, setSupplierCosts] = useState({});
   const [stockReason, setStockReason] = useState('');
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -87,6 +88,7 @@ export function InventoryScreen({ navigation, route }) {
     const pack = casePacksForProduct(product).find(entry => entry.id === 'B');
     setCasePackIds(['B']);
     setCasePrices({ B: pack?.casePrice ? String(pack.casePrice) : '' });
+    setSupplierCosts({ B: product.supplierCosts?.B == null ? '' : String(product.supplierCosts.B) });
     setStockByCasePack({ B: String(stockForCasePack(product, 'B').totalStock) });
     setError('');
   }, []);
@@ -107,6 +109,7 @@ export function InventoryScreen({ navigation, route }) {
     setSupplierSearch('');
     setCasePackIds(['B']);
     setCasePrices({});
+    setSupplierCosts({});
     setStockByCasePack({});
     setError('');
   }, [savedSuppliers]);
@@ -137,6 +140,7 @@ export function InventoryScreen({ navigation, route }) {
         stockByCasePack: normalizedStock,
         casePackIds: selectedCasePackIds,
         casePrices,
+        supplierCosts,
       });
       if (validationError) {
         setError(validationError);
@@ -144,10 +148,10 @@ export function InventoryScreen({ navigation, route }) {
       }
       confirmAction({
         title: 'Add product to inventory?',
-        message: `${productName.trim()} from ${productSupplier}${supplierMode === 'new' ? ' (new supplier)' : ''} · ${selectedCasePackIds.map(id => `${casePackOptions.find(pack => pack.id === id)?.label || id}: ${formatCaseQuantity(stockByCasePack[id] || 0)} cases · selling price ${formatPeso(casePrices[id])}/case`).join(' · ')}.`,
+        message: `${productName.trim()} from ${productSupplier}${supplierMode === 'new' ? ' (new supplier)' : ''} · ${selectedCasePackIds.map(id => `${casePackOptions.find(pack => pack.id === id)?.label || id}: ${formatCaseQuantity(stockByCasePack[id] || 0)} cases · selling ${formatPeso(casePrices[id])}/case · supplier cost ${formatPeso(supplierCosts[id] || casePrices[id])}/case`).join(' · ')}.`,
         confirmLabel: 'Add product',
         onConfirm: async () => {
-          const product = await addProduct({ name: productName, supplier: productSupplier, supplierId: supplierMode === 'existing' ? selectedSupplierId : undefined, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason });
+          const product = await addProduct({ name: productName, supplier: productSupplier, supplierId: supplierMode === 'existing' ? selectedSupplierId : undefined, stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, supplierCosts: Object.fromEntries(selectedCasePackIds.map(id => [id, supplierCosts[id] || casePrices[id]])), stockReason });
           if (!product) {
             setError('Could not add this product. Check the details and try again.');
             return;
@@ -167,13 +171,13 @@ export function InventoryScreen({ navigation, route }) {
       setError('Enter stock in half-case steps at least as high as reserved stock, and a price greater than ₱0.');
       return;
     }
-    const priceSummary = selectedCasePackIds.map(id => `${id}: ${formatCaseQuantity(stockByCasePack[id] || 0)} cases · ${formatPeso(casePrices[id])}/case`).join(' · ');
+    const priceSummary = selectedCasePackIds.map(id => `${id}: ${formatCaseQuantity(stockByCasePack[id] || 0)} cases · selling ${formatPeso(casePrices[id])}/case · supplier cost ${formatPeso(supplierCosts[id] || casePrices[id])}/case`).join(' · ');
     confirmAction({
       title: 'Save inventory changes?',
       message: `${editingProduct.name}: ${priceSummary}.`,
       confirmLabel: 'Save changes',
       onConfirm: async () => {
-        const updated = await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, stockReason }, editingProduct);
+        const updated = await updateProductInventory(editingProduct.id, { stockByCasePack: normalizedStock, casePackIds: selectedCasePackIds, casePrices, supplierCosts: Object.fromEntries(selectedCasePackIds.map(id => [id, supplierCosts[id] || casePrices[id]])), stockReason }, editingProduct);
         if (!updated) {
           setError('Could not save these inventory values. Check them and try again.');
           return;
@@ -375,7 +379,11 @@ export function InventoryScreen({ navigation, route }) {
                         <Text style={[styles.caseInputLabel, styles.priceInputLabel]}>Selling price per case</Text>
                         <PesoInput
                           value={String(casePrices[id] ?? '')}
-                          onChangeText={value => { setCasePrices(current => ({ ...current, [id]: value })); setError(''); }}
+                          onChangeText={value => {
+                            setCasePrices(current => ({ ...current, [id]: value }));
+                            setSupplierCosts(current => current[id] ? current : ({ ...current, [id]: value }));
+                            setError('');
+                          }}
                           keyboardType="decimal-pad"
                           placeholder="0"
                           placeholderTextColor={theme.colors.placeholder}
@@ -383,7 +391,20 @@ export function InventoryScreen({ navigation, route }) {
                           style={styles.fieldInput}
                         />
                       </View>
+                      <View style={styles.caseInputGroup}>
+                        <Text style={styles.caseInputLabel}>Supplier cost per case</Text>
+                        <PesoInput
+                          value={String(supplierCosts[id] ?? '')}
+                          onChangeText={value => { setSupplierCosts(current => ({ ...current, [id]: value })); setError(''); }}
+                          keyboardType="decimal-pad"
+                          placeholder="0"
+                          placeholderTextColor={theme.colors.placeholder}
+                          accessibilityLabel={`${casePackDisplay(pack)} supplier cost per case in pesos`}
+                          style={styles.fieldInput}
+                        />
+                      </View>
                     </View>
+                    {addingProduct ? <Text style={styles.helperText}>Supplier cost starts at the selling price. You can change it separately.</Text> : null}
                   </View>
                 );
               })}
@@ -456,7 +477,7 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
           const packAvailable = stock.totalStock - stock.reservedStock;
           const packState = STATUS[stockState(packAvailable)];
           return (
-            <View key={pack.id} style={styles.caseStockSummary} accessibilityLabel={`${casePackDisplay(pack)}: ${packState.label}, ${formatCaseQuantity(packAvailable)} cases available`}>
+            <View key={pack.id} style={styles.caseStockSummary} accessible accessibilityLabel={`${casePackDisplay(pack)}: ${packState.label}, ${formatCaseQuantity(packAvailable)} cases available`}>
               <View style={styles.caseStockSummaryHeading}>
                 <Text style={styles.caseStockSummaryName}>{casePackDisplay(pack)}</Text>
                 <View style={[styles.caseTypeHealthBadge, { backgroundColor: packState.background }]}>
@@ -466,6 +487,7 @@ const InventoryCard = memo(function InventoryCard({ product, onEdit }) {
               </View>
               <Text style={styles.caseStockSummaryValue}>{formatCaseQuantity(packAvailable)} available · {formatCaseQuantity(stock.reservedStock)} reserved · {formatCaseQuantity(stock.totalStock)} total</Text>
               <Text style={[styles.caseStockSummaryPrice, pack.casePrice == null && styles.unsetPrice]}>{pack.casePrice == null ? 'Selling price not set' : `${formatPeso(pack.casePrice)} / case`}</Text>
+              {product.supplierCosts?.[pack.id] != null ? <Text style={styles.caseStockSummaryCost}>Supplier cost {formatPeso(product.supplierCosts[pack.id])} / case</Text> : null}
             </View>
           );
         })}
@@ -542,8 +564,8 @@ const styles = StyleSheet.create({
   caseTypeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.bold },
   casePriceRow: { gap: theme.spacing.xs, marginBottom: theme.spacing.md },
   casePriceLabel: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  caseInputRow: { flexDirection: 'row', gap: theme.spacing.sm },
-  caseInputGroup: { flex: 1, gap: theme.spacing.xs },
+  caseInputRow: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+  caseInputGroup: { flexGrow: 1, flexBasis: 145, gap: theme.spacing.xs },
   customCaseInputGroup: { gap: theme.spacing.xs },
   sectionDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginVertical: theme.spacing.sm },
   caseInputLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.medium },
@@ -557,6 +579,7 @@ const styles = StyleSheet.create({
   caseTypeHealthLabel: { fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
   caseStockSummaryValue: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
   caseStockSummaryPrice: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold, marginTop: 2 },
+  caseStockSummaryCost: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, marginTop: 2 },
   unsetPrice: { color: theme.colors.warning },
   priceLabel: { marginTop: theme.spacing.md },
   errorText: { color: theme.colors.danger, fontSize: theme.fontSize.sm, marginTop: theme.spacing.sm },

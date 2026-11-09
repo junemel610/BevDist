@@ -51,6 +51,8 @@ export function createLiveData(api, randomUUID) {
         stockReason: profile.stockReason,
         packs: profile.casePackIds.map(packId => ({
           packId, casePrice: Number(profile.casePrices[packId]),
+          supplierCostPerCase: profile.supplierCosts?.[packId] == null || profile.supplierCosts[packId] === ''
+            ? null : Number(profile.supplierCosts[packId]),
           lowStockThreshold: original?.stockByCasePack?.[packId]?.lowStockThreshold ?? 15,
           totalStock: Number(profile.stockByCasePack[packId].totalStock),
           expectedStock: original?.stockByCasePack?.[packId]?.totalStock ?? 0,

@@ -14,7 +14,11 @@ async function loadAppData(pool) {
     const rows = async sql => (await client.query(sql)).rows;
     const customers = await rows('SELECT id,name,contact,address FROM customers WHERE is_active ORDER BY name,id');
     const products = await rows(`SELECT p.*,s.name AS supplier FROM products p JOIN suppliers s ON s.id=p.supplier_id WHERE p.is_active ORDER BY p.name,p.id`);
-    const packs = group(await rows('SELECT * FROM inventory_stock WHERE is_active ORDER BY pack_code'), 'product_id');
+    // inventory_stock predates supplier_cost_per_case and its SELECT * view does not
+    // automatically gain columns added later, so join the base catalog row explicitly.
+    const packs = group(await rows(`SELECT inventory_stock.*, product_case_packs.supplier_cost_per_case
+      FROM inventory_stock JOIN product_case_packs USING (product_id,pack_code)
+      WHERE inventory_stock.is_active ORDER BY pack_code`), 'product_id');
     const allCasePackTypes = await rows('SELECT code,label,units_per_case,family,is_active FROM case_pack_types ORDER BY code');
     const casePackTypes = allCasePackTypes.filter(type => type.is_active);
     const casePackTypeByCode = Object.fromEntries(allCasePackTypes.map(type => [type.code, {
@@ -50,8 +54,13 @@ async function loadAppData(pool) {
       products: products.map(row => ({
         id: row.id, name: row.name, supplierId: row.supplier_id, supplier: row.supplier,
         casePackIds: (packs[row.id] || []).map(pack => pack.pack_code),
-        casePacks: (packs[row.id] || []).map(pack => ({ ...casePackTypeByCode[pack.pack_code], casePrice: pack.case_price == null ? null : Number(pack.case_price) })),
+        casePacks: (packs[row.id] || []).map(pack => ({
+          ...casePackTypeByCode[pack.pack_code],
+          casePrice: pack.case_price == null ? null : Number(pack.case_price),
+          supplierCostPerCase: pack.supplier_cost_per_case == null ? null : Number(pack.supplier_cost_per_case),
+        })),
         casePrices: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, pack.case_price == null ? null : Number(pack.case_price)])),
+        supplierCosts: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, pack.supplier_cost_per_case == null ? null : Number(pack.supplier_cost_per_case)])),
         stockByCasePack: Object.fromEntries((packs[row.id] || []).map(pack => [pack.pack_code, {
           totalStock: Number(pack.total_stock_cases), reservedStock: Number(pack.reserved_stock_cases),
           lowStockThreshold: Number(pack.low_stock_threshold_cases),

@@ -24,7 +24,7 @@ before(async () => {
   const url = new URL(process.env.DATABASE_URL);
   url.pathname = `/${database}`;
   pool = createPool(url.href);
-  assert.equal((await migrate(pool)).length, 12);
+  assert.equal((await migrate(pool)).length, 13);
   actor = (await one("INSERT INTO app_users(username,password_hash) VALUES ('test-user','test-only-hash') RETURNING id")).id;
 });
 
@@ -53,7 +53,7 @@ const pay = (f, amountReceived, extra = {}) => recordPayment(pool, {
   customerId: f.customer, method: 'Cash', amountReceived, requestKey: randomUUID(), ...extra,
 }, actor);
 
-test('migrations are repeatable and seed supplier and product directories without prices or stock', async () => {
+test('migrations are repeatable and seed the saved supplier/product directory and matching prices without stock', async () => {
   assert.deepEqual(await migrate(pool), []);
   assert.equal((await one('SELECT count(*) AS count FROM case_pack_types WHERE is_active')).count, '1');
   assert.deepEqual((await pool.query("SELECT code,units_per_case FROM case_pack_types WHERE is_active ORDER BY code")).rows, [
@@ -64,12 +64,17 @@ test('migrations are repeatable and seed supplier and product directories withou
   ]);
   assert.equal((await one('SELECT count(*) AS count FROM suppliers')).count, '6');
   assert.equal((await one('SELECT count(*) AS count FROM products')).count, '51');
-  assert.equal((await one('SELECT count(*) AS count FROM product_case_packs WHERE pack_code=\'B\' AND case_price IS NULL')).count, '51');
+  assert.equal((await one('SELECT count(*) AS count FROM product_case_packs WHERE pack_code=\'B\' AND case_price IS NULL')).count, '2');
   assert.equal((await one('SELECT count(*) AS count FROM inventory_movements')).count, '0');
   const catalog = await loadAppData(pool);
   assert.equal(catalog.suppliers.length, 6);
   assert.equal(catalog.products.length, 51);
-  assert.equal(catalog.products.find(product => product.name === 'Coke Tall 8oz').casePrices.B, null);
+  const cokeTall = catalog.products.find(product => product.name === 'Coke Tall 8oz');
+  assert.equal(cokeTall.casePrices.B, 171);
+  assert.equal(cokeTall.supplierCosts.B, 171);
+  const pepsi = catalog.products.find(product => product.name === 'Pepsi 8oz');
+  assert.equal(pepsi.casePrices.B, 172);
+  assert.equal(pepsi.supplierCosts.B, 172);
   assert.equal((await one('SELECT count(*) AS count FROM returned_case_types')).count, '0');
 });
 
@@ -252,6 +257,8 @@ test('supplier receipts update exact case types once and preserve return credits
   const row = await one('SELECT * FROM supplier_order_totals WHERE id=$1', [id]);
   assert.equal(Number(row.product_cost), 180);
   assert.equal(Number(row.net_cost), 160);
+  assert.equal(Number((await one("SELECT supplier_cost_per_case FROM product_case_packs WHERE product_id=$1 AND pack_code='B'", [f.product])).supplier_cost_per_case), 72);
+  assert.equal((await loadAppData(pool)).products.find(product => product.id === f.product).supplierCosts.B, 72);
   const stock = (await pool.query('SELECT * FROM inventory_stock WHERE product_id=$1 ORDER BY pack_code', [f.product])).rows;
   assert.deepEqual(stock.map(r => Number(r.total_stock_cases)), [2.5]);
   await assert.rejects(pool.query('DELETE FROM supplier_order_returns WHERE supplier_order_id=$1', [id]), /immutable/);
@@ -653,6 +660,8 @@ test('inline supplier and products use one generic case unit and replay exactly 
   const products = snapshot.products.filter(p => p.supplierId === supplier.id);
   assert.equal(products.length, 2);
   assert.equal(products.find(p => p.name === 'Cola').stockByCasePack.B.totalStock, 2.5);
+  assert.equal(products.find(p => p.name === 'Cola').casePrices.B, 100);
+  assert.equal(products.find(p => p.name === 'Cola').supplierCosts.B, 72);
   assert.equal(products.find(p => p.name === 'Water').stockByCasePack.B.totalStock, 1);
   assert.equal(snapshot.restockRecords.filter(r => r.id === id).length, 1);
   assert.equal(snapshot.restockRecords.find(r => r.id === id).netCost, 250);

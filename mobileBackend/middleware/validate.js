@@ -52,6 +52,7 @@ const profile = body => body && text(body.name)
 const profileBody = validate(req => profile(req.body), 'Provide a name and valid contact details');
 const productBody = validate(req => req.body && text(req.body.name) && (uuid(req.body.supplierId) || (!req.body.supplierId && text(req.body.supplierName)))
   && list(req.body.packs, p => p && p.packId === 'B' && amount(p.casePrice) && Number(p.casePrice) > 0
+    && (p.supplierCostPerCase == null || (amount(p.supplierCostPerCase) && Number(p.supplierCostPerCase) > 0))
     && (p.lowStockThreshold == null || (amount(p.lowStockThreshold) && Number(p.lowStockThreshold) <= 99999999.5 && Number.isInteger(Number(p.lowStockThreshold) * 2))), true)
   && req.body.packs.every(p => p.totalStock == null || (amount(p.totalStock) && Number(p.totalStock) <= 99999999.5
     && Number.isInteger(Number(p.totalStock) * 2) && text(req.body.stockReason)

@@ -14,14 +14,17 @@ test('add product with one generic case unit, direct case price and half-case st
     await page.getByRole('radio', { name: `Select supplier ${data.supplierName}`, exact: true }).click();
     await page.getByLabel('Case quantity in cases', { exact: true }).fill('0.5');
     await page.getByLabel('Case selling price per case in pesos', { exact: true }).fill('100');
+    await expect(page.getByLabel('Case supplier cost per case in pesos', { exact: true })).toHaveValue('100');
+    await page.getByLabel('Case supplier cost per case in pesos', { exact: true }).fill('80');
     await confirm(page, () => page.getByRole('button', { name: 'Add product' }).last().click());
     await expect(page.getByLabel('Close inventory editor')).not.toBeVisible();
     const saved = (await data.snapshot()).products.find(p => p.name === name);
     expect(saved.casePackIds).toEqual(['B']);
     await page.getByLabel('Search inventory by product or supplier').fill(name);
     expect(saved.casePrices.B).toBe(100);
+    expect(saved.supplierCosts.B).toBe(80);
     expect(saved.stockByCasePack.B.totalStock).toBe(0.5);
-    await expect(page.getByLabel('Case: Low stock, 0.5 cases available', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Case: Low stock, 1/2 cases available', { exact: true })).toBeVisible();
 });
 
 test('inventory validation rejects invalid counts, missing reasons and deletion of stocked products', async ({ page, request }) => {
@@ -93,8 +96,9 @@ test('new product form validates required fields, duplicate names and invalid ca
   await page.getByLabel('Product name', { exact: true }).fill(`New ${data.product.name}`);
   await page.getByLabel('Case quantity in cases', { exact: true }).fill('0.25');
   await page.getByLabel('Case selling price per case in pesos', { exact: true }).fill('0');
+  await page.getByLabel('Stock count reason', { exact: true }).fill('Initial stock setup');
   await save.click();
-  await expect(activeText(page, 'Enter stock in half-case steps and a numeric selling price greater than ₱0.')).toBeVisible();
+  await expect(activeText(page, 'Enter stock in half-case steps and a numeric selling price greater than ₱0 for each selected case type.')).toBeVisible();
   await page.getByLabel('Close inventory editor').click();
   expect((await data.snapshot()).products.some(p => p.name === `New ${data.product.name}`)).toBe(false);
 });

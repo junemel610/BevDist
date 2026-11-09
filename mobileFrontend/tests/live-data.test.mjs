@@ -39,11 +39,11 @@ test('ambiguous failures reuse keys; independent successful invoices get new key
   assert.notEqual(keys[1], keys[2]);
 });
 
-test('inventory sends original counts and updated prices/stock in one request', async () => {
+test('inventory sends independently saved selling and supplier prices with stock in one request', async () => {
   const { live, calls } = setup();
-  await live.saveProduct('product', { casePackIds: ['B'], casePrices: { B: '100' }, stockByCasePack: { B: { totalStock: 2.5 } }, stockReason: 'Count correction' },
+  await live.saveProduct('product', { casePackIds: ['B'], casePrices: { B: '100' }, supplierCosts: { B: '72' }, stockByCasePack: { B: { totalStock: 2.5 } }, stockReason: 'Count correction' },
     { name: 'Beverage', supplierId: 'supplier', stockByCasePack: { B: { totalStock: 3, lowStockThreshold: 2 } } });
-  assert.deepEqual(calls[0][2].packs, [{ packId: 'B', casePrice: 100, lowStockThreshold: 2, totalStock: 2.5, expectedStock: 3 }]);
+  assert.deepEqual(calls[0][2].packs, [{ packId: 'B', casePrice: 100, supplierCostPerCase: 72, lowStockThreshold: 2, totalStock: 2.5, expectedStock: 3 }]);
   await live.transition('invoice', 'cancelled');
   assert.deepEqual(calls[1], ['cancel', 'invoice', 'Cancelled by operator']);
   assert.deepEqual(await live.load(), { orders: [], products: [] });

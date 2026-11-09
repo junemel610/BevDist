@@ -37,8 +37,8 @@ async function receiveSupplierOrder(pool, input, actorId) {
       const created = await client.query('INSERT INTO products(name,supplier_id) VALUES ($1,$2) RETURNING id', [product.name.trim(), resolvedSupplierId]);
       const productId = created.rows[0].id;
       for (const pack of product.packs) {
-        const packResult = await client.query(`INSERT INTO product_case_packs(product_id,pack_code,case_price)
-          SELECT $1,code,$3 FROM case_pack_types WHERE code=$2 AND is_active RETURNING pack_code`, [productId, pack.packId, pack.casePrice]);
+        const packResult = await client.query(`INSERT INTO product_case_packs(product_id,pack_code,case_price,supplier_cost_per_case)
+          SELECT $1,code,$3,$4 FROM case_pack_types WHERE code=$2 AND is_active RETURNING pack_code`, [productId, pack.packId, pack.casePrice, pack.unitCost]);
         if (!packResult.rowCount) throw new HttpError(400, `Unknown case type: ${pack.packId}`);
         receiptItems.push({ productId, packId: pack.packId, quantity: pack.quantity, unitCost: pack.unitCost });
       }
@@ -57,6 +57,7 @@ async function receiveSupplierOrder(pool, input, actorId) {
         WHERE p.id=$2 AND pc.pack_code=$3 AND p.supplier_id=$6 AND p.is_active AND pc.is_active AND ct.is_active`,
       [order.id, item.productId, item.packId, item.quantity, item.unitCost, resolvedSupplierId]);
       if (!result.rowCount) throw new HttpError(404, 'Product case type is missing or archived');
+      await client.query('UPDATE product_case_packs SET supplier_cost_per_case=$3 WHERE product_id=$1 AND pack_code=$2', [item.productId, item.packId, item.unitCost]);
     }
     for (const entry of returnedCases) {
       await client.query(`INSERT INTO supplier_order_returns(supplier_order_id,return_type_id,label_snapshot,quantity_cases,refund_per_case_snapshot)

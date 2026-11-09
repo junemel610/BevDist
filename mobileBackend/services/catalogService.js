@@ -60,11 +60,12 @@ async function saveProduct(pool, id, { name, supplierId, supplierName, packs, st
       id = (await client.query('INSERT INTO products(name,supplier_id) VALUES ($1,$2) RETURNING id', [name.trim(), supplierId])).rows[0].id;
     }
     for (const pack of [...packs].sort((a, b) => a.packId.localeCompare(b.packId))) {
-      const result = await client.query(`INSERT INTO product_case_packs(product_id,pack_code,case_price,low_stock_threshold_cases)
-        SELECT $1,code,$3,$4 FROM case_pack_types WHERE code=$2 AND is_active
+      const result = await client.query(`INSERT INTO product_case_packs(product_id,pack_code,case_price,supplier_cost_per_case,low_stock_threshold_cases)
+        SELECT $1,code,$3,$4,$5 FROM case_pack_types WHERE code=$2 AND is_active
         ON CONFLICT (product_id,pack_code) DO UPDATE SET case_price=EXCLUDED.case_price,
+        supplier_cost_per_case=EXCLUDED.supplier_cost_per_case,
         low_stock_threshold_cases=EXCLUDED.low_stock_threshold_cases,is_active=true`,
-      [id, pack.packId, pack.casePrice, pack.lowStockThreshold ?? 15]);
+      [id, pack.packId, pack.casePrice, pack.supplierCostPerCase ?? null, pack.lowStockThreshold ?? 15]);
       if (!result.rowCount) throw new HttpError(400, 'Unknown case type');
     }
     for (const pack of packs) {
