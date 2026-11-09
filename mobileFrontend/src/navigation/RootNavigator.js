@@ -43,7 +43,7 @@ function OrdersStackScreen() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
       <Stack.Screen name="InvoicesMain" component={OrdersScreen} options={{ title: 'Invoices', headerShown: false }} />
-      <Stack.Screen name="CustomerProfiles" component={CustomerProfilesScreen} options={{ title: 'Customers' }} />
+      <Stack.Screen name="CustomerProfiles" component={CustomerProfilesScreen} options={{ title: 'View customers' }} />
     </Stack.Navigator>
   );
 }
