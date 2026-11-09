@@ -61,6 +61,17 @@ test('multi-product supplier receipts deduct named returned-case credits and sho
   expect(receipt.returnedCases).toHaveLength(4);
   expect(receipt.returnedCases.map(item => item.type).sort()).toEqual(['Beer crate', 'Bottle crate', 'Soda crate', 'Water jug']);
   expect(snapshot.products.find(p => p.name === secondName).stockByCasePack.B.totalStock).toBe(0.5);
+  expect(snapshot.products.find(p => p.id === data.product.id).supplierCosts.B).toBe(100);
+  expect(snapshot.products.find(p => p.name === secondName).supplierCosts.B).toBe(200);
+  await page.getByLabel('Close supplier order details').click();
+  await page.getByRole('button', { name: /Order history/ }).click();
+  await page.getByRole('button', { name: 'Date range', exact: true }).click();
+  await page.getByLabel('Order history start date', { exact: true }).fill(receipt.date);
+  await page.getByLabel('Order history end date', { exact: true }).fill(receipt.date);
+  await page.getByRole('button', { name: data.supplierName, exact: true }).click();
+  await expect(activeText(page, '1 matching order')).toBeVisible();
+  await page.getByRole('button', { name: new RegExp(`View ${data.supplierName} supplier order from ${receipt.date}`) }).click();
+  await expect(page.getByText(data.product.name, { exact: true })).toBeVisible();
   await page.getByLabel('Close supplier order details').click();
 });
 

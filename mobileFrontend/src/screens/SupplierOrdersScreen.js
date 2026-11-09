@@ -20,8 +20,40 @@ import { casePackDisplay, casePackOptionsForProduct, casePacksForProduct } from 
 import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
+import { TransactionModeSelector } from '../components/ui/TransactionModeSelector';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const HISTORY_PERIODS = [
+  ['all', 'All time'], ['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['previousMonth', 'Last month'], ['custom', 'Date range'],
+];
+
+function manilaDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const part = type => parts.find(value => value.type === type)?.value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function shiftDate(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function periodRange(period, today) {
+  if (period === 'today') return [today, today];
+  if (period === 'week') {
+    const date = new Date(`${today}T00:00:00Z`);
+    const mondayOffset = (date.getUTCDay() + 6) % 7;
+    return [shiftDate(today, -mondayOffset), shiftDate(today, 6 - mondayOffset)];
+  }
+  if (period === 'month') return [`${today.slice(0, 7)}-01`, today];
+  if (period === 'previousMonth') {
+    const first = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    first.setUTCDate(0);
+    return [`${first.toISOString().slice(0, 7)}-01`, first.toISOString().slice(0, 10)];
+  }
+  return null;
+}
 
 export function SupplierOrdersScreen() {
   const { products, suppliers: savedSuppliers, restockRecords, addRestockRecord } = useApp();
@@ -42,6 +74,11 @@ export function SupplierOrdersScreen() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [historyMode, setHistoryMode] = useState(false);
+  const [historyPeriod, setHistoryPeriod] = useState('all');
+  const [historySupplier, setHistorySupplier] = useState('All suppliers');
+  const [historyStart, setHistoryStart] = useState('');
+  const [historyEnd, setHistoryEnd] = useState('');
   const { width } = useWindowDimensions();
   const compact = width < 380;
 
@@ -69,6 +106,16 @@ export function SupplierOrdersScreen() {
   const todayLabel = new Intl.DateTimeFormat('en-PH', {
     timeZone: 'Asia/Manila', day: '2-digit', month: 'short', year: 'numeric',
   }).format(new Date());
+  const today = manilaDate();
+  const historySuppliers = useMemo(() => ['All suppliers', ...new Set(restockRecords.map(record => record.supplier).filter(Boolean).sort((a, b) => a.localeCompare(b)))], [restockRecords]);
+  const historyRecords = useMemo(() => {
+    const range = historyPeriod === 'custom' ? [historyStart || '', historyEnd || '9999-12-31'] : periodRange(historyPeriod, today);
+    return restockRecords.filter(record => record.date
+      && (historySupplier === 'All suppliers' || record.supplier === historySupplier)
+      && (!range || ((!range[0] || record.date >= range[0]) && record.date <= range[1])))
+      .slice()
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [restockRecords, historyPeriod, historySupplier, historyStart, historyEnd, today]);
 
   const changeSupplier = nextSupplier => {
     if (nextSupplier === supplier && !supplierDraft) return;
@@ -87,7 +134,8 @@ export function SupplierOrdersScreen() {
   };
 
   const addProduct = (product, pack) => {
-    setItems(current => [...current, { rowKey: `${product.id}:${pack.id}`, productId: product.id, productName: product.name, packId: pack.id, packLabel: casePackDisplay(pack), quantity: '', unitCost: '' }]);
+    const savedCost = product.supplierCosts?.[pack.id] ?? pack.casePrice ?? '';
+    setItems(current => [...current, { rowKey: `${product.id}:${pack.id}`, productId: product.id, productName: product.name, packId: pack.id, packLabel: casePackDisplay(pack), quantity: '', unitCost: String(savedCost) }]);
     setPickerVisible(false);
     setError('');
   };
@@ -131,7 +179,7 @@ export function SupplierOrdersScreen() {
     setNewProducts(current => [...current, product]);
     setItems(current => [...current, ...product.packs.map(pack => ({
       rowKey: `${key}:${pack.id}`, newProductKey: key, productName: name,
-      packId: pack.id, packLabel: casePackDisplay(pack), casePrice: pack.casePrice, quantity: '', unitCost: '',
+      packId: pack.id, packLabel: casePackDisplay(pack), casePrice: pack.casePrice, quantity: '', unitCost: String(pack.casePrice),
     }))]);
     setProductEditorVisible(false);
     setPickerVisible(false);
@@ -239,6 +287,54 @@ export function SupplierOrdersScreen() {
           </View>
         </View>
 
+        <TransactionModeSelector
+          accessibilityLabel="Supplier order screen mode"
+          selected={historyMode ? 'history' : 'create'}
+          onSelect={mode => setHistoryMode(mode === 'history')}
+          options={[{ value: 'create', label: 'Create supplier order' }, { value: 'history', label: `Order history (${restockRecords.length})` }]}
+        />
+
+        {historyMode ? <View style={styles.historySection}>
+          <View style={styles.historyHeading}>
+            <View>
+              <Text style={styles.sectionTitle}>Supplier order history</Text>
+              <Text style={styles.sectionHint}>{historyRecords.length} matching {historyRecords.length === 1 ? 'order' : 'orders'}</Text>
+            </View>
+            <MaterialIcons name="history" size={22} color={theme.colors.primary} accessible={false} />
+          </View>
+          <Text style={styles.fieldLabel}>Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterRow}>
+            {HISTORY_PERIODS.map(([value, label]) => <Pressable key={value} onPress={() => setHistoryPeriod(value)} accessibilityRole="button" accessibilityState={{ selected: historyPeriod === value }} style={[styles.historyFilterChip, historyPeriod === value && styles.historyFilterChipSelected]}>
+              <Text style={[styles.historyFilterText, historyPeriod === value && styles.historyFilterTextSelected]}>{label}</Text>
+            </Pressable>)}
+          </ScrollView>
+          {historyPeriod === 'custom' ? <View style={styles.customRangeRow}>
+            <TextInput value={historyStart} onChangeText={setHistoryStart} placeholder="Start · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Order history start date" style={styles.rangeInput} />
+            <TextInput value={historyEnd} onChangeText={setHistoryEnd} placeholder="End · YYYY-MM-DD" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Order history end date" style={styles.rangeInput} />
+          </View> : null}
+          <Text style={styles.fieldLabel}>Supplier</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyFilterRow}>
+            {historySuppliers.map(name => <Pressable key={name} onPress={() => setHistorySupplier(name)} accessibilityRole="button" accessibilityState={{ selected: historySupplier === name }} style={[styles.historyFilterChip, historySupplier === name && styles.historyFilterChipSelected]}>
+              <Text style={[styles.historyFilterText, historySupplier === name && styles.historyFilterTextSelected]}>{name}</Text>
+            </Pressable>)}
+          </ScrollView>
+          <View style={styles.historyResults}>
+            {historyRecords.length ? historyRecords.map(record => (
+              <Pressable key={record.id} onPress={() => setSelectedRecord(record)} accessibilityRole="button" accessibilityLabel={`View ${record.supplier} supplier order from ${record.date}`} accessibilityHint="Opens supplier order details" style={({ pressed }) => [styles.historyRow, pressed && styles.pressed]}>
+                <View style={styles.historyIcon}><MaterialIcons name="local-shipping" size={18} color={theme.colors.primary} accessible={false} /></View>
+                <View style={styles.historyCopy}>
+                  <Text style={styles.historySupplier}>{record.supplier}</Text>
+                  <Text style={styles.historyMeta}>{record.orderNumber ? `${record.orderNumber} · ` : ''}{record.date} · {record.items.length} {record.items.length === 1 ? 'product' : 'products'}</Text>
+                </View>
+                <View style={styles.historyTotal}>
+                  <Text style={styles.historyAmount}>{formatPeso(record.netCost)}</Text>
+                  <Text style={styles.historyCaption}>Net cost</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={22} color={theme.colors.textLight} accessible={false} />
+              </Pressable>
+            )) : <Text style={styles.historyEmpty}>{restockRecords.length ? 'No supplier orders match these filters.' : 'Saved supplier orders will appear here.'}</Text>}
+          </View>
+        </View> : <>
         <View style={styles.orderMeta}>
           <View>
             <Text style={styles.metaCaption}>ORDER NO.</Text>
@@ -482,6 +578,7 @@ export function SupplierOrdersScreen() {
             <Text style={styles.historyEmpty}>Saved supplier orders will appear here.</Text>
           )}
         </View>
+        </>}
       </ScrollView>
 
       <Modal visible={pickerVisible} transparent animationType="slide" onRequestClose={() => setPickerVisible(false)}>
@@ -735,6 +832,14 @@ const styles = StyleSheet.create({
   saveLabel: { color: theme.colors.onPrimary, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   historySection: { padding: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, backgroundColor: theme.colors.surface },
   historyHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.xs },
+  historyFilterRow: { flexDirection: 'row', gap: theme.spacing.xs, paddingVertical: theme.spacing.sm },
+  historyFilterChip: { minHeight: 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 999, backgroundColor: theme.colors.surface },
+  historyFilterChipSelected: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary },
+  historyFilterText: { color: theme.colors.textLight, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  historyFilterTextSelected: { color: theme.colors.onPrimary },
+  customRangeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
+  rangeInput: { minHeight: 44, flexGrow: 1, flexBasis: 145, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.sm },
+  historyResults: { marginTop: theme.spacing.sm },
   historyCount: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
   historyRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderTopWidth: 1, borderTopColor: theme.colors.border },
   historyIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: theme.colors.primarySoft },
