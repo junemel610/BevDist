@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext';
 import { stockNotice } from '../components/inventory/stockNotice';
 import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import { FeedbackToast } from '../components/FeedbackToast';
+import { DiscardDraftModal } from '../components/ui/DiscardDraftModal';
 import { CustomerPaymentModal } from '../components/balances/CustomerPaymentModal';
 import { DeliveryBadge } from '../components/orders/DeliveryBadge';
 import { ContainerReturnEditor } from '../components/orders/ContainerReturnEditor';
@@ -508,7 +509,10 @@ function InvoiceDocumentHeading({ invoiceNumber, date, onClose, closeLabel }) {
 
 function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onStepQuantity, onClose, onSave, onSetupProduct }) {
   const [showProductPicker, setShowProductPicker] = useState(false);
-  const closeModal = () => {
+  const [discardVisible, setDiscardVisible] = useState(false);
+  const requestClose = () => setDiscardVisible(true);
+  const discardDraft = () => {
+    setDiscardVisible(false);
     setShowProductPicker(false);
     onClose();
   };
@@ -547,7 +551,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
   const balanceDue = Math.max(0, total - paidSoFar);
 
   return (
-    <OverlayModal visible={visible} onClose={onClose} fullScreen>
+    <OverlayModal visible={visible} onClose={requestClose} fullScreen>
       {showProductPicker ? <>
         <View style={styles.pickerPageHeader}>
           <Pressable onPress={() => setShowProductPicker(false)} accessibilityRole="button" accessibilityLabel="Back to invoice" style={styles.pickerBackButton}>
@@ -557,13 +561,13 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
             <Text style={styles.modalTitle}>Select products</Text>
             <Text style={styles.modalSubtitle}>Filter by distributor, then enter cases.</Text>
           </View>
-          <Pressable onPress={closeModal} accessibilityRole="button" accessibilityLabel={closeLabel} style={styles.closeButton}>
+          <Pressable onPress={requestClose} accessibilityRole="button" accessibilityLabel={closeLabel} style={styles.closeButton}>
             <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
           </Pressable>
         </View>
         <InvoiceProductPicker products={products} cart={cart} editingOrder={editingOrder} getAvailableStock={getAvailableStock} onChangeQuantity={onChangeQuantity} onStepQuantity={onStepQuantity} onDone={() => setShowProductPicker(false)} onSetupProduct={onSetupProduct} />
       </> : <>
-      <InvoiceDocumentHeading invoiceNumber={invoiceNumberPreview} date={editingOrder?.date || new Date()} onClose={closeModal} closeLabel={closeLabel} />
+      <InvoiceDocumentHeading invoiceNumber={invoiceNumberPreview} date={editingOrder?.date || new Date()} onClose={requestClose} closeLabel={closeLabel} />
       <ScrollView style={styles.createInvoiceScroll} contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
         {!editingOrder ? <View style={styles.createSection}>
           <View style={styles.sectionHeadingRow}>
@@ -734,6 +738,14 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
         </Pressable>
       </View>
       </>}
+      <DiscardDraftModal
+        visible={discardVisible}
+        title={editingOrder ? 'Discard invoice changes?' : 'Discard this invoice?'}
+        message={editingOrder ? 'Your unsaved edits will be lost. The saved invoice will remain unchanged.' : 'The invoice has not been saved. Leaving now will discard this draft.'}
+        onKeepEditing={() => setDiscardVisible(false)}
+        onDiscard={discardDraft}
+        discardLabel={editingOrder ? 'Discard changes' : 'Discard invoice'}
+      />
     </OverlayModal>
   );
 }
