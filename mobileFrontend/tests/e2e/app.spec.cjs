@@ -155,9 +155,10 @@ test('supplier orders persist half-case receipts and open their details', async 
   expect(snapshot.products.find(p => p.id === data.product.id).stockByCasePack.B.totalStock).toBe(20.5);
 });
 
-test('customer profiles save through the browser and GCash history is reachable', async ({ page, request }) => {
+test('customer profiles save through the browser and digital payment histories are reachable', async ({ page, request }) => {
   const data = await business(request), invoice = await data.invoice();
   await data.post(`/customers/${data.customer.id}/payments`, { requestKey: randomUUID(), method: 'GCash', amountReceived: 120 });
+  await data.post(`/customers/${data.customer.id}/payments`, { requestKey: randomUUID(), method: 'Bank Transfer', amountReceived: 80 });
   await signIn(page);
   await tab(page, 'Invoice');
   await page.getByRole('button', { name: 'Manage customer profiles' }).click();
@@ -176,4 +177,9 @@ test('customer profiles save through the browser and GCash history is reachable'
   await page.getByRole('link', { name: 'Balances, back' }).click();
   await page.getByRole('button', { name: 'Open GCash transactions' }).click();
   await expect(page.getByText(new RegExp((await data.snapshot()).orders.find(o => o.id === invoice.id).invoiceNumber)).and(page.locator(':not([aria-hidden="true"] *)'))).toBeVisible();
+  await page.getByRole('link', { name: 'Balances, back' }).click();
+  await page.getByRole('button', { name: 'Open Bank Transfer transactions' }).click();
+  await expect(page.getByText('Bank Transfer transactions', { exact: true })).toBeVisible();
+  await expect(page.getByText(data.customer.name, { exact: true })).toBeVisible();
+  await expect(page.getByText('GCash transactions', { exact: true })).not.toBeVisible();
 });

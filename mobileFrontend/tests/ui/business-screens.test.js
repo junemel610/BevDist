@@ -11,6 +11,7 @@ import { SupplierOrdersScreen } from '../../src/screens/SupplierOrdersScreen';
 import { BalancesScreen } from '../../src/screens/BalancesScreen';
 import { CustomerCreditsScreen } from '../../src/screens/CustomerCreditsScreen';
 import { GCashTransactionsScreen } from '../../src/screens/GCashTransactionsScreen';
+import { BankTransferTransactionsScreen } from '../../src/screens/BankTransferTransactionsScreen';
 import { DashboardScreen } from '../../src/screens/DashboardScreen';
 
 jest.mock('../../src/context/AppContext', () => ({ useApp: jest.fn() }));
@@ -197,6 +198,22 @@ test('GCash page excludes cash receipts and retains excess credit', async () => 
   await render(<GCashTransactionsScreen />);
   expect(screen.getByText('GCash customer')).toBeOnTheScreen();
   expect(screen.queryByText('Cash customer')).not.toBeOnTheScreen();
+  expect(screen.getByText('₱20 credit for next invoice')).toBeOnTheScreen();
+});
+
+test('Balance Tracker opens Bank Transfer history and excludes other payment methods', async () => {
+  app.paymentTransactions = [
+    { id: 'bank', customerName: 'Bank customer', invoiceNumber: 'INV-BANK', date: '2026-10-24', method: 'Bank Transfer', amountApplied: 100, amountReceived: 120, excess: 20 },
+    { id: 'gcash', customerName: 'GCash customer', invoiceNumber: 'INV-GCASH', date: '2026-10-24', method: 'GCash', amountApplied: 50, amountReceived: 50, excess: 0 },
+  ];
+  const rendered = await render(<BalancesScreen navigation={navigation} />);
+  await userEvent.press(screen.getByRole('button', { name: 'Open Bank Transfer transactions' }));
+  expect(navigation.navigate).toHaveBeenCalledWith('BankTransferTransactions');
+  await rendered.unmount();
+  await render(<BankTransferTransactionsScreen />);
+  expect(screen.getByText('Bank Transfer transactions')).toBeOnTheScreen();
+  expect(screen.getByText('Bank customer')).toBeOnTheScreen();
+  expect(screen.queryByText('GCash customer')).toBeNull();
   expect(screen.getByText('₱20 credit for next invoice')).toBeOnTheScreen();
 });
 

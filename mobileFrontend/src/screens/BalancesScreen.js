@@ -102,10 +102,16 @@ export function BalancesScreen({ navigation }) {
                 <Text style={styles.totalValue}>{formatPeso(outstanding)}</Text>
               </View>
             </View>
-            <Pressable onPress={() => navigation.navigate('GCashTransactions')} accessibilityRole="button" style={({ pressed }) => [styles.gcashLink, pressed && styles.pressed]}>
-              <MaterialIcons name="account-balance-wallet" size={18} color={theme.colors.primary} accessible={false} />
-              <Text style={styles.gcashLinkText}>Open GCash transactions</Text>
-            </Pressable>
+            <View style={styles.transactionLinks}>
+              <Pressable onPress={() => navigation.navigate('GCashTransactions')} accessibilityRole="button" accessibilityLabel="Open GCash transactions" style={({ pressed }) => [styles.transactionLink, pressed && styles.pressed]}>
+                <MaterialIcons name="account-balance-wallet" size={18} color={theme.colors.primary} accessible={false} />
+                <Text style={styles.transactionLinkText}>Open GCash transactions</Text>
+              </Pressable>
+              <Pressable onPress={() => navigation.navigate('BankTransferTransactions')} accessibilityRole="button" accessibilityLabel="Open Bank Transfer transactions" style={({ pressed }) => [styles.transactionLink, pressed && styles.pressed]}>
+                <MaterialIcons name="account-balance" size={18} color={theme.colors.primary} accessible={false} />
+                <Text style={styles.transactionLinkText}>Open Bank Transfer transactions</Text>
+              </Pressable>
+            </View>
 
             {totalCredit > 0 ? (
               <View style={styles.creditNotice}>
@@ -325,7 +331,8 @@ const styles = StyleSheet.create({
   emptyIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.md, borderRadius: 28, backgroundColor: theme.colors.primarySoft },
   emptyTitle: { color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold },
   emptyText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, textAlign: 'center', marginTop: theme.spacing.xs },
-  gcashLink: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: theme.spacing.sm },
-  gcashLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
+  transactionLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+  transactionLink: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.surface },
+  transactionLinkText: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   pressed: { opacity: 0.75 },
 });

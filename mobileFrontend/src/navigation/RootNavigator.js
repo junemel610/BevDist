@@ -14,6 +14,7 @@ import {
   BalancesScreen,
   CustomerProfilesScreen,
   GCashTransactionsScreen,
+  BankTransferTransactionsScreen,
 } from '../screens/index';
 import theme from '../styles/theme';
 
@@ -54,6 +55,7 @@ function BalancesStackScreen() {
       <Stack.Screen name="BalancesMain" component={BalancesScreen} options={{ title: 'Balances', headerShown: false }} />
       <Stack.Screen name="CustomerCredits" component={CustomerCreditsScreen} options={{ title: 'Customer credits' }} />
       <Stack.Screen name="GCashTransactions" component={GCashTransactionsScreen} options={{ title: 'GCash' }} />
+      <Stack.Screen name="BankTransferTransactions" component={BankTransferTransactionsScreen} options={{ title: 'Bank Transfer' }} />
     </Stack.Navigator>
   );
 }
