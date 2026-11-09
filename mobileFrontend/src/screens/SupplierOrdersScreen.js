@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { PesoInput } from '../components/ui/PesoInput';
+import { ContainerReturnEditor } from '../components/orders/ContainerReturnEditor';
 import { useApp } from '../context/AppContext';
 import theme from '../styles/theme';
 import { hasValidSupplierOrderItems, supplierOrderTotals } from '../components/supplierOrders/supplierOrderUtils';
@@ -98,6 +99,7 @@ export function SupplierOrdersScreen() {
     .filter(({ product, pack }) => !items.some(item => item.productId === product.id && item.packId === pack.id));
   const filteredProducts = availableProducts.filter(({ product, pack }) => `${product.name} ${pack.label}`.toLocaleLowerCase().includes(productSearch.trim().toLocaleLowerCase()));
   const numericReturns = returnedCases.map(item => ({ ...item, quantity: Number(item.quantity) || 0, creditPerUnit: Number(item.creditPerUnit) || 0 }));
+  const returnEditorRows = returnedCases.map(item => ({ ...item, kind: 'return', amountPerCase: item.creditPerUnit }));
   const totals = supplierOrderTotals(items.map(item => ({
     ...item,
     quantity: Number(item.quantity) || 0,
@@ -207,23 +209,6 @@ export function SupplierOrdersScreen() {
     setError('');
   };
 
-  const addReturnedCase = () => {
-    setReturnedCases(current => [...current, { rowKey: `return-${Date.now()}-${current.length}`, type: '', quantity: 0, creditPerUnit: '' }]);
-  };
-
-  const removeReturnedCase = rowKey => setReturnedCases(current => current.filter(item => item.rowKey !== rowKey));
-
-  const adjustReturnedCase = (rowKey, delta) => {
-    setReturnedCases(current => current.map(item => item.rowKey === rowKey
-      ? { ...item, quantity: Math.max(0, Math.round((Number(item.quantity) + delta) * 2) / 2) }
-      : item));
-  };
-
-  const updateReturnedCase = (rowKey, field, value) => {
-    setReturnedCases(current => current.map(item => item.rowKey === rowKey ? { ...item, [field]: value } : item));
-    setError('');
-  };
-
   const saveOrder = () => {
     if (!supplierRecord) { setError('Choose a supplier or add a new one.'); return; }
     if (!items.length) { setError('Add at least one product line before saving.'); return; }
@@ -249,6 +234,10 @@ export function SupplierOrdersScreen() {
     const recordedReturns = numericReturns.filter(item => item.quantity > 0).map(({ rowKey, ...item }) => item);
     if (returnedCases.some(item => item.quantity > 0 && !item.type.trim())) {
       setError('Enter a name for each returned container or item.');
+      return;
+    }
+    if (returnedCases.some(item => !Number.isFinite(Number(item.quantity)) || Number(item.quantity) < 0 || !Number.isInteger(Number(item.quantity) * 2))) {
+      setError('Returned quantities must use half-case steps, starting at 0.5 case.');
       return;
     }
     if (returnedCases.some(item => item.quantity > 0 && (!/^\d+(\.\d{1,2})?$/.test(String(item.creditPerUnit)) || Number(item.creditPerUnit) <= 0))) {
@@ -488,63 +477,19 @@ export function SupplierOrdersScreen() {
         </View>
 
         <View style={styles.section}>
-          <View style={styles.sectionHeading}>
-            <View style={styles.headingCopy}>
-              <Text style={styles.sectionTitle}>Returned cases</Text>
-              <Text style={styles.sectionHint}>Add returned containers or items. Their refund reduces the supplier order cost.</Text>
-            </View>
-            <MaterialIcons name="replay" size={21} color={theme.colors.textLight} accessible={false} />
-          </View>
-          {returnedCases.map((item, index) => (
-            <View key={item.rowKey} style={styles.returnRow}>
-              <View style={styles.returnHeading}>
-                <Text style={styles.returnName}>Return line {index + 1}</Text>
-                <Pressable onPress={() => removeReturnedCase(item.rowKey)} accessibilityRole="button" accessibilityLabel={`Remove return line ${index + 1}`} style={styles.removeButton}>
-                  <MaterialIcons name="delete-outline" size={21} color={theme.colors.danger} accessible={false} />
-                </Pressable>
-              </View>
-              <Text style={styles.fieldLabel}>What container or item?</Text>
-              <TextInput
-                value={item.type}
-                onChangeText={value => updateReturnedCase(item.rowKey, 'type', value)}
-                placeholder="e.g. Bottle crate"
-                placeholderTextColor={theme.colors.placeholder}
-                accessibilityLabel={`Return line ${index + 1} container or item`}
-                style={styles.input}
-              />
-              <View style={styles.returnEntryRow}>
-                <View style={styles.returnQuantityField}>
-                  <Text style={styles.fieldLabel}>Quantity (cases)</Text>
-                  <View style={styles.returnStepper}>
-                    <Pressable onPress={() => adjustReturnedCase(item.rowKey, -0.5)} accessibilityRole="button" accessibilityLabel={`Decrease quantity for return line ${index + 1}`} disabled={!item.quantity} accessibilityState={{ disabled: !item.quantity }} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
-                      <MaterialIcons name="remove" size={20} color={theme.colors.primary} accessible={false} />
-                    </Pressable>
-                    <Text accessibilityLabel={`${formatCaseQuantity(item.quantity)} cases returned`} style={styles.stepValue}>{formatCaseQuantity(item.quantity)}</Text>
-                    <Pressable onPress={() => adjustReturnedCase(item.rowKey, 0.5)} accessibilityRole="button" accessibilityLabel={`Increase quantity for return line ${index + 1}`} style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}>
-                      <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} />
-                    </Pressable>
-                  </View>
-                </View>
-                <View style={styles.returnPriceField}>
-                  <Text style={styles.fieldLabel}>Refund per case</Text>
-                  <PesoInput
-                    value={String(item.creditPerUnit ?? '')}
-                    onChangeText={value => updateReturnedCase(item.rowKey, 'creditPerUnit', value)}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={theme.colors.placeholder}
-                    accessibilityLabel={`Return line ${index + 1} refund per case in pesos`}
-                    style={styles.returnPriceInput}
-                  />
-                </View>
-                <Text style={styles.returnAmount}>{formatPeso((Number(item.quantity) || 0) * (Number(item.creditPerUnit) || 0))}</Text>
-              </View>
-            </View>
-          ))}
-          <Pressable onPress={addReturnedCase} accessibilityRole="button" style={({ pressed }) => [styles.addReturnButton, pressed && styles.pressed]}>
-            <MaterialIcons name="add" size={19} color={theme.colors.primary} accessible={false} />
-            <Text style={styles.addReturnLabel}>Add return line</Text>
-          </Pressable>
+          <ContainerReturnEditor
+            rows={returnEditorRows}
+            onChange={rows => setReturnedCases(rows.map(item => ({ rowKey: item.rowKey, type: item.type, quantity: item.quantity, creditPerUnit: item.amountPerCase })))}
+            sectionTitle="Returned cases"
+            helperText="Returned containers or items reduce the supplier order cost."
+            showKindSelector={false}
+            minimumQuantity={0}
+            initialQuantity={0}
+            addButtonLabel="Add return line"
+            addAccessibilityLabel="Add return line"
+            rowLabel="Return line"
+            accessibilityPrefix="return line"
+          />
           <View style={styles.creditTotal}>
             <Text style={styles.creditTotalLabel}>Total return refund</Text>
             <Text style={styles.creditTotalValue}>−{formatPeso(totals.returnCredit)}</Text>
@@ -823,19 +768,6 @@ const styles = StyleSheet.create({
   input: { minHeight: 48, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.base },
   lineTotal: { minWidth: 72, alignItems: 'flex-end', paddingBottom: 12 },
   lineTotalValue: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
-  returnRow: { paddingVertical: theme.spacing.sm, gap: theme.spacing.xs, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  returnHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
-  returnEntryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
-  returnQuantityField: { flexGrow: 1, flexBasis: 160, minWidth: 150 },
-  returnPriceField: { flexGrow: 1, flexBasis: 130, maxWidth: 180 },
-  returnPriceInput: { minHeight: 42, paddingHorizontal: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, color: theme.colors.text, backgroundColor: theme.colors.surface, fontSize: theme.fontSize.sm },
-  returnStepper: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
-  stepButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
-  stepValue: { minWidth: 44, color: theme.colors.text, fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, textAlign: 'center' },
-  returnName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
-  returnAmount: { minWidth: 76, color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, textAlign: 'right' },
-  addReturnButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 10, backgroundColor: theme.colors.primarySoft },
-  addReturnLabel: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   creditTotalLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotalValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },

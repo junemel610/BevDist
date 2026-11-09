@@ -4,23 +4,36 @@ import { MaterialIcons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 import { PesoInput } from '../ui/PesoInput';
 
-export function ContainerReturnEditor({ rows, onChange, error }) {
+export function ContainerReturnEditor({
+  rows,
+  onChange,
+  error,
+  sectionTitle = 'Deposit / Return',
+  helperText = 'Deposits add to the invoice. Returned containers reduce the amount due.',
+  showKindSelector = true,
+  minimumQuantity = 0.5,
+  initialQuantity = 0.5,
+  addButtonLabel = 'Add deposit / return line',
+  addAccessibilityLabel = 'Add deposit or return line',
+  rowLabel = 'row',
+  accessibilityPrefix = 'deposit or return',
+}) {
   const update = (index, field, value) => onChange(rows.map((row, i) => i === index ? { ...row, [field]: value } : row));
   const changeQuantity = (index, row, delta) => {
-    const next = Math.max(0.5, (Number(row.quantity) || 0.5) + delta);
+    const next = Math.max(minimumQuantity, (Number(row.quantity) || 0) + delta);
     update(index, 'quantity', String(Number(next.toFixed(2))));
   };
   return <View style={styles.section}>
-    <Text style={styles.title}>Deposit / Return</Text>
-    <Text style={styles.help}>Deposits add to the invoice. Returned containers reduce the amount due.</Text>
+    <Text style={styles.title}>{sectionTitle}</Text>
+    {!!helperText && <Text style={styles.help}>{helperText}</Text>}
     {rows.map((row, index) => <View key={index} style={styles.row}>
       <View style={styles.heading}>
         <Text accessibilityLabel={`Adjustment item ${index + 1}`} accessible style={styles.itemNumber}>{index + 1}</Text>
-        <Pressable onPress={() => onChange(rows.filter((_, i) => i !== index))} accessibilityRole="button" accessibilityLabel={`Remove deposit or return row ${index + 1}`} style={styles.remove}>
+        <Pressable onPress={() => onChange(rows.filter((_, i) => i !== index))} accessibilityRole="button" accessibilityLabel={rowLabel === 'Return line' ? `Remove return line ${index + 1}` : `Remove ${accessibilityPrefix} ${rowLabel} ${index + 1}`} style={styles.remove}>
           <MaterialIcons name="close" size={22} color={theme.colors.textLight} accessible={false} />
         </Pressable>
       </View>
-      <View style={styles.kindSelector}>
+      {showKindSelector && <View style={styles.kindSelector}>
         {[
           { value: 'deposit', label: 'Deposit' },
           { value: 'return', label: 'Return' },
@@ -30,26 +43,26 @@ export function ContainerReturnEditor({ rows, onChange, error }) {
             <Text style={[styles.kindText, selected && styles.kindTextSelected]}>{option.label}</Text>
           </Pressable>;
         })}
-      </View>
+      </View>}
       <Text style={styles.label}>What container or item?</Text>
-      <TextInput value={row.type} onChangeText={value => update(index, 'type', value)} accessibilityLabel={`Container or item name, row ${index + 1}`} placeholder="e.g. Empty bottle crate" placeholderTextColor={theme.colors.placeholder} style={styles.input} />
+      <TextInput value={row.type} onChangeText={value => update(index, 'type', value)} accessibilityLabel={rowLabel === 'Return line' ? `Return line ${index + 1} container or item` : `Container or item name, row ${index + 1}`} placeholder="e.g. Empty bottle crate" placeholderTextColor={theme.colors.placeholder} style={styles.input} />
       <View style={styles.fieldsRow}>
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Quantity (cases)</Text>
           <View style={styles.quantityRow}>
-            <Pressable onPress={() => changeQuantity(index, row, -0.5)} accessibilityRole="button" accessibilityLabel={`Remove half a case from deposit or return row ${index + 1}`} style={styles.quantityButton}><MaterialIcons name="remove" size={19} color={theme.colors.primary} accessible={false} /></Pressable>
+            <Pressable onPress={() => changeQuantity(index, row, -0.5)} disabled={Number(row.quantity) <= minimumQuantity} accessibilityRole="button" accessibilityLabel={rowLabel === 'Return line' ? `Decrease quantity for return line ${index + 1}` : `Remove half a case from deposit or return row ${index + 1}`} style={styles.quantityButton}><MaterialIcons name="remove" size={19} color={theme.colors.primary} accessible={false} /></Pressable>
             <TextInput value={String(row.quantity)} onChangeText={value => update(index, 'quantity', value)} keyboardType="decimal-pad" accessibilityLabel={`${row.kind === 'deposit' ? 'Deposited' : 'Returned'} cases, row ${index + 1}`} style={styles.quantityInput} />
-            <Pressable onPress={() => changeQuantity(index, row, 0.5)} accessibilityRole="button" accessibilityLabel={`Add half a case to deposit or return row ${index + 1}`} style={styles.quantityButton}><MaterialIcons name="add" size={19} color={theme.colors.primary} accessible={false} /></Pressable>
+            <Pressable onPress={() => changeQuantity(index, row, 0.5)} accessibilityRole="button" accessibilityLabel={rowLabel === 'Return line' ? `Increase quantity for return line ${index + 1}` : `Add half a case to deposit or return row ${index + 1}`} style={styles.quantityButton}><MaterialIcons name="add" size={19} color={theme.colors.primary} accessible={false} /></Pressable>
           </View>
         </View>
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>{row.kind === 'deposit' ? 'Deposit per case' : 'Refund per case'}</Text>
-          <PesoInput value={String(row.amountPerCase ?? row.refundPerCase ?? '')} onChangeText={value => update(index, 'amountPerCase', value)} keyboardType="decimal-pad" accessibilityLabel={`${row.kind === 'deposit' ? 'Deposit' : 'Refund'} per case, row ${index + 1}`} placeholder="0" placeholderTextColor={theme.colors.placeholder} style={styles.amountInput} />
+          <PesoInput value={String(row.amountPerCase ?? row.refundPerCase ?? '')} onChangeText={value => update(index, 'amountPerCase', value)} keyboardType="decimal-pad" accessibilityLabel={rowLabel === 'Return line' ? `Return line ${index + 1} refund per case in pesos` : `${row.kind === 'deposit' ? 'Deposit' : 'Refund'} per case, row ${index + 1}`} placeholder="0" placeholderTextColor={theme.colors.placeholder} style={styles.amountInput} />
         </View>
       </View>
     </View>)}
-    <Pressable disabled={rows.length >= 100} accessibilityRole="button" accessibilityLabel="Add deposit or return line" onPress={() => onChange([...rows, { kind: 'return', type: '', quantity: '0.5', amountPerCase: '' }])} style={styles.add}>
-      <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} /><Text style={styles.addText}>Add deposit / return line</Text>
+    <Pressable disabled={rows.length >= 100} accessibilityRole="button" accessibilityLabel={addAccessibilityLabel} onPress={() => onChange([...rows, { kind: 'return', type: '', quantity: String(initialQuantity), amountPerCase: '' }])} style={styles.add}>
+      <MaterialIcons name="add" size={20} color={theme.colors.primary} accessible={false} /><Text style={styles.addText}>{addButtonLabel}</Text>
     </Pressable>
     {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
   </View>;

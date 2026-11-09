@@ -146,9 +146,12 @@ test('return lines can be named, use half-case controls and validate refund per 
   await press('Add return line');
   expect(screen.getByRole('button', { name: 'Decrease quantity for return line 1' })).toBeDisabled();
   await press('Increase quantity for return line 1');
-  await press('Save supplier order');
-  expect(screen.getByText('Enter a name for each returned container or item.')).toBeOnTheScreen();
   await fill('Return line 1 container or item', 'Bottle crate');
+  await fill('Returned cases, row 1', '0.25');
+  await press('Save supplier order');
+  expect(screen.getByText('Returned quantities must use half-case steps, starting at 0.5 case.')).toBeOnTheScreen();
+  expect(confirmAction).not.toHaveBeenCalled();
+  await fill('Returned cases, row 1', '0.5');
   await press('Save supplier order');
   expect(screen.getByText('Enter a refund per case for each returned item.')).toBeOnTheScreen();
   for (const price of ['-1', '1.001', 'abc', '0']) {
