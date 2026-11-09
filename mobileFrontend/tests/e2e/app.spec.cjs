@@ -39,8 +39,9 @@ test('Invoice and Orders share matching create/history screen navigation', async
   await tab(page, 'Orders');
   await expect(page.getByText('Supplier order history', { exact: true })).toBeVisible();
   await createSupplierOrder(page);
-  await expect(page.getByLabel('Order history', { exact: true })).toBeVisible();
-  await page.getByLabel('Order history', { exact: true }).click();
+  await expect(page.getByLabel('Close create supplier order', { exact: true })).toBeVisible();
+  await expect(page.getByLabel(/^Order number ORD-\d{6}-\d{8}$/)).toBeVisible();
+  await page.getByLabel('Close create supplier order', { exact: true }).click();
   await expect(page.getByText('Supplier order history', { exact: true })).toBeVisible();
 });
 

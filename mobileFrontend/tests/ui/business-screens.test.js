@@ -218,7 +218,7 @@ test('supplier order validates empty orders before creating a receipt', async ()
   expect(app.addRestockRecord).not.toHaveBeenCalled();
 });
 
-test('invoice and supplier order create actions sit in the page header and return to history', async () => {
+test('invoice and supplier order create actions open modals from the page header', async () => {
   await invoiceScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Create invoice' }));
   expect(screen.getByText("Mila's Store")).toBeOnTheScreen();
@@ -227,8 +227,8 @@ test('invoice and supplier order create actions sit in the page header and retur
   const rendered = await render(<SupplierOrdersScreen />);
   expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
   await userEvent.press(screen.getByRole('button', { name: 'Create supplier order', exact: true }));
-  expect(screen.getByText('Create supplier order')).toBeOnTheScreen();
-  await userEvent.press(screen.getByRole('button', { name: 'Order history', exact: true }));
+  expect(screen.getByLabelText(/Order number ORD-\d{6}-\d{8}/)).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole('button', { name: 'Close create supplier order', exact: true }));
   expect(screen.getByText('Supplier order history')).toBeOnTheScreen();
   await rendered.unmount();
 });
