@@ -24,6 +24,7 @@ import { stockForCasePack } from '../components/inventory/inventoryUtils';
 import { confirmAction } from '../utils/confirmAction';
 import { nextSupplierOrderNumber } from '../components/supplierOrders/orderNumberPreview';
 import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
+import { ProductPickerTrigger } from '../components/orders/ProductPickerTrigger';
 
 const formatPeso = amount => `₱${Number(amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const HISTORY_PERIODS = [
@@ -432,16 +433,13 @@ export function SupplierOrdersScreen() {
               <Text style={styles.sectionTitle}>Products</Text>
               <Text style={styles.sectionHint}>{supplier ? `${supplierProducts.length} ${supplierProducts.length === 1 ? 'product' : 'products'} from ${supplier}` : 'Select a supplier to view available products.'}</Text>
             </View>
-            <Pressable
-              onPress={() => { setProductSearch(''); setPickerVisible(true); }}
-              disabled={!supplierRecord}
-              accessibilityRole="button" accessibilityLabel="Add product"
-              style={({ pressed }) => [styles.addButton, !supplierRecord && styles.disabled, pressed && styles.pressed]}
-            >
-              <MaterialIcons name="add" size={20} color={theme.colors.onPrimary} accessible={false} />
-              {!compact && <Text style={styles.addButtonLabel}>Add product</Text>}
-            </Pressable>
           </View>
+
+          <ProductPickerTrigger
+            onPress={() => { setProductSearch(''); setPickerVisible(true); }}
+            disabled={!supplierRecord}
+            accessibilityLabel="Select supplier order products"
+          />
 
           <View style={styles.productTableHeader}>
             <Text style={styles.tableHeading}>Products received</Text>

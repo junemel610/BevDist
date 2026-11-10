@@ -34,6 +34,7 @@ import { exportInvoiceExcel, exportInvoicePdf } from '../components/orders/invoi
 import { nextInvoiceNumber } from '../components/orders/invoiceNumberPreview';
 import { INVOICE_BUSINESS, formatInvoiceDate } from '../components/orders/invoiceIdentity';
 import { PaginationControls, PAGE_SIZE } from '../components/ui/PaginationControls';
+import { ProductPickerTrigger } from '../components/orders/ProductPickerTrigger';
 
 const FILTERS = [
   { key: 'all', label: 'All invoices' },
@@ -680,10 +681,7 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
             <Text style={[styles.invoiceColumnHeading, styles.invoiceQtyColumn]}>QTY</Text>
             <Text style={[styles.invoiceColumnHeading, styles.invoicePriceColumn]}>PRICE</Text>
           </View>
-          <Pressable onPress={() => setShowProductPicker(true)} accessibilityRole="button" accessibilityLabel="Select products" style={({ pressed }) => [styles.invoiceProductSelector, pressed && styles.pressed]}>
-            <Text style={styles.invoiceProductSelectorText}>Select Product</Text>
-            <MaterialIcons name="arrow-drop-down" size={24} color={theme.colors.textLight} accessible={false} />
-          </Pressable>
+          <ProductPickerTrigger onPress={() => setShowProductPicker(true)} accessibilityLabel="Select invoice products" />
           {!selectedProducts.length ? <View style={styles.productsEmpty}>
             <Text style={styles.productsEmptyTitle}>No products selected</Text>
             <Text style={styles.infoSecondary}>Choose a distributor to find products in your stock list.</Text>
@@ -992,8 +990,6 @@ const styles = StyleSheet.create({
   invoicePriceColumn: { width: 88, textAlign: 'right' },
   previewQuantityColumn: { width: 102, textAlign: 'center' },
   previewPriceColumn: { width: 88, textAlign: 'right' },
-  invoiceProductSelector: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingHorizontal: theme.spacing.sm },
-  invoiceProductSelectorText: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
   invoiceProductRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 2, borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: theme.spacing.sm },
   invoiceProductNameBlock: { flex: 1, minWidth: 60, gap: 2 },
   invoiceProductName: { color: theme.colors.text, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
