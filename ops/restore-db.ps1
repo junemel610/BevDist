@@ -1,28 +1,23 @@
-# BevDist DB Restore Script for Windows
-# Goal: Restore the database from a .sql backup file.
-
-param (
-    [Parameter(Mandatory=$true)]
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $true)]
     [string]$BackupFilePath
 )
 
-Write-Host "🔄 Starting Database Restore..." -ForegroundColor Cyan
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common.ps1')
+if (-not (Test-Path $BackupFilePath -PathType Leaf)) { throw "Backup file not found: $BackupFilePath" }
+$config = Get-BevDistDatabaseConfig
+$pgRestore = Get-BevDistPgTool 'pg_restore'
+$resolvedBackup = (Resolve-Path $BackupFilePath).Path
+$confirmation = Read-Host "This will replace matching data in database '$($config.Database)'. Type the database name to continue"
+if ($confirmation -cne $config.Database) { throw 'Restore cancelled; the confirmation did not match.' }
 
-$dbName = "bevdist_db"
-$dbUser = $env:USERNAME
-$pgBinPath = "C:\Program Files\PostgreSQL\15\bin"
+Set-BevDistPgPassword $config
+try {
+    Write-Host "Restoring $resolvedBackup into '$($config.Database)'..." -ForegroundColor Yellow
+    & $pgRestore --clean --if-exists --no-owner --no-privileges --exit-on-error --single-transaction --host $config.Host --port $config.Port --username $config.Username --dbname $config.Database $resolvedBackup
+    if ($LASTEXITCODE -ne 0) { throw 'Restore failed. Review the PostgreSQL error above.' }
+} finally { Clear-BevDistPgPassword }
 
-if (!(Test-Path $BackupFilePath)) {
-    Write-Host "❌ Backup file not found: $BackupFilePath" -ForegroundColor Red
-    exit 1
-}
-
-# Restore using psql
-Write-Host "🐘 Restoring $BackupFilePath into $dbName..." -ForegroundColor Yellow
-& "$pgBinPath\psql.exe" -U $dbUser -d $dbName -f $BackupFilePath
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Database restored successfully." -ForegroundColor Green
-} else {
-    Write-Host "❌ Restore failed!" -ForegroundColor Red
-}
+Write-Host 'Restore completed. Start or restart the BevDist API and verify its health endpoint.' -ForegroundColor Green

@@ -1,55 +1,126 @@
-# BevDist Server Setup Script for Windows 8
-# Goal: Install Node.js, PostgreSQL 15, and configure the BevDist Backend.
+[CmdletBinding()]
+param(
+    [string]$DatabaseName = 'bevdist_db',
+    [string]$DatabaseRole = 'bevdist_app',
+    [string]$DatabaseAdmin = 'postgres',
+    [int]$DatabasePort = 5432
+)
 
-Write-Host "🚀 Starting BevDist Server Installation for Windows..." -ForegroundColor Cyan
+$ErrorActionPreference = 'Stop'
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$backendPath = Join-Path $repoRoot 'mobileBackend'
+$frontendIndex = Join-Path $repoRoot 'mobileFrontend\dist\index.html'
+$envPath = Join-Path $backendPath '.env'
+$pgBin = Join-Path $env:ProgramFiles 'PostgreSQL\15\bin'
+$psql = Join-Path $pgBin 'psql.exe'
+$createdb = Join-Path $pgBin 'createdb.exe'
 
-# 1. Install Chocolatey (Package Manager)
-if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
-    Write-Host "📦 Installing Chocolatey..." -ForegroundColor Yellow
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+function ConvertTo-PlainText([Security.SecureString]$Value) {
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
+    try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+}
+
+function Invoke-AdminPsql([string]$Sql, [switch]$Quiet) {
+    $output = $Sql | & $psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p $DatabasePort -U $DatabaseAdmin -d postgres -tA 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "PostgreSQL setup failed. Check the administrator password and PostgreSQL service. $output" }
+    if (-not $Quiet) { Write-Host ($output -join [Environment]::NewLine) }
+    return ($output -join '').Trim()
+}
+
+if (-not (Get-Command node.exe -ErrorAction SilentlyContinue) -or -not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+    throw 'Node.js and npm are required. Install the current Node.js LTS release, reopen PowerShell, then run this script again.'
+}
+if (-not (Test-Path $psql) -or -not (Test-Path $createdb)) {
+    throw "PostgreSQL 15 command tools were not found at $pgBin. Install PostgreSQL 15, then run this script again."
+}
+if (-not (Test-Path $frontendIndex)) {
+    throw "Web app build not found: $frontendIndex. Build it on your Mac and copy its dist folder to mobileFrontend\dist first. See ops\README.md."
+}
+if ($DatabaseRole -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' -or $DatabaseName -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' -or $DatabaseAdmin -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+    throw 'Database, role, and administrator names may contain only letters, numbers, and underscores, and must not start with a number.'
+}
+
+Write-Host 'BevDist setup for Windows 11' -ForegroundColor Cyan
+Write-Host "Repository: $repoRoot"
+Write-Host 'This configures a single-device install. The API will only listen on this Surface.'
+
+if (-not (Test-Path $envPath)) {
+    $pgService = Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue | Where-Object Status -eq 'Running' | Select-Object -First 1
+    if (-not $pgService) { throw 'No running PostgreSQL service found. Start the PostgreSQL 15 service in Windows Services, then retry.' }
+
+    $adminSecret = Read-Host "PostgreSQL administrator password for '$DatabaseAdmin'" -AsSecureString
+    $adminPlain = ConvertTo-PlainText $adminSecret
+    $env:PGPASSWORD = $adminPlain
+    try {
+        $roleExists = Invoke-AdminPsql "SELECT 1 FROM pg_roles WHERE rolname = '$DatabaseRole';" -Quiet
+        if (-not $roleExists) {
+            $appSecret = Read-Host "New password for database role '$DatabaseRole'" -AsSecureString
+            $appPlain = ConvertTo-PlainText $appSecret
+            if ($appPlain.Length -lt 16) { throw 'Use a database password with at least 16 characters.' }
+            $sqlPassword = $appPlain.Replace("'", "''")
+            $quotedRole = '"' + $DatabaseRole.Replace('"', '""') + '"'
+            Invoke-AdminPsql "CREATE ROLE $quotedRole LOGIN PASSWORD '$sqlPassword';" -Quiet | Out-Null
+        } else {
+            $appSecret = Read-Host "Password for existing database role '$DatabaseRole'" -AsSecureString
+            $appPlain = ConvertTo-PlainText $appSecret
+            if ($appPlain.Length -lt 16) { throw 'Use a database password with at least 16 characters.' }
+        }
+
+        $databaseExists = Invoke-AdminPsql "SELECT 1 FROM pg_database WHERE datname = '$DatabaseName';" -Quiet
+        if (-not $databaseExists) {
+            & $createdb -h 127.0.0.1 -p $DatabasePort -U $DatabaseAdmin -O $DatabaseRole -E UTF8 $DatabaseName
+            if ($LASTEXITCODE -ne 0) { throw "Could not create database '$DatabaseName'." }
+        } else {
+            $databaseOwner = Invoke-AdminPsql "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '$DatabaseName';" -Quiet
+            if ($databaseOwner -cne $DatabaseRole) {
+                throw "Database '$DatabaseName' already exists and is owned by '$databaseOwner'. No ownership or data was changed. Use pgAdmin to provision a fresh database owned by '$DatabaseRole', or provide a role with appropriate ownership."
+            }
+            Write-Host "Using existing database '$DatabaseName'; its data was left unchanged." -ForegroundColor Yellow
+        }
+    } finally {
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        $adminPlain = $null
+    }
+
+    $encodedUser = [Uri]::EscapeDataString($DatabaseRole)
+    $encodedPassword = [Uri]::EscapeDataString($appPlain)
+    $jwtBytes = New-Object byte[] 48
+    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $generator.GetBytes($jwtBytes) } finally { $generator.Dispose() }
+    $jwtSecret = ([BitConverter]::ToString($jwtBytes) -replace '-', '').ToLowerInvariant()
+    $configuration = @(
+        'PORT=5000',
+        'HOST=127.0.0.1',
+        'NODE_ENV=production',
+        "DATABASE_URL=postgresql://${encodedUser}:${encodedPassword}@127.0.0.1:${DatabasePort}/${DatabaseName}",
+        "JWT_SECRET=${jwtSecret}"
+    ) -join "`n"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [IO.File]::WriteAllText($envPath, $configuration + "`n", $utf8NoBom)
+    $appPlain = $null
+    Write-Host "Created $envPath with a generated JWT secret. Keep this file private." -ForegroundColor Green
 } else {
-    Write-Host "✅ Chocolatey already installed." -ForegroundColor Green
+    Write-Host 'Existing mobileBackend\.env found; it will not be overwritten.' -ForegroundColor Yellow
 }
 
-# 2. Install Node.js (LTS)
-Write-Host "🟢 Installing Node.js..." -ForegroundColor Yellow
-choco install nodejs-lts -y
+Push-Location $backendPath
+try {
+    Write-Host 'Installing backend dependencies...' -ForegroundColor Cyan
+    & npm.cmd ci
+    if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+    Write-Host 'Checking database connection...' -ForegroundColor Cyan
+    & npm.cmd run db:check
+    if ($LASTEXITCODE -ne 0) { throw 'Database check failed. Verify mobileBackend\.env and PostgreSQL, then rerun setup.' }
+    Write-Host 'Applying database migrations...' -ForegroundColor Cyan
+    & npm.cmd run db:migrate
+    if ($LASTEXITCODE -ne 0) { throw 'Database migrations failed. Review the error before retrying.' }
+} finally { Pop-Location }
 
-# 3. Install PostgreSQL 15
-Write-Host "🐘 Installing PostgreSQL 15..." -ForegroundColor Yellow
-choco install postgresql15 -y
-
-# 4. Database Setup
-Write-Host "🗄️ Configuring Database..." -ForegroundColor Yellow
-$dbUser = $env:USERNAME
-# Use the pg_wrapper or direct bin path for Windows
-$pgBinPath = "C:\Program Files\PostgreSQL\15\bin"
-& "$pgBinPath\createdb.exe" -U $dbUser bevdist_db 2>$null
-if ($LASTEXITCODE -eq 0) { Write-Host "✅ Database bevdist_db created." -ForegroundColor Green } 
-else { Write-Host "⚠️ Database bevdist_db already exists or requires manual password." -ForegroundColor Gray }
-
-# 5. Project Setup
-Write-Host "📂 Configuring Backend..." -ForegroundColor Yellow
-cd "Project/mobileBackend"
-npm install
-
-# 6. Environment Configuration
-if (!(Test-Path .env)) {
-    Write-Host "📝 Creating .env from .env.example..." -ForegroundColor Yellow
-    Copy-Item .env.example .env
-    # Simple replacement for Windows username in DB URL
-    (Get-Content .env) -replace 'YOUR_MAC_USERNAME', $dbUser | Set-Content .env
-    Write-Host "⚠️ Please open .env and set a strong JWT_SECRET!" -ForegroundColor Magenta
-}
-
-# 7. Database Migrations
-Write-Host "🔄 Running Database Migrations..." -ForegroundColor Yellow
-npm run db:migrate
-
-Write-Host "`n--------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "✅ Setup Complete!" -ForegroundColor Green
-Write-Host "To start the server: cd Project/mobileBackend; npm run dev"
-Write-Host "To create your first admin user: npm run user:create -- admin"
-Write-Host "--------------------------------------------------------" -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'Setup complete.' -ForegroundColor Green
+Write-Host 'Next: create the POS login, then start the server:'
+Write-Host "  Set-Location `"$backendPath`""
+Write-Host '  npm run user:create -- junemel'
+Write-Host "  & `"$(Join-Path $PSScriptRoot 'manage-server.ps1')`" -Action start"
+Write-Host 'Open http://127.0.0.1:5000 on this Surface.'
