@@ -13,7 +13,7 @@ BevDist is a single-user beverage distributor POS. The prototype in `Prototype/`
 - Mobile: React Native with Expo; React Navigation.
 - API: Node.js and Express.
 - Database: PostgreSQL 15.
-- Client deployment target: Windows 8 laptop hosting the backend/database; mobile devices use the same Wi-Fi. Client setup and maintenance scripts are in `ops/*.ps1`.
+- Client deployment target: Windows 11 Surface Laptop running the touch-friendly web app, backend, and database locally. The default deployment binds to loopback for single-device use; LAN access for additional phones/tablets must be configured separately. Setup and maintenance scripts are in `ops/*.ps1` and deployment steps are in `ops/README.md`.
 
 ## Current business rules
 
