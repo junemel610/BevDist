@@ -70,6 +70,10 @@ export function dailySalesSummary(orders, balances, paymentTransactions, today =
   return {
     expected,
     actual: dailyAppliedPayments(orders, balances, paymentTransactions, today).Cash,
+    casesSold: orders.reduce((sum, order) => {
+      if (order.deliveredDate !== today || order.status === 'cancelled') return sum;
+      return sum + (order.items || []).reduce((lineSum, item) => lineSum + Math.max(0, Number(item.quantity) || 0), 0);
+    }, 0),
   };
 }
 

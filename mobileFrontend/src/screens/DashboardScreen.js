@@ -8,6 +8,7 @@ import { SalesChart } from '../components/dashboard/SalesChart';
 import { formatPeso } from '../components/dashboard/chartGeometry';
 import { salesSummary, dailySalesSummary, salesTrends, dailyAppliedPayments } from '../components/dashboard/salesSummary';
 import { businessDate } from '../utils/businessDate';
+import { formatCaseQuantity } from '../components/orders/caseQuantity';
 import theme from '../styles/theme';
 
 export function DashboardScreen({ navigation }) {
@@ -61,23 +62,23 @@ export function DashboardScreen({ navigation }) {
           <View style={styles.salesCard}>
             <View style={styles.salesHeading}>
               <View>
-                <Text style={styles.sectionTitle}>Sales today</Text>
-                <Text style={styles.sectionHint}>Today&apos;s invoice value and cash received</Text>
+                <Text style={styles.sectionTitle}>Today&apos;s sales</Text>
+                <Text style={styles.sectionHint}>Cash collected and cases delivered today</Text>
               </View>
               <MaterialIcons name="payments" size={22} color={theme.colors.primary} accessible={false} />
             </View>
             <View style={styles.salesValues}>
               <View style={styles.salesMetric}>
-                <Text style={styles.cardLabel}>Total Expected Sales</Text>
-                <Text style={styles.expectedValue}>{formatPeso(todaySales.expected)}</Text>
+                <Text style={styles.cardLabel}>Daily Cash Sales</Text>
+                <Text style={styles.actualValue}>{formatPeso(todaySales.actual)}</Text>
               </View>
               <View style={styles.salesDivider} />
               <View style={styles.salesMetric}>
-                <Text style={styles.cardLabel}>Actual Sales</Text>
-                <Text style={styles.actualValue}>{formatPeso(todaySales.actual)}</Text>
+                <Text style={styles.cardLabel}>Total Cases Sold</Text>
+                <Text style={styles.expectedValue}>{formatCaseQuantity(todaySales.casesSold)}</Text>
               </View>
             </View>
-            <Text style={styles.salesHint}>Actual Sales counts cash applied to invoices today; excess payments are excluded.</Text>
+            <Text style={styles.salesHint}>Expected invoice value: {formatPeso(todaySales.expected)} · Cash applied today excludes excess payments.</Text>
           </View>
 
           <View style={styles.metrics}>

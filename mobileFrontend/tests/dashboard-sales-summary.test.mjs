@@ -49,8 +49,8 @@ test('dashboard sales cards include only invoices and applied payments from the 
     { id: 'cancelled-today', balanceId: 'cancelled-balance', orderId: 'cancelled', method: 'Cash', amountApplied: 500, date: '2026-11-09' },
   ];
 
-  assert.deepEqual(dailySalesSummary(orders, balances, payments, '2026-11-09'), { expected: 1000, actual: 300 });
-  assert.deepEqual(dailySalesSummary(orders, balances, payments, '2026-11-10'), { expected: 0, actual: 0 });
+  assert.deepEqual(dailySalesSummary(orders, balances, payments, '2026-11-09'), { expected: 1000, actual: 300, casesSold: 0 });
+  assert.deepEqual(dailySalesSummary(orders, balances, payments, '2026-11-10'), { expected: 0, actual: 0, casesSold: 0 });
 });
 
 test('cash is included in actual sales while GCash stays in its separate total', () => {
