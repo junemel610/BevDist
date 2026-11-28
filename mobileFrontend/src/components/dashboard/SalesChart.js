@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import theme from '../../styles/theme';
 import { chartGeometry, formatPeso, formatAxis } from './chartGeometry';
 
-export function SalesChart({ title, subtitle, data, variant = 'area' }) {
+export function SalesChart({ title, subtitle, data, variant = 'area', totalCaption = 'Period total' }) {
   const [showValues, setShowValues] = useState(false);
   const { left, right, top, bottom, ceiling, slot, points } = chartGeometry(data.map(item => item.value));
   const line = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
@@ -17,7 +17,7 @@ export function SalesChart({ title, subtitle, data, variant = 'area' }) {
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
       <Text style={styles.total}>{formatPeso(total)}</Text>
-      <Text style={styles.caption}>Total for this sample period</Text>
+      <Text style={styles.caption}>{totalCaption}</Text>
       {data.length ? (
         <View accessible accessibilityRole="image" accessibilityLabel={`${title}. Total ${formatPeso(total)}. Use Show values for every data point.`}>
           <Svg width="100%" height={204} viewBox="0 0 360 204">

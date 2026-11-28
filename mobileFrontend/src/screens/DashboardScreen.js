@@ -106,10 +106,10 @@ export function DashboardScreen({ navigation }) {
 
           <View style={styles.grid}>
             <View style={{ width: chartWidth }}>
-              <SalesChart title="Daily Cash Sales" subtitle="Cash applied · last 7 days" data={trends.daily} />
+              <SalesChart title="Weekly cash sales" subtitle="Daily cash totals · last 7 days" totalCaption="7-day total" data={trends.daily} />
             </View>
             <View style={{ width: chartWidth }}>
-              <SalesChart title="Monthly Cash Sales" subtitle="Cash applied · last 6 months" data={trends.monthly} variant="bar" />
+              <SalesChart title="Monthly cash sales" subtitle="Monthly totals · last 6 months" totalCaption="6-month total" data={trends.monthly} variant="bar" />
             </View>
           </View>
           <DashboardActivity orders={orders} balances={balances} wide={wide} onNavigate={navigateTo} />
