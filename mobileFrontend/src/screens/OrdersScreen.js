@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Alert,
   FlatList,
@@ -92,7 +92,7 @@ export function OrdersScreen({ navigation, route }) {
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
   const invoiceProducts = useMemo(() => invoiceEditorProducts(products, editingOrder), [products, editingOrder]);
-  const [selectedCustomer, setSelectedCustomer] = useState(customers[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [newCustomer, setNewCustomer] = useState({ name: '', contact: '', address: '' });
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [containerReturns, setContainerReturns] = useState([]);
@@ -118,7 +118,7 @@ export function OrdersScreen({ navigation, route }) {
     setContainerReturns([]);
     setNewCustomer({ name: '', contact: '', address: '' });
     setIsNewCustomer(false);
-    setSelectedCustomer(customers[0] || null);
+    setSelectedCustomer(null);
     navigation.setParams({ openCreateInvoiceToken: undefined });
   };
   const exportInvoice = async (format, order) => {
@@ -543,15 +543,20 @@ function InvoiceDocumentHeading({ invoiceNumber, date, onClose, closeLabel }) {
 
 function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, products, customers, balances, orders, cart, customer, isNewCustomer, newCustomer, editingOrder, getAvailableStock, onSelectCustomer, onSelectCustomerMode, onChangeNewCustomer, onChangeQuantity, onStepQuantity, onClose, onSave, onSetupProduct }) {
   const [showProductPicker, setShowProductPicker] = useState(false);
+  const [showCustomerPicker, setShowCustomerPicker] = useState(false);
+  const [customerPage, setCustomerPage] = useState(1);
   const [discardVisible, setDiscardVisible] = useState(false);
+  const wasVisible = useRef(false);
   const [customerQuery, setCustomerQuery] = useState(customer?.name || newCustomer.name || '');
   useEffect(() => {
-    if (visible && !editingOrder) setCustomerQuery(customer?.name || newCustomer.name || '');
+    if (visible && !wasVisible.current && !editingOrder) setCustomerQuery(customer?.name || newCustomer.name || '');
+    wasVisible.current = visible;
   }, [visible, editingOrder, customer?.name, newCustomer.name]);
   const requestClose = () => setDiscardVisible(true);
   const discardDraft = () => {
     setDiscardVisible(false);
     setShowProductPicker(false);
+    setShowCustomerPicker(false);
     onClose();
   };
   const subtotal = products.reduce((sum, product) => {
@@ -574,25 +579,51 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
     ? customers.find(item => item.name.trim().toLocaleLowerCase() === normalizedNewCustomerName)
     : null;
   const matchingCustomers = customerQuery.trim()
-    ? customers.filter(item => item.name.toLocaleLowerCase().includes(customerQuery.trim().toLocaleLowerCase())).slice(0, 8)
-    : [];
+    ? customers.filter(item => `${item.name} ${item.contact || ''} ${item.address || ''}`.toLocaleLowerCase().includes(customerQuery.trim().toLocaleLowerCase()))
+    : customers;
   const exactCustomer = customers.find(item => item.name.trim().toLocaleLowerCase() === customerQuery.trim().toLocaleLowerCase());
-  const updateCustomerQuery = value => {
-    setCustomerQuery(value);
-    const exact = customers.find(item => item.name.trim().toLocaleLowerCase() === value.trim().toLocaleLowerCase());
-    if (exact) {
-      onSelectCustomer(exact);
-      onSelectCustomerMode(false);
-    } else {
-      onSelectCustomer(null);
-      onSelectCustomerMode(false);
-      onChangeNewCustomer('name', value);
-    }
-  };
+  const matchingCustomerDetails = customerQuery.trim() && customers.some(item => `${item.contact || ''} ${item.address || ''}`.toLocaleLowerCase().includes(customerQuery.trim().toLocaleLowerCase()));
+  const canOfferNewCustomer = !!customerQuery.trim() && !exactCustomer && !matchingCustomerDetails;
+  const activeCustomerPage = Math.min(customerPage, Math.max(1, Math.ceil(matchingCustomers.length / PAGE_SIZE)));
+  const pagedCustomers = matchingCustomers.slice((activeCustomerPage - 1) * PAGE_SIZE, activeCustomerPage * PAGE_SIZE);
+  const autocompleteCustomers = matchingCustomers.slice(0, 5);
   const chooseCustomer = item => {
     setCustomerQuery(item.name);
     onSelectCustomer(item);
     onSelectCustomerMode(false);
+    setShowCustomerPicker(false);
+  };
+  const updateCustomerSearch = value => {
+    setCustomerQuery(value);
+    setCustomerPage(1);
+    if (isNewCustomer) onChangeNewCustomer('name', value);
+    else if (customer && customer.name.trim().toLocaleLowerCase() !== value.trim().toLocaleLowerCase()) onSelectCustomer(null);
+  };
+  const createCustomerFromSearch = () => {
+    const name = customerQuery.trim();
+    if (!name) return;
+    onSelectCustomer(null);
+    onChangeNewCustomer('name', name);
+    onChangeNewCustomer('contact', '');
+    onChangeNewCustomer('address', '');
+    onSelectCustomerMode(true);
+    setShowCustomerPicker(false);
+  };
+  const startNewCustomer = () => {
+    onSelectCustomer(null);
+    onChangeNewCustomer('name', '');
+    onChangeNewCustomer('contact', '');
+    onChangeNewCustomer('address', '');
+    onSelectCustomerMode(true);
+    setCustomerQuery('');
+    setShowCustomerPicker(false);
+  };
+  const openCustomerDropdown = () => {
+    const query = customer && customer.name.trim().toLocaleLowerCase() === customerQuery.trim().toLocaleLowerCase()
+      ? '' : customerQuery;
+    setCustomerQuery(query);
+    setCustomerPage(1);
+    setShowCustomerPicker(true);
   };
   const canCreate = !duplicateCustomer && !invalidQuantity && !prepared.error && itemCount > 0 && (editingOrder || (isNewCustomer ? !!newCustomer.name.trim() : !!customer?.id));
   const customerIdentity = isNewCustomer
@@ -611,7 +642,49 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
 
   return (
     <OverlayModal visible={visible} onClose={requestClose} fullScreen>
-      {showProductPicker ? <>
+      {showCustomerPicker ? <>
+        <View style={styles.pickerPageHeader}>
+          <Pressable onPress={() => setShowCustomerPicker(false)} accessibilityRole="button" accessibilityLabel="Back to invoice" style={styles.pickerBackButton}>
+            <MaterialIcons name="arrow-back" size={22} color={theme.colors.onPrimary} accessible={false} />
+          </Pressable>
+          <View style={styles.modalHeading}>
+            <Text style={styles.modalTitle}>Select customer</Text>
+            <Text style={styles.modalSubtitle}>{customers.length} customers · 10 per page</Text>
+          </View>
+          <Pressable onPress={requestClose} accessibilityRole="button" accessibilityLabel={closeLabel} style={styles.closeButton}>
+            <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
+          </Pressable>
+        </View>
+        <View style={styles.customerPickerSearch}>
+          <MaterialIcons name="search" size={20} color={theme.colors.textLight} accessible={false} />
+          <TextInput value={customerQuery} onChangeText={updateCustomerSearch} placeholder="Search name, phone, or address" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search customers or enter a new customer name" autoFocus style={styles.customerSearchInput} />
+          {!!customerQuery && <Pressable onPress={() => updateCustomerSearch('')} accessibilityRole="button" accessibilityLabel="Clear customer search" style={styles.clearSearch}><MaterialIcons name="close" size={18} color={theme.colors.textLight} accessible={false} /></Pressable>}
+        </View>
+        <FlatList
+          data={pagedCustomers}
+          keyExtractor={item => item.id}
+          initialNumToRender={PAGE_SIZE}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.customerPickerList}
+          ListHeaderComponent={canOfferNewCustomer ? <Pressable onPress={createCustomerFromSearch} accessibilityRole="button" accessibilityLabel={`Create customer ${customerQuery.trim()}`} style={styles.createCustomerOption}>
+            <MaterialIcons name="person-add" size={19} color={theme.colors.primary} accessible={false} />
+            <Text style={styles.createCustomerOptionText}>Use “{customerQuery.trim()}” as a new customer</Text>
+          </Pressable> : null}
+          ListEmptyComponent={<Text style={styles.customerPickerEmpty}>{customerQuery.trim() ? matchingCustomerDetails ? 'No customers match these details.' : 'No matching customers. Use the option above to create this profile.' : 'No customer profiles yet.'}</Text>}
+          renderItem={({ item }) => {
+            const selected = item.id === customer?.id;
+            const details = [item.contact ? `Tel: ${item.contact}` : '', item.address ? `Address: ${item.address}` : ''].filter(Boolean);
+            return <Pressable onPress={() => chooseCustomer(item)} accessibilityRole="button" accessibilityState={{ selected }} {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})} style={[styles.customerOption, selected && styles.customerOptionSelected]}>
+              <View style={styles.customerOptionText}>
+                <Text style={styles.infoPrimary}>{item.name}</Text>
+                {details.length ? details.map(detail => <Text key={detail} style={styles.infoSecondary}>{detail}</Text>) : <Text style={styles.infoSecondary}>Profile · {item.id.slice(0, 6)}</Text>}
+              </View>
+              {selected && <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} accessible={false} />}
+            </Pressable>;
+          }}
+          ListFooterComponent={<PaginationControls page={activeCustomerPage} totalItems={matchingCustomers.length} onPageChange={setCustomerPage} />}
+        />
+      </> : showProductPicker ? <>
         <View style={styles.pickerPageHeader}>
           <Pressable onPress={() => setShowProductPicker(false)} accessibilityRole="button" accessibilityLabel="Back to invoice" style={styles.pickerBackButton}>
             <MaterialIcons name="arrow-back" size={22} color={theme.colors.onPrimary} accessible={false} />
@@ -629,12 +702,40 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
       <InvoiceDocumentHeading invoiceNumber={invoiceNumberPreview} date={editingOrder?.date || new Date()} onClose={requestClose} closeLabel={closeLabel} />
       <ScrollView style={styles.createInvoiceScroll} contentContainerStyle={styles.createOrderBody} keyboardShouldPersistTaps="handled">
         {!editingOrder ? <View style={styles.createSection}>
-          <Text style={styles.createSectionTitle}>Customer</Text>
-          <View style={styles.customerSearchBox}>
-            <MaterialIcons name="search" size={20} color={theme.colors.textLight} accessible={false} />
-            <TextInput value={customerQuery} onChangeText={updateCustomerQuery} placeholder="Search or type customer name" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="Search or enter customer name" returnKeyType="next" style={styles.customerSearchInput} />
-            {!!customerQuery && <Pressable onPress={() => updateCustomerQuery('')} accessibilityRole="button" accessibilityLabel="Clear customer search" style={styles.clearSearch}><MaterialIcons name="close" size={18} color={theme.colors.textLight} accessible={false} /></Pressable>}
+          <View style={styles.customerHeadingRow}>
+            <Text style={styles.createSectionTitle}>Customer</Text>
+            <Pressable onPress={startNewCustomer} accessibilityRole="button" accessibilityLabel="Add new customer" style={styles.newCustomerButton}>
+              <MaterialIcons name="person-add" size={17} color={theme.colors.primary} accessible={false} />
+              <Text style={styles.newCustomerButtonText}>New customer</Text>
+            </Pressable>
           </View>
+          <View style={styles.customerSearchRow}>
+            <View style={styles.customerSearchBox}>
+              <MaterialIcons name="search" size={20} color={theme.colors.textLight} accessible={false} />
+              <TextInput value={customerQuery} onChangeText={updateCustomerSearch} placeholder={isNewCustomer ? 'Enter new customer name' : 'Search or type customer name'} placeholderTextColor={theme.colors.placeholder} accessibilityLabel={isNewCustomer ? 'New customer name, required' : 'Search or enter customer name'} returnKeyType="search" style={styles.customerSearchInput} />
+              {!!customerQuery && <Pressable onPress={() => updateCustomerSearch('')} accessibilityRole="button" accessibilityLabel="Clear customer search" style={styles.clearSearch}><MaterialIcons name="close" size={18} color={theme.colors.textLight} accessible={false} /></Pressable>}
+            </View>
+            <Pressable onPress={openCustomerDropdown} accessibilityRole="button" accessibilityLabel="Browse customers, paginated list" accessibilityState={{ expanded: showCustomerPicker }} style={styles.customerBrowseButton}>
+              <MaterialIcons name="arrow-drop-down" size={24} color={theme.colors.primary} accessible={false} />
+            </Pressable>
+          </View>
+          {!isNewCustomer && customerQuery.trim() && (autocompleteCustomers.length > 0 || canOfferNewCustomer) && customer?.name.trim().toLocaleLowerCase() !== customerQuery.trim().toLocaleLowerCase() && <View style={styles.customerAutocomplete}>
+            {autocompleteCustomers.map(option => {
+              const details = [option.contact ? `Tel: ${option.contact}` : '', option.address ? `Address: ${option.address}` : ''].filter(Boolean);
+              return <Pressable key={option.id} onPress={() => chooseCustomer(option)} accessibilityRole="button" accessibilityLabel={`Select customer ${option.name}${option.contact ? `, phone ${option.contact}` : ''}`} style={styles.customerSuggestion}>
+                <View style={styles.customerOptionText}>
+                  <Text style={styles.infoPrimary}>{option.name}</Text>
+                  {details.length ? details.map(detail => <Text key={detail} style={styles.infoSecondary}>{detail}</Text>) : <Text style={styles.infoSecondary}>Profile · {option.id.slice(0, 6)}</Text>}
+                </View>
+                <MaterialIcons name="north-west" size={18} color={theme.colors.textLight} accessible={false} />
+              </Pressable>;
+            })}
+            {matchingCustomers.length > 5 && <Text style={styles.customerSuggestionHint}>Showing 5 of {matchingCustomers.length}. Browse the full list for more.</Text>}
+            {canOfferNewCustomer && <Pressable onPress={createCustomerFromSearch} accessibilityRole="button" accessibilityLabel={`Create customer ${customerQuery.trim()}`} style={styles.createCustomerOption}>
+              <MaterialIcons name="person-add" size={19} color={theme.colors.primary} accessible={false} />
+              <Text style={styles.createCustomerOptionText}>Use “{customerQuery.trim()}” as a new customer</Text>
+            </Pressable>}
+          </View>}
           {isNewCustomer ? (
             <View style={styles.newCustomerFields}>
               <Text style={styles.newCustomerNotice}>New customer profile · saved with this invoice</Text>
@@ -644,30 +745,6 @@ function CreateInvoiceModal({ containerReturns, onChangeReturns, visible, produc
               <TextInput value={newCustomer.address} onChangeText={value => onChangeNewCustomer('address', value)} placeholder="Address" placeholderTextColor={theme.colors.placeholder} accessibilityLabel="New customer address, optional" style={styles.customerInput} />
             </View>
           ) : null}
-          {!isNewCustomer && matchingCustomers.map(option => {
-            const selected = option.id === customer?.id;
-            return (
-              <Pressable
-                key={option.id}
-                onPress={() => chooseCustomer(option)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
-                style={[styles.customerOption, selected && styles.customerOptionSelected]}
-              >
-                <View style={styles.customerOptionText}>
-                  <Text style={styles.infoPrimary}>{option.name}</Text>
-                  {!!option.contact && <Text style={styles.infoSecondary}>Tel: {option.contact}</Text>}
-                  {!!option.address && <Text style={styles.infoSecondary}>Address: {option.address}</Text>}
-                </View>
-                {selected && <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} accessible={false} />}
-              </Pressable>
-            );
-          })}
-          {!isNewCustomer && customerQuery.trim() && !exactCustomer && <Pressable onPress={() => { onChangeNewCustomer('name', customerQuery.trim()); onChangeNewCustomer('contact', ''); onChangeNewCustomer('address', ''); onSelectCustomerMode(true); }} accessibilityRole="button" accessibilityLabel={`Create customer ${customerQuery.trim()}`} style={styles.createCustomerOption}>
-            <MaterialIcons name="person-add" size={19} color={theme.colors.primary} accessible={false} />
-            <Text style={styles.createCustomerOptionText}>Use “{customerQuery.trim()}” as a new customer</Text>
-          </Pressable>}
           {openAccount ? (
             <View style={styles.openInvoiceNotice}>
               <Text style={styles.openInvoiceTitle}>Existing open invoices · {formatPeso(openAccount.outstanding)}</Text>
@@ -1020,8 +1097,19 @@ const styles = StyleSheet.create({
   customerModeText: { fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.medium, color: theme.colors.textLight },
   customerModeTextSelected: { color: theme.colors.primary, fontWeight: theme.fontWeight.semibold },
   newCustomerFields: { gap: theme.spacing.sm },
-  customerSearchBox: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, backgroundColor: theme.colors.surface },
+  customerHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
+  newCustomerButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: theme.spacing.sm, borderRadius: 8, backgroundColor: theme.colors.primarySoft },
+  newCustomerButtonText: { color: theme.colors.primary, fontSize: theme.fontSize.xs, fontWeight: theme.fontWeight.semibold },
+  customerSearchRow: { flexDirection: 'row', alignItems: 'stretch', gap: theme.spacing.sm },
+  customerSearchBox: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, backgroundColor: theme.colors.surface },
+  customerBrowseButton: { width: 52, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, backgroundColor: theme.colors.primarySoft },
+  customerAutocomplete: { gap: theme.spacing.xs, marginTop: 2, padding: theme.spacing.xs, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, backgroundColor: theme.colors.surfaceMuted },
+  customerSuggestion: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.md, paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 8, backgroundColor: theme.colors.surface },
+  customerSuggestionHint: { paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, color: theme.colors.textLight, fontSize: theme.fontSize.xs },
+  customerPickerSearch: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, margin: theme.spacing.md, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 9, backgroundColor: theme.colors.surface },
   customerSearchInput: { flex: 1, minHeight: 46, color: theme.colors.text, fontSize: theme.fontSize.sm },
+  customerPickerList: { flexGrow: 1, gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  customerPickerEmpty: { padding: theme.spacing.lg, color: theme.colors.textLight, fontSize: theme.fontSize.sm, textAlign: 'center' },
   newCustomerNotice: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold, paddingVertical: theme.spacing.xs },
   createCustomerOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingHorizontal: theme.spacing.md, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 9, backgroundColor: theme.colors.primarySoft },
   createCustomerOptionText: { flex: 1, color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
