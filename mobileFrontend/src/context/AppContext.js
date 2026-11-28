@@ -129,6 +129,9 @@ export function AppProvider({ children }) {
     if (!supplier?.id && !supplier?.name) throw new Error('Choose or add a supplier before saving the receipt.');
     await mutate(() => live.current.restock(supplier, items, returnedCases, newProducts));
   }, [mutate, suppliers]);
+  const editRestockRecord = useCallback(async (id, supplierId, items, adjustments) => {
+    await mutate(() => live.current.editRestock(id, supplierId, items, adjustments));
+  }, [mutate]);
   const addProduct = useCallback(async profile => {
     const { result, snapshot } = await mutate(() => live.current.saveProduct(null, profile));
     return snapshot.products.find(p => p.id === result.data.id);
@@ -170,7 +173,7 @@ export function AppProvider({ children }) {
   const value = {
     ...data, isLoggedIn, currentUser, sessionMessage, busy, dataError, refreshData,
     login, logout, saveCustomer, createOrder, editPendingInvoice, updateOrderStatus,
-    recordCustomerPayment, addRestockRecord, addProduct, updateProductInventory, deleteProduct,
+    recordCustomerPayment, addRestockRecord, editRestockRecord, addProduct, updateProductInventory, deleteProduct,
     getAvailableStock, getTodaySales, getPendingOrdersCount, getCompletedOrdersCount, getOutstandingBalance, getLowStockCount,
   };
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -24,7 +24,8 @@ async function loadAppData(pool) {
     const casePackTypeByCode = Object.fromEntries(allCasePackTypes.map(type => [type.code, {
       id: type.code, code: type.code, label: type.label, unitsPerCase: Number(type.units_per_case), family: type.family,
     }]));
-    const invoices = await rows(`SELECT *, (created_at AT TIME ZONE 'Asia/Manila')::date::text AS date, due_date::text AS due
+    const invoices = await rows(`SELECT *, (created_at AT TIME ZONE 'Asia/Manila')::date::text AS date,
+      (delivered_at AT TIME ZONE 'Asia/Manila')::date::text AS delivered_date, due_date::text AS due
       FROM invoice_summary ORDER BY created_at DESC,id`);
     const items = group(await rows('SELECT * FROM invoice_items WHERE is_active ORDER BY created_at,id'), 'invoice_id');
     const returns = group(await rows('SELECT * FROM invoice_container_returns WHERE is_active ORDER BY created_at,id'), 'invoice_id');
@@ -32,8 +33,8 @@ async function loadAppData(pool) {
     const allocations = group(await rows('SELECT * FROM payment_allocations ORDER BY allocation_order'), 'payment_id');
     const credits = await rows('SELECT * FROM customer_credit_balances WHERE available_credit>0');
     const supplierOrders = await rows(`SELECT *, (received_at AT TIME ZONE 'Asia/Manila')::date::text AS date FROM supplier_order_totals WHERE received_at IS NOT NULL ORDER BY received_at DESC,id`);
-    const supplierItems = group(await rows('SELECT * FROM supplier_order_items ORDER BY id'), 'supplier_order_id');
-    const supplierReturns = group(await rows('SELECT * FROM supplier_order_returns ORDER BY id'), 'supplier_order_id');
+    const supplierItems = group(await rows('SELECT * FROM supplier_order_items WHERE is_current ORDER BY id'), 'supplier_order_id');
+    const supplierReturns = group(await rows('SELECT * FROM supplier_order_returns WHERE is_current ORDER BY id'), 'supplier_order_id');
     const invoiceById = Object.fromEntries(invoices.map(row => [row.id, row]));
 
     const caseItem = row => ({
@@ -74,7 +75,7 @@ async function loadAppData(pool) {
         containerReturns: (returns[row.id] || []).map(returnItem),
         subtotal: Number(row.subtotal), containerRefundTotal: Number(row.container_refund_total),
         containerDepositTotal: Number(row.container_deposit_total), grandTotal: Number(row.total_amount),
-        status: row.status.toLowerCase(), deliveryStatus: row.delivery_status.toLowerCase(), date: row.date,
+        status: row.status.toLowerCase(), deliveryStatus: row.delivery_status.toLowerCase(), date: row.date, deliveredDate: row.delivered_date,
       })),
       balances: invoices.map(row => ({
         id: row.id, orderId: row.id, customerId: row.customer_id, customerName: row.customer_name_snapshot,
@@ -105,7 +106,8 @@ async function loadAppData(pool) {
         id: row.id, orderNumber: row.order_number, supplierId: row.supplier_id, supplier: row.supplier_name_snapshot,
         items: (supplierItems[row.id] || []).map(item => ({ ...caseItem(item), unitCost: Number(item.cost_per_case_snapshot) })),
         returnedCases: (supplierReturns[row.id] || []).map(entry => ({ ...returnItem(entry), creditPerUnit: Number(entry.refund_per_case_snapshot) })),
-        totalProductCost: Number(row.product_cost), totalReturnedCredit: Number(row.returned_credit), netCost: Number(row.net_cost), date: row.date,
+        totalProductCost: Number(row.product_cost), totalReturnedCredit: Number(row.returned_credit),
+        totalDeposits: Number(row.deposit_total), netCost: Number(row.net_cost), date: row.date,
       })),
     };
   });

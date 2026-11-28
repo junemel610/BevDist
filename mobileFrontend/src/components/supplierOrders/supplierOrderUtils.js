@@ -7,14 +7,17 @@ export const RETURNED_CASE_TYPES = [
 
 const roundMoney = amount => Math.round((amount + Number.EPSILON) * 100) / 100;
 
-export function supplierOrderTotals(items, returnedCases) {
+export function supplierOrderTotals(items, adjustments) {
   const productCost = roundMoney(items.reduce((sum, item) => (
     item.quantity > 0 && item.unitCost > 0 ? sum + item.quantity * item.unitCost : sum
   ), 0));
-  const returnCredit = roundMoney(returnedCases.reduce((sum, item) => (
-    item.quantity > 0 && item.creditPerUnit > 0 ? sum + item.quantity * item.creditPerUnit : sum
+  const returnCredit = roundMoney(adjustments.reduce((sum, item) => (
+    item.kind !== 'deposit' && item.quantity > 0 && (item.creditPerUnit ?? item.amountPerCase) > 0 ? sum + item.quantity * (item.creditPerUnit ?? item.amountPerCase) : sum
   ), 0));
-  return { productCost, returnCredit, netCost: roundMoney(Math.max(0, productCost - returnCredit)) };
+  const depositTotal = roundMoney(adjustments.reduce((sum, item) => (
+    item.kind === 'deposit' && item.quantity > 0 && (item.creditPerUnit ?? item.amountPerCase) > 0 ? sum + item.quantity * (item.creditPerUnit ?? item.amountPerCase) : sum
+  ), 0));
+  return { productCost, returnCredit, depositTotal, netCost: roundMoney(Math.max(0, productCost + depositTotal - returnCredit)) };
 }
 
 export const hasValidSupplierOrderItems = items => items.length > 0 && items.every(item => (

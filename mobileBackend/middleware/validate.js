@@ -41,8 +41,15 @@ const supplierBody = validate(req => {
   const lineCount = (body.items?.length || 0) + (body.newProducts || []).reduce((sum, product) => sum + (product.packs?.length || 0), 0);
   return validItems && new Set((body.items ?? []).map(line => line.productId)).size === (body.items ?? []).length
     && validProducts && lineCount > 0
-    && list(body.returnedCases ?? [], r => returned(r) && amount(r.creditPerUnit));
+    && list(body.returnedCases ?? [], r => returned(r) && (r.kind == null || ['deposit', 'return'].includes(r.kind)) && amount(r.creditPerUnit));
 }, 'Provide a supplier and valid product lines; returned cases are optional.');
+const supplierOrderEditBody = validate(req => req.body
+  && uuid(req.body.supplierId)
+  && list(req.body.items, line => item(line) && amount(line.unitCost) && Number(line.unitCost) > 0, true)
+  && new Set(req.body.items.map(line => line.productId)).size === req.body.items.length
+  && list(req.body.returnedCases ?? [], line => returned(line)
+    && (line.kind == null || ['deposit', 'return'].includes(line.kind)) && amount(line.creditPerUnit)),
+'Provide valid supplier order items, deposits, and returns.');
 const loginBody = validate(req => req.body && text(req.body.username) && typeof req.body.password === 'string'
   && req.body.password.length > 0 && Buffer.byteLength(req.body.password, 'utf8') <= 72, 'Username and password are required');
 const cancelBody = validate(req => req.body && text(req.body.reason), 'A cancellation reason is required');
@@ -62,4 +69,4 @@ const stockBody = validate(req => req.body && uuid(req.body.requestKey) && req.b
   && ['string', 'number'].includes(typeof req.body.quantityDelta) && /^-?\d+(\.\d{1,2})?$/.test(String(req.body.quantityDelta))
   && quantity(Math.abs(Number(req.body.quantityDelta))), 'Provide a nonzero half-case adjustment, reason, and request key');
 
-module.exports = { profileBody, productBody, stockBody, idParam, invoiceBody, invoiceCreate, paymentBody, supplierBody, loginBody, cancelBody };
+module.exports = { profileBody, productBody, stockBody, idParam, invoiceBody, invoiceCreate, paymentBody, supplierBody, supplierOrderEditBody, loginBody, cancelBody };

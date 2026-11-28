@@ -31,6 +31,7 @@ export const paymentsAPI = {
 
 export const supplierOrdersAPI = {
   create: data => apiClient.post('/supplier-orders', data),
+  update: (id, data) => apiClient.put(`/supplier-orders/${id}`, data),
 };
 
 export const customersAPI = {

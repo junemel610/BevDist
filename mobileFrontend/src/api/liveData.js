@@ -43,6 +43,11 @@ export function createLiveData(api, randomUUID) {
       };
       return keyed('supplier-order', input, payload => api.supplierOrdersAPI.create(payload));
     },
+    editRestock: (id, supplierId, items, returnedCases) => api.supplierOrdersAPI.update(id, {
+      supplierId,
+      items: items.map(({ productId, packId, quantity, unitCost }) => ({ productId, packId, quantity, unitCost })),
+      returnedCases: returnedCases.map(({ returnTypeId, type, kind, quantity, creditPerUnit }) => ({ returnTypeId, type, kind: kind || 'return', quantity, creditPerUnit })),
+    }),
     saveProduct: (id, profile, original) => {
       const input = {
         name: profile.name || original?.name,

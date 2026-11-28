@@ -1,3 +1,4 @@
-const { receiveSupplierOrder } = require('../services/supplierOrderService');
+const { receiveSupplierOrder, editSupplierOrder } = require('../services/supplierOrderService');
 const supplierOrderController = pool => async (req, res) => res.status(201).json({ id: await receiveSupplierOrder(pool, req.body, req.user.id) });
-module.exports = { supplierOrderController };
+const supplierOrderEditController = pool => async (req, res) => res.json({ id: await editSupplierOrder(pool, req.params.id, req.body, req.user.id) });
+module.exports = { supplierOrderController, supplierOrderEditController };

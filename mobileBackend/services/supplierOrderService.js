@@ -60,13 +60,80 @@ async function receiveSupplierOrder(pool, input, actorId) {
       await client.query('UPDATE product_case_packs SET supplier_cost_per_case=$3 WHERE product_id=$1 AND pack_code=$2', [item.productId, item.packId, item.unitCost]);
     }
     for (const entry of returnedCases) {
-      await client.query(`INSERT INTO supplier_order_returns(supplier_order_id,return_type_id,label_snapshot,quantity_cases,refund_per_case_snapshot)
-        VALUES ($1,$2,$3,$4,$5)`, [order.id, entry.returnTypeId || null, entry.type, entry.quantity, entry.creditPerUnit]);
+      await client.query(`INSERT INTO supplier_order_returns(supplier_order_id,return_type_id,label_snapshot,quantity_cases,refund_per_case_snapshot,entry_kind)
+        VALUES ($1,$2,$3,$4,$5,$6)`, [order.id, entry.returnTypeId || null, entry.type, entry.quantity, entry.creditPerUnit, entry.kind === 'deposit' ? 'deposit' : 'return']);
     }
     await client.query('UPDATE supplier_orders SET received_at=now() WHERE id=$1', [order.id]);
     return order.id;
   });
 }
 
+async function editSupplierOrder(pool, id, input, actorId) {
+  const { supplierId, items = [], returnedCases = [] } = input;
+  if (!items.length || items.some(item => item.packId !== 'B' || !(Number(item.quantity) > 0)
+    || !Number.isInteger(Number(item.quantity) * 2) || !(Number(item.unitCost) > 0))) {
+    throw new HttpError(400, 'Provide valid supplier order product lines using half-case quantities.');
+  }
+  if (returnedCases.some(item => !(Number(item.quantity) > 0) || !Number.isInteger(Number(item.quantity) * 2)
+    || !String(item.type || '').trim() || !(Number(item.creditPerUnit) > 0)
+    || !['deposit', 'return'].includes(item.kind || 'return'))) {
+    throw new HttpError(400, 'Provide valid deposit and return lines.');
+  }
+  const adjustmentTotal = returnedCases.reduce((sum, item) => sum + Number(item.quantity) * Number(item.creditPerUnit) * (item.kind === 'deposit' ? 1 : -1), 0);
+  const productTotal = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitCost), 0);
+  if (productTotal + adjustmentTotal < 0) throw new HttpError(400, 'Returns cannot exceed product cost plus deposits.');
 
-module.exports = { receiveSupplierOrder };
+  return transaction(pool, async client => {
+    const order = (await client.query('SELECT * FROM supplier_orders WHERE id=$1 FOR UPDATE', [id])).rows[0];
+    if (!order || !order.received_at) throw new HttpError(404, 'Received supplier order not found');
+    const supplier = (await client.query('SELECT id,name FROM suppliers WHERE id=$1 AND is_active FOR SHARE', [supplierId])).rows[0];
+    if (!supplier) throw new HttpError(404, 'Supplier not found or archived');
+    const beforeItems = (await client.query(`SELECT product_id,pack_code,product_name_snapshot,pack_label_snapshot,units_per_case_snapshot,quantity_cases,cost_per_case_snapshot
+      FROM supplier_order_items WHERE supplier_order_id=$1 AND is_current ORDER BY product_id,pack_code`, [id])).rows;
+    const beforeReturns = (await client.query(`SELECT return_type_id,label_snapshot,entry_kind,quantity_cases,refund_per_case_snapshot
+      FROM supplier_order_returns WHERE supplier_order_id=$1 AND is_current ORDER BY id`, [id])).rows;
+    const before = { supplierId: order.supplier_id, supplier: order.supplier_name_snapshot, items: beforeItems, adjustments: beforeReturns };
+    await client.query("SELECT set_config('app.supplier_order_edit_id',$1,true)", [id]);
+    await client.query('UPDATE supplier_orders SET supplier_id=$2,supplier_name_snapshot=$3 WHERE id=$1', [id, supplier.id, supplier.name]);
+    await client.query('UPDATE supplier_order_items SET is_current=false WHERE supplier_order_id=$1 AND is_current', [id]);
+    await client.query('UPDATE supplier_order_returns SET is_current=false WHERE supplier_order_id=$1 AND is_current', [id]);
+
+    const createdItems = [];
+    for (const item of items) {
+      const product = (await client.query(`SELECT p.id,p.name,p.supplier_id,ct.label,ct.units_per_case
+        FROM products p JOIN product_case_packs pc ON pc.product_id=p.id AND pc.pack_code=$2 AND pc.is_active
+        JOIN case_pack_types ct ON ct.code=pc.pack_code AND ct.is_active
+        WHERE p.id=$1 AND p.is_active FOR SHARE OF p,pc`, [item.productId, item.packId])).rows[0];
+      if (!product || product.supplier_id !== supplier.id) throw new HttpError(400, 'Every product must belong to the selected supplier.');
+      const inserted = await client.query(`INSERT INTO supplier_order_items
+        (supplier_order_id,product_id,pack_code,product_name_snapshot,pack_label_snapshot,units_per_case_snapshot,quantity_cases,cost_per_case_snapshot)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [id, item.productId, item.packId, product.name, product.label, product.units_per_case, item.quantity, item.unitCost]);
+      createdItems.push(inserted.rows[0]);
+      await client.query(`INSERT INTO inventory_movements(product_id,pack_code,kind,quantity_delta,supplier_order_item_id,request_key,reason,created_by)
+        VALUES ($1,$2,'SUPPLIER_RECEIPT',$3,$4,gen_random_uuid(),$5,$6)`,
+      [item.productId, item.packId, item.quantity, inserted.rows[0].id, `Supplier order ${order.order_number} edited receipt`, actorId]);
+      await client.query('UPDATE product_case_packs SET supplier_cost_per_case=$3 WHERE product_id=$1 AND pack_code=$2', [item.productId, item.packId, item.unitCost]);
+    }
+
+    for (const old of beforeItems) {
+      await client.query(`INSERT INTO inventory_movements(product_id,pack_code,kind,quantity_delta,request_key,reason,created_by)
+        VALUES ($1,$2,'ADJUSTMENT',$3,gen_random_uuid(),$4,$5)`,
+      [old.product_id, old.pack_code, -Number(old.quantity_cases), `Reverse prior receipt for edited supplier order ${order.order_number}`, actorId]);
+    }
+    for (const entry of returnedCases) {
+      await client.query(`INSERT INTO supplier_order_returns(supplier_order_id,return_type_id,label_snapshot,quantity_cases,refund_per_case_snapshot,entry_kind)
+        VALUES ($1,$2,$3,$4,$5,$6)`, [id, entry.returnTypeId || null, entry.type.trim(), entry.quantity, entry.creditPerUnit, entry.kind || 'return']);
+    }
+    const after = {
+      supplierId: supplier.id, supplier: supplier.name,
+      items: createdItems.map(item => ({ product_id: item.product_id, pack_code: item.pack_code, product_name_snapshot: item.product_name_snapshot, pack_label_snapshot: item.pack_label_snapshot, units_per_case_snapshot: item.units_per_case_snapshot, quantity_cases: item.quantity_cases, cost_per_case_snapshot: item.cost_per_case_snapshot })),
+      adjustments: returnedCases,
+    };
+    await client.query('INSERT INTO supplier_order_edits(supplier_order_id,before_state,after_state,changed_by) VALUES ($1,$2,$3,$4)', [id, before, after, actorId]);
+    return id;
+  });
+}
+
+
+module.exports = { receiveSupplierOrder, editSupplierOrder };

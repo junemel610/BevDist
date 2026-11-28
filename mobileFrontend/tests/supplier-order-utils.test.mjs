@@ -6,11 +6,11 @@ test('supplier order totals subtract returned-case credits and never go below ze
   assert.deepEqual(supplierOrderTotals(
     [{ quantity: 3, unitCost: 40.25 }],
     [{ quantity: 2, creditPerUnit: 10 }],
-  ), { productCost: 120.75, returnCredit: 20, netCost: 100.75 });
+  ), { productCost: 120.75, returnCredit: 20, depositTotal: 0, netCost: 100.75 });
   assert.deepEqual(supplierOrderTotals(
     [{ quantity: 1, unitCost: 10 }],
     [{ quantity: 2, creditPerUnit: 15 }],
-  ), { productCost: 10, returnCredit: 30, netCost: 0 });
+  ), { productCost: 10, returnCredit: 30, depositTotal: 0, netCost: 0 });
 });
 
 test('supplier orders accept half-case steps and require a positive case cost', () => {

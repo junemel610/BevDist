@@ -60,7 +60,7 @@ function periodRange(period, today) {
 }
 
 export function SupplierOrdersScreen() {
-  const { products, suppliers: savedSuppliers, restockRecords, addRestockRecord } = useApp();
+  const { products, suppliers: savedSuppliers, restockRecords, addRestockRecord, editRestockRecord } = useApp();
   const [selectedSupplier, setSupplier] = useState('');
   const [supplierDraft, setSupplierDraft] = useState(null);
   const [supplierEditorVisible, setSupplierEditorVisible] = useState(false);
@@ -79,6 +79,7 @@ export function SupplierOrdersScreen() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [editingRecord, setEditingRecord] = useState(null);
   const [historyMode, setHistoryMode] = useState(true);
   const [historyPeriod, setHistoryPeriod] = useState('all');
   const [historySupplier, setHistorySupplier] = useState('All suppliers');
@@ -104,7 +105,7 @@ export function SupplierOrdersScreen() {
     .filter(({ product, pack }) => !items.some(item => item.productId === product.id && item.packId === pack.id));
   const filteredProducts = availableProducts.filter(({ product, pack }) => `${product.name} ${pack.label}`.toLocaleLowerCase().includes(productSearch.trim().toLocaleLowerCase()));
   const numericReturns = returnedCases.map(item => ({ ...item, quantity: Number(item.quantity) || 0, creditPerUnit: Number(item.creditPerUnit) || 0 }));
-  const returnEditorRows = returnedCases.map(item => ({ ...item, kind: 'return', amountPerCase: item.creditPerUnit }));
+  const returnEditorRows = returnedCases.map(item => ({ ...item, kind: item.kind || 'return', amountPerCase: item.creditPerUnit }));
   const totals = supplierOrderTotals(items.map(item => ({
     ...item,
     quantity: Number(item.quantity) || 0,
@@ -128,6 +129,25 @@ export function SupplierOrdersScreen() {
   const currentHistoryPage = Math.min(historyPage, historyPageCount);
   const pagedHistoryRecords = historyRecords.slice((currentHistoryPage - 1) * PAGE_SIZE, currentHistoryPage * PAGE_SIZE);
   const changeHistoryFilter = setter => value => { setter(value); setHistoryPage(1); };
+
+  const beginEditRecord = record => {
+    setEditingRecord(record);
+    setSelectedRecord(null);
+    setSupplier(record.supplier);
+    setSupplierDraft(null);
+    setItems(record.items.map((item, index) => ({
+      rowKey: `edit:${item.id || index}:${item.productId}:${item.packId}`,
+      productId: item.productId, productName: item.productName, packId: item.packId,
+      packLabel: item.packLabel, quantity: String(item.quantity), unitCost: String(item.unitCost),
+    })));
+    setNewProducts([]);
+    setReturnedCases((record.returnedCases || []).map((item, index) => ({
+      rowKey: `edit-adjustment:${item.id || index}`, type: item.type,
+      kind: item.kind || 'return', quantity: String(item.quantity), creditPerUnit: String(item.creditPerUnit),
+    })));
+    setHistoryMode(false);
+    setError('');
+  };
 
   const changeSupplier = nextSupplier => {
     if (nextSupplier === supplier && !supplierDraft) return;
@@ -156,6 +176,7 @@ export function SupplierOrdersScreen() {
     setItems([]);
     setNewProducts([]);
     setReturnedCases([]);
+    setEditingRecord(null);
     setError('');
     setHistoryMode(true);
   };
@@ -265,23 +286,26 @@ export function SupplierOrdersScreen() {
       return;
     }
     if (returnedCases.some(item => item.quantity > 0 && (!/^\d+(\.\d{1,2})?$/.test(String(item.creditPerUnit)) || Number(item.creditPerUnit) <= 0))) {
-      setError('Enter a refund per case for each returned item.');
+      setError('Enter an amount per case for every deposit or return.');
       return;
     }
     const productCost = orderItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
-    const returnCredit = recordedReturns.reduce((sum, item) => sum + item.quantity * item.creditPerUnit, 0);
-    if (returnCredit > productCost) { setError('Return credits cannot exceed the product cost.'); return; }
+    const returnCredit = recordedReturns.filter(item => item.kind !== 'deposit').reduce((sum, item) => sum + item.quantity * item.creditPerUnit, 0);
+    const deposits = recordedReturns.filter(item => item.kind === 'deposit').reduce((sum, item) => sum + item.quantity * item.creditPerUnit, 0);
+    if (returnCredit > productCost + deposits) { setError('Return credits cannot exceed the product cost plus deposits.'); return; }
     confirmAction({
-      title: 'Save supplier order?',
-      message: `${supplier}: ${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} · Net cost ${formatPeso(Math.max(0, productCost - returnCredit))}. Inventory stock will be updated.`,
-      confirmLabel: 'Save order',
+      title: editingRecord ? 'Save supplier order changes?' : 'Save supplier order?',
+      message: `${supplier}: ${orderItems.length} ${orderItems.length === 1 ? 'product' : 'products'} · Net cost ${formatPeso(productCost + deposits - returnCredit)}.`,
+      confirmLabel: editingRecord ? 'Save changes' : 'Save order',
       onConfirm: async () => {
-        await addRestockRecord(supplierRecord, existingItems, recordedReturns, newProductPayload);
+        if (editingRecord) await editRestockRecord(editingRecord.id, supplierRecord.id, existingItems, recordedReturns);
+        else await addRestockRecord(supplierRecord, existingItems, recordedReturns, newProductPayload);
         setItems([]);
         setNewProducts([]);
         setSupplierDraft(null);
         setSupplier('');
         setReturnedCases([]);
+        setEditingRecord(null);
         setError('');
         setNotice('Supplier order saved. Inventory updated.');
         setHistoryMode(true);
@@ -359,8 +383,8 @@ export function SupplierOrdersScreen() {
             <ScrollView style={styles.createScroll} contentContainerStyle={styles.createContent} keyboardShouldPersistTaps="handled">
               <View style={styles.createHeader}>
                 <View style={styles.createHeaderCopy}>
-                  <Text accessibilityRole="header" style={styles.createTitle}>Supplier order</Text>
-                  <Text style={styles.createSubtitle}>Record products received and returned cases.</Text>
+                  <Text accessibilityRole="header" style={styles.createTitle}>{editingRecord ? 'Edit supplier order' : 'Supplier order'}</Text>
+                  <Text style={styles.createSubtitle}>{editingRecord ? 'Update supplier, product lines, deposits, and returns. Stock adjustments are recorded.' : 'Record products received and deposit or return adjustments.'}</Text>
                 </View>
                 <Pressable onPress={requestCloseOrder} accessibilityRole="button" accessibilityLabel="Close create supplier order" style={({ pressed }) => [styles.createClose, pressed && styles.pressed]}>
                   <MaterialIcons name="close" size={22} color={theme.colors.onPrimary} accessible={false} />
@@ -383,10 +407,10 @@ export function SupplierOrdersScreen() {
               <Text style={styles.sectionTitle}>Select Supplier</Text>
               <Text style={styles.sectionHint}>{supplier ? `Selected: ${supplier}` : 'Choose the supplier that delivered these products.'}</Text>
             </View>
-            <Pressable onPress={startNewSupplier} accessibilityRole="button" accessibilityLabel="New supplier" style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+            {!editingRecord && <Pressable onPress={startNewSupplier} accessibilityRole="button" accessibilityLabel="New supplier" style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
               <MaterialIcons name="person-add" size={18} color={theme.colors.primary} accessible={false} />
               {!compact && <Text style={styles.secondaryButtonLabel}>New supplier</Text>}
-            </Pressable>
+            </Pressable>}
           </View>
           <View style={styles.searchBox}>
             <MaterialIcons name="search" size={20} color={theme.colors.textLight} accessible={false} />
@@ -501,26 +525,25 @@ export function SupplierOrdersScreen() {
         <View style={styles.section}>
           <ContainerReturnEditor
             rows={returnEditorRows}
-            onChange={rows => setReturnedCases(rows.map(item => ({ rowKey: item.rowKey, type: item.type, quantity: item.quantity, creditPerUnit: item.amountPerCase })))}
-            sectionTitle="Returned cases"
-            helperText="Returned containers or items reduce the supplier order cost."
-            showKindSelector={false}
+            onChange={rows => setReturnedCases(rows.map(item => ({ rowKey: item.rowKey, type: item.type, kind: item.kind || 'return', quantity: item.quantity, creditPerUnit: item.amountPerCase })))}
+            sectionTitle="Deposit / Return"
+            helperText="Deposits add to the supplier order cost. Returns reduce it."
+            showKindSelector
             minimumQuantity={0}
             initialQuantity={0}
-            addButtonLabel="Add return line"
-            addAccessibilityLabel="Add return line"
-            rowLabel="Return line"
-            accessibilityPrefix="return line"
+            addButtonLabel="Add deposit / return line"
+            addAccessibilityLabel="Add deposit or return line"
+            rowLabel="Deposit or return line"
+            accessibilityPrefix="deposit or return"
           />
-          <View style={styles.creditTotal}>
-            <Text style={styles.creditTotalLabel}>Total return refund</Text>
-            <Text style={styles.creditTotalValue}>−{formatPeso(totals.returnCredit)}</Text>
-          </View>
+          {!!totals.returnCredit && <View style={styles.creditTotal}><Text style={styles.creditTotalLabel}>Return total</Text><Text style={styles.creditTotalValue}>−{formatPeso(totals.returnCredit)}</Text></View>}
+          {!!totals.depositTotal && <View style={styles.creditTotal}><Text style={styles.creditTotalLabel}>Deposit total</Text><Text style={styles.depositValue}>+{formatPeso(totals.depositTotal)}</Text></View>}
         </View>
 
         <View style={styles.summarySection}>
           <Text style={styles.sectionTitle}>Order total</Text>
           <SummaryLine label="Products received" amount={totals.productCost} />
+          <SummaryLine label="Deposits" amount={totals.depositTotal} positive />
           <SummaryLine label="Returned case credits" amount={totals.returnCredit} negative />
         </View>
             </ScrollView>
@@ -532,7 +555,7 @@ export function SupplierOrdersScreen() {
               </View>
               <Pressable onPress={saveOrder} accessibilityRole="button" accessibilityLabel="Save supplier order" style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
                 <MaterialIcons name="save" size={19} color={theme.colors.onPrimary} accessible={false} />
-                <Text style={styles.saveLabel}>Save supplier order</Text>
+                <Text style={styles.saveLabel}>{editingRecord ? 'Save changes' : 'Save supplier order'}</Text>
               </Pressable>
             </View>
             </View>
@@ -542,11 +565,11 @@ export function SupplierOrdersScreen() {
 
       <DiscardDraftModal
         visible={discardOrderVisible}
-        title="Discard this supplier order?"
-        message="This order has not been saved. Leaving now will discard the supplier, products, quantities, and return credits in this draft."
+        title={editingRecord ? 'Discard supplier order changes?' : 'Discard this supplier order?'}
+        message={editingRecord ? 'Your edits have not been saved. Leaving now will keep the saved supplier order and stock as they are.' : 'This order has not been saved. Leaving now will discard the supplier, products, quantities, and deposit or return adjustments in this draft.'}
         onKeepEditing={() => setDiscardOrderVisible(false)}
         onDiscard={discardSupplierOrder}
-        discardLabel="Discard order"
+        discardLabel={editingRecord ? 'Discard changes' : 'Discard order'}
       />
 
       <Modal visible={pickerVisible} transparent animationType="slide" onRequestClose={() => setPickerVisible(false)}>
@@ -573,14 +596,14 @@ export function SupplierOrdersScreen() {
               />
             </View>
             <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
-              <Pressable onPress={() => { setError(''); setProductName(''); setCasePrices({}); setPickerVisible(false); setProductEditorVisible(true); }} accessibilityRole="button" style={({ pressed }) => [styles.createProductOption, pressed && styles.pressed]}>
+              {!editingRecord && <Pressable onPress={() => { setError(''); setProductName(''); setCasePrices({}); setPickerVisible(false); setProductEditorVisible(true); }} accessibilityRole="button" style={({ pressed }) => [styles.createProductOption, pressed && styles.pressed]}>
                 <MaterialIcons name="add-box" size={20} color={theme.colors.primary} accessible={false} />
                 <View style={styles.headingCopy}>
                   <Text style={styles.optionName}>Create a new product</Text>
                   <Text style={styles.optionMeta}>Set the case price and received stock</Text>
                 </View>
                 <MaterialIcons name="chevron-right" size={21} color={theme.colors.primary} accessible={false} />
-              </Pressable>
+              </Pressable>}
               {filteredProducts.length ? filteredProducts.map(({ product, pack }) => (
                 <Pressable key={`${product.id}:${pack.id}`} onPress={() => addProduct(product, pack)} accessibilityRole="button" style={({ pressed }) => [styles.productOption, pressed && styles.pressed]}>
                   <View style={styles.itemIcon}>
@@ -593,7 +616,7 @@ export function SupplierOrdersScreen() {
                   <MaterialIcons name="add-circle-outline" size={21} color={theme.colors.primary} accessible={false} />
                 </Pressable>
               )) : null}
-              {!filteredProducts.length ? <Text style={styles.historyEmpty}>No matching products. You can create a new product above.</Text> : null}
+              {!filteredProducts.length ? <Text style={styles.historyEmpty}>{editingRecord ? 'No matching products for this supplier.' : 'No matching products. You can create a new product above.'}</Text> : null}
             </ScrollView>
           </View>
         </View>
@@ -686,13 +709,14 @@ export function SupplierOrdersScreen() {
               <Text style={styles.detailSectionTitle}>Returned cases</Text>
               {selectedRecord?.returnedCases?.length ? selectedRecord.returnedCases.map((item, index) => (
                 <View key={`${item.type}-${index}`} style={styles.detailRow}>
-                  <Text style={styles.historySupplier}>{item.type} · {formatCaseQuantity(item.quantity)} cases</Text>
-                  <Text style={styles.creditValue}>−{formatPeso(item.quantity * item.creditPerUnit)}</Text>
+                  <Text style={styles.historySupplier}>{item.type} · {formatCaseQuantity(item.quantity)} cases · {item.kind === 'deposit' ? 'Deposit' : 'Return'}</Text>
+                  <Text style={[styles.creditValue, item.kind === 'deposit' && styles.depositValue]}>{item.kind === 'deposit' ? '+' : '−'}{formatPeso(item.quantity * item.creditPerUnit)}</Text>
                 </View>
-              )) : <Text style={styles.historyMeta}>No returned cases recorded.</Text>}
+              )) : <Text style={styles.historyMeta}>No deposit or return adjustments recorded.</Text>}
               <View style={styles.modalDivider} />
               <View style={styles.detailSummary}>
                 <SummaryLine label="Product cost" amount={selectedRecord?.totalProductCost ?? selectedRecord?.totalCost ?? 0} />
+                <SummaryLine label="Deposits" amount={selectedRecord?.totalDeposits ?? 0} positive />
                 <SummaryLine label="Return credits" amount={selectedRecord?.totalReturnedCredit ?? 0} negative />
                 <View style={styles.netRow}>
                   <Text style={styles.netLabel}>Net cost</Text>
@@ -700,6 +724,10 @@ export function SupplierOrdersScreen() {
                 </View>
               </View>
             </ScrollView>
+            <Pressable onPress={() => beginEditRecord(selectedRecord)} accessibilityRole="button" accessibilityLabel={`Edit supplier order ${selectedRecord?.orderNumber || ''}`} style={({ pressed }) => [styles.saveButton, pressed && styles.pressed]}>
+              <MaterialIcons name="edit" size={18} color={theme.colors.onPrimary} accessible={false} />
+              <Text style={styles.saveLabel}>Edit supplier order</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -714,11 +742,11 @@ export function SupplierOrdersScreen() {
   );
 }
 
-function SummaryLine({ label, amount, negative = false }) {
+function SummaryLine({ label, amount, negative = false, positive = false }) {
   return (
     <View style={styles.summaryLine}>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryAmount, negative && styles.creditAmount]}>{negative ? '−' : ''}{formatPeso(amount)}</Text>
+      <Text style={[styles.summaryAmount, negative && styles.creditAmount, positive && styles.depositValue]}>{negative ? '−' : positive ? '+' : ''}{formatPeso(amount)}</Text>
     </View>
   );
 }
@@ -792,6 +820,7 @@ const styles = StyleSheet.create({
   creditTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   creditTotalLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.semibold },
   creditTotalValue: { color: theme.colors.success, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
+  depositValue: { color: theme.colors.primary, fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold },
   summarySection: { gap: 0, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md },
   summaryLine: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: theme.spacing.md },
   summaryLabel: { color: theme.colors.textLight, fontSize: theme.fontSize.sm },
