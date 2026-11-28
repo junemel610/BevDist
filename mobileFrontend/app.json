@@ -19,6 +19,8 @@
     "web": {
       "favicon": "./assets/images/bevdist-icon.png"
     },
-    "plugins": []
+    "plugins": [
+      "expo-sharing"
+    ]
   }
 }
