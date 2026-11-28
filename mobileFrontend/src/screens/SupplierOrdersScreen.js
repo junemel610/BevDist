@@ -706,13 +706,13 @@ export function SupplierOrdersScreen() {
                 </View>
               ))}
               <View style={styles.modalDivider} />
-              <Text style={styles.detailSectionTitle}>Returned cases</Text>
+              <Text style={styles.detailSectionTitle}>Returned and Deposited Cases</Text>
               {selectedRecord?.returnedCases?.length ? selectedRecord.returnedCases.map((item, index) => (
                 <View key={`${item.type}-${index}`} style={styles.detailRow}>
                   <Text style={styles.historySupplier}>{item.type} · {formatCaseQuantity(item.quantity)} cases · {item.kind === 'deposit' ? 'Deposit' : 'Return'}</Text>
                   <Text style={[styles.creditValue, item.kind === 'deposit' && styles.depositValue]}>{item.kind === 'deposit' ? '+' : '−'}{formatPeso(item.quantity * item.creditPerUnit)}</Text>
                 </View>
-              )) : <Text style={styles.historyMeta}>No deposit or return adjustments recorded.</Text>}
+              )) : <Text style={styles.historyMeta}>No returned or deposited cases recorded.</Text>}
               <View style={styles.modalDivider} />
               <View style={styles.detailSummary}>
                 <SummaryLine label="Product cost" amount={selectedRecord?.totalProductCost ?? selectedRecord?.totalCost ?? 0} />
